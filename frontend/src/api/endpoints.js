@@ -68,8 +68,13 @@ export const setupApi = {
   run: (key, body) => post(page(key, '/run'), body),
 };
 
+export const searchApi = {
+  search: (q, type, signal) => get(`/search${qs({ q, type })}`, { signal }),
+};
+
 export const objectsApi = {
   definition: (object) => get(`/objects/${object}`),
+  get: (object, id) => get(`/objects/${object}/records/${id}`),
   records: (object, { after, q } = {}) => get(`/objects/${object}/records${qs({ limit: 80, after, q })}`),
   create: (object, body) => post(`/objects/${object}/records`, body),
   update: (object, id, body) => patch(`/objects/${object}/records/${id}`, body),

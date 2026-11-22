@@ -1,7 +1,7 @@
 import { hasRole, objectRecordFormSchema } from '@app/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { objectsApi } from '../../api/endpoints.js';
 import { cursorPagination, objectDefinitionQuery } from '../../api/queries.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
@@ -50,10 +50,18 @@ function ObjectBody({ object, definition, permissions }) {
   const { create: canCreate, edit: canEdit, delete: canDelete } = permissions; // per-object, from Profiles / Permission Sets / Sharing
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(() => new Set());
+  const [params, setParams] = useSearchParams();
   const [dialog, setDialog] = useState(null); // { mode, record? }
   const [confirm, setConfirm] = useState(false);
   const [notice, setNotice] = useState([]);
   const q = useDebouncedValue(search.trim());
+
+  // Global search deep link: /app/o/Lead?open=<id> opens that record (permission-checked by the API).
+  const openId = params.get('open');
+  useEffect(() => {
+    if (!openId) return;
+    objectsApi.get(object, openId).then(({ record }) => setDialog({ mode: 'edit', record })).catch(() => {}).finally(() => setParams({}, { replace: true }));
+  }, [openId, object, setParams]);
 
   const records = useInfiniteQuery({
     queryKey: ['objects', 'records', object, { q }],

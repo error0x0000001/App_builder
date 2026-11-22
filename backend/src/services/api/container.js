@@ -28,6 +28,7 @@ import { MetricsService } from '../../modules/setup/metrics.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
 import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
+import { SearchService } from '../../modules/search/search.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
 import { EscalationService } from '../../modules/automation/escalation.service.js';
@@ -88,6 +89,7 @@ export function createContainer({ boss }) {
   const escalation = new EscalationService({ repos, automation, cache, logger });
   const access = new AccessService({ automation, cache, seed: (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key)) });
   const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
+  const search = new SearchService({ db: readDb, objects, cache });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
@@ -96,5 +98,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { search, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

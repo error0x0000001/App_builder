@@ -107,6 +107,13 @@ Enforced on every `/api/v1/objects` call by `AccessService`, and reflected in th
 - **Sharing** (Sharing Settings → organization-wide defaults, seeded open): *Private* = people see only records they own; *Public Read Only* = everyone reads, only owners edit; *Public Read/Write* = open. Admins and owners always see everything.
 - Not modelled yet: role-hierarchy visibility (managers seeing their reports' records), sharing rules, field-level security, record types.
 
+## Global search (Ctrl/⌘ K)
+`GET /api/v1/search?q=&type=all|records|people|setup` behind one dialog. What it searches, always limited to what the person may open:
+- **Records** of every object (permission *and* sharing aware: Private objects return only the caller's own records), **people** (name / email), and — admins only — **Setup pages, individual settings and Setup records** (rules, profiles, …). Navigation pages match instantly in the browser.
+- **How it stays fast:** each group runs in parallel with a hard 250 ms budget (a slow group is dropped and the response is flagged `partial`); prefix matches come from a btree index first, substring matches from a trigram index second; log-like collections are excluded from the indexes (cheaper writes, no noise). Results are cached 8 s per person and invalidated on any data, rule, sharing, profile or membership change. The client waits 120 ms after the last keystroke and cancels the request it replaces. It reads from the replica when `DB_READ_REPLICA_URL` is set.
+- **Measured** (4 shared cores; 1M CRM records, 200k members, DB + API + load generator on the same box; `scripts/search-bench.js`): repeated / common queries — p99 ≤ 40 ms even at 48 concurrent searchers. Never-cached queries hit the database at ~250 req/s on this machine: p99 27 ms at 4 concurrent searchers, 101 ms at 16, 556 ms at 48 (CPU saturated — scale with cores or a read replica). A single uncached request takes ~6–30 ms. First request after a restart ~75 ms.
+- **Not searched:** log-like collections (debug logs, email log, duplicate/escalation logs), audit trail and file contents. Sample Setup records appear in search after their page has been opened once (they are created lazily).
+
 ## More settings that now change behaviour
 | Page | Effect |
 |---|---|

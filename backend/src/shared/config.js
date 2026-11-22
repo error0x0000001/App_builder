@@ -13,6 +13,7 @@ const schema = z.object({
   REDIS_URL: z.string().url().optional(),
   API_WORKERS: z.coerce.number().int().min(1).default(1), // prefork worker processes (cluster.js)
   SETUP_REQUESTS_PER_MINUTE: z.coerce.number().int().default(6000), // per-workspace ceiling on Setup API calls (noisy-neighbour guard)
+  SEARCH_REQUESTS_PER_10S: z.coerce.number().int().default(200), // per person; typing is bursty, this only stops abuse
   API_MAX_REQUESTS: z.coerce.number().int().default(100_000), // a worker retires after this many requests (Odoo limit_request)
   API_MAX_RSS_MB: z.coerce.number().int().default(1024), // ...or when its memory passes this (Odoo limit_memory_soft)
   LOG_LEVEL: z.string().default('info'),

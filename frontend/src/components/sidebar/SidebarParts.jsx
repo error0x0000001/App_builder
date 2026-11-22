@@ -2,7 +2,6 @@ import { forwardRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/cn.js';
 import { Icon } from '../ui/Icon.jsx';
-import { Kbd } from '../ui/Kbd.jsx';
 import { Tooltip } from '../ui/Tooltip.jsx';
 import { useSidebar } from './SidebarContext.jsx';
 
@@ -50,22 +49,6 @@ export function SidebarNavItem({ to, end, icon, label, badge }) {
         {badge != null && <span className="rounded-md bg-sidebar-accent px-1.5 text-xs leading-5 text-sidebar-muted">{badge}</span>}
       </SidebarMenuButton>
     </SidebarMenuItem>
-  );
-}
-
-/** Search field look-alike that opens the command palette. */
-export function SidebarSearch({ onClick, shortcut }) {
-  const { iconOnly } = useSidebar();
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton tooltip="Search" onClick={onClick} className={cn('border border-sidebar-line bg-surface/60', !iconOnly && 'text-sidebar-muted')}>
-          <Icon name="search" className="size-4 shrink-0" />
-          <span className="flex-1 truncate">Search</span>
-          <Kbd className="text-sidebar-muted">{shortcut}</Kbd>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
   );
 }
 
