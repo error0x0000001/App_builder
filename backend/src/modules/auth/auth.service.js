@@ -7,7 +7,7 @@ const MINUTE_MS = 60_000;
 
 export class AuthService {
   constructor(deps) {
-    Object.assign(this, deps); // repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces, policy
+    Object.assign(this, deps); // repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces, password, securityPolicy, policy (built-in defaults)
   }
 
   /** Always resolves the same way whether or not the email is already registered (no account enumeration). */
@@ -77,6 +77,8 @@ export class AuthService {
     if (this.hasher.needsRehash(user.passwordHash)) await this.repos.users.update(user.id, { passwordHash: await this.hasher.hash(password) });
 
     const workspaceId = await this.#resolveWorkspace(user, workspace);
+    await this.securityPolicy.assertIpAllowed(workspaceId ?? (await this.sessions.defaultWorkspaceId(user)), ctx.ip); // Network Access allow-list
+    await this.#assertPasswordCurrent(user);
     if (user.mfaEnabled) return { mfaRequired: true, mfaToken: await this.tokens.signMfa({ userId: user.id, workspaceId, persistent: rememberMe }) };
     return { session: await this.#completeLogin(user, workspaceId, ctx, rememberMe) };
   }
@@ -115,12 +117,25 @@ export class AuthService {
     return session;
   }
 
+  /** Lockout thresholds come from the strictest Password Policies page among the user's workspaces. */
   async #registerFailure(user, ctx, eventType) {
-    const state = await this.repos.users.recordFailedLogin(user.id, this.policy);
+    const { maxAttempts, lockMs } = await this.securityPolicy.forUser(user.id);
+    const limit = Number.isFinite(maxAttempts) ? maxAttempts : 2_147_483_647;
+    const state = await this.repos.users.recordFailedLogin(user.id, { maxAttempts: limit, lockMs });
     await this.audit.record(eventType, { userId: user.id, ctx });
-    if (state?.lockedUntil && state.failedLoginCount === this.policy.maxAttempts) {
+    if (state?.lockedUntil && state.failedLoginCount === limit) {
       await this.audit.record(AUDIT_EVENTS.ACCOUNT_LOCKED, { userId: user.id, ctx });
-      await this.mail.send('account_locked', user.email, { minutes: Math.round(this.policy.lockMs / MINUTE_MS) });
+      await this.mail.send('account_locked', user.email, { minutes: Math.round(lockMs / MINUTE_MS) });
+    }
+  }
+
+  /** "User passwords expire in": an expired password must be reset before signing in; the reset link is emailed. */
+  async #assertPasswordCurrent(user) {
+    const { expireMs } = await this.securityPolicy.forUser(user.id);
+    const changedAt = (user.passwordChangedAt ?? user.createdAt).getTime();
+    if (Number.isFinite(expireMs) && Date.now() - changedAt > expireMs) {
+      await this.password.sendResetLink(user);
+      throw new ForbiddenError('Your password has expired. We emailed you a link to choose a new one.', 'PASSWORD_EXPIRED');
     }
   }
 

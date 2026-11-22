@@ -6,8 +6,8 @@ const DAY_MS = 86_400_000;
 
 /** Owns the session lifecycle: issue, rotate (with reuse detection), switch workspace, revoke. */
 export class SessionService {
-  constructor({ repos, tokens, audit, refreshTtlDays, accessTtlSeconds }) {
-    Object.assign(this, { repos, tokens, audit, refreshTtlMs: refreshTtlDays * DAY_MS, accessTtlSeconds });
+  constructor({ securityPolicy, repos, tokens, audit, refreshTtlDays, accessTtlSeconds }) {
+    Object.assign(this, { securityPolicy, repos, tokens, audit, refreshTtlMs: refreshTtlDays * DAY_MS, accessTtlSeconds });
   }
 
   async start({ user, workspaceId, ctx, persistent = true }) {
@@ -38,6 +38,7 @@ export class SessionService {
 
     const user = await this.repos.users.findById(session.userId);
     if (!user || user.status !== 'active') throw new UnauthorizedError('Session expired');
+    await this.#enforceSessionPolicy(session, ctx);
 
     const nextSecret = randomToken();
     const rotated = await this.repos.sessions.rotate(session.id, {
@@ -45,6 +46,19 @@ export class SessionService {
     });
     if (!rotated) throw new UnauthorizedError('Session expired'); // lost a concurrent-rotation race
     return this.#tokensFor(rotated, nextSecret);
+  }
+
+  /** Session Settings + Network Access of the session's workspace: idle timeout, IP lock, allow-list. */
+  async #enforceSessionPolicy(session, ctx) {
+    if (!session.workspaceId) return;
+    const policy = await this.securityPolicy.forWorkspace(session.workspaceId);
+    const idleMs = Date.now() - session.lastUsedAt.getTime();
+    const reason = !session.persistent && policy.sessionTimeoutMs && idleMs > policy.sessionTimeoutMs ? 'idle_timeout' // "remember me" sessions follow the refresh lifetime instead
+      : policy.lockIp && session.ip && ctx.ip && session.ip !== ctx.ip ? 'ip_changed'
+        : await this.securityPolicy.assertIpAllowed(session.workspaceId, ctx.ip).then(() => null, () => 'network_not_allowed');
+    if (!reason) return;
+    await this.repos.sessions.revoke(session.id, session.userId, reason);
+    throw new UnauthorizedError('Session expired');
   }
 
   /** Moves the session to another workspace the user belongs to and mints a fresh access token. */

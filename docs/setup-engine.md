@@ -61,8 +61,26 @@ How to read this honestly:
 - A tenant-scoped composite trigram index was tried and was ~2× slower for one huge tenant, so the plain trigram index + the `(workspace_id, collection, id)` btree is used.
 - In-process cache and Redis hit paths cost ≈0.1 ms CPU; the bare-Express ceiling on the same box was ~7 k req/s per process, so most remaining cost is the HTTP stack itself.
 
+## Security settings that now change behaviour
+Implemented in `backend/src/modules/setup/securityPolicy.service.js` and covered by integration tests. The strictest value across all of a user's workspaces applies where the action isn't tied to one workspace.
+
+| Setting | Effect |
+|---|---|
+| Minimum password length | enforced on password change, reset and invitation sign-up (the platform floor of 10 always applies, so the page's "8" option has no effect) |
+| Password complexity | letters + numbers, or letters + numbers + special character |
+| Enforce password history | last 3 / 5 passwords (stored as hashes in `password_history`) can't be reused |
+| Minimum 1-day password lifetime | blocks a second password *change* within 24 h (reset by email link is exempt) |
+| User passwords expire in | expired password → sign-in refused with `PASSWORD_EXPIRED` and a reset link is emailed |
+| Maximum invalid login attempts / lockout period | replaces the built-in constants; "No limit" and "Always" supported |
+| Session timeout | idle sessions end at the next token refresh. **Sessions created with "remember me" are exempt** (they follow the refresh-token lifetime); this is a deliberate choice, change it in `SessionService` if you want otherwise |
+| Lock sessions to originating IP | a refresh from a different IP revokes the session |
+| Network Access (list) | allow-list of IP ranges at sign-in and on every refresh; the first range must contain the admin's own IP so nobody locks themselves out |
+
 ## Not done / next
-- ~63 pages are flagged `engine: true` in the registry: they describe behaviour (workflow, approval, assignment rules…). Their configuration is stored, nothing executes it.
-- Security settings (password policy, session timeout, IP ranges, login hours) are validated, versioned, audited and scored by Health Check, but the auth code does not read them yet. This is the highest-value next step because auth already exists to enforce them.
-- Compiled per-role permission cache (planned with Profiles / Permission Sets / Object Manager once they drive access).
-- Cross-process lock for dashboard recomputation (today: single-flight per process, so at most one compute per worker per minute).
+The HTML describes a full Salesforce-style product. What is **not** buildable as "Setup" alone, and is therefore still stored-only or recorded-only (exact list in `setup-status.md`):
+- **Automation and CRM behaviour (~63 pages marked `engine: true`)** — workflow rules, flows, approval processes, assignment/escalation rules, territories, forecasts, duplicate/matching rules, web-to-lead/case, email-to-case, entitlements, macros. They configure behaviour over Accounts, Leads, Cases, Opportunities… which do not exist as data yet (the CRM and ERP apps in `docs/product-roadmap.md`). The engines belong with those objects; building them now would be code with nothing to act on.
+- **Identity infrastructure** — SAML/SSO, login flows, delegated administration, certificates, platform encryption, CORS / CSP lists, named credentials. Each is a separate subsystem (an IdP integration, key management, an outbound proxy) rather than a settings page.
+- **Remaining security settings** — HTTPS-only, HttpOnly, clickjack, CSRF, domain lock and "login as any user" are stored but not yet read by the HTTP layer; secret-question settings don't apply (there are no secret questions).
+- **Tools without an engine** (18) — recorded and labelled "not active" in the UI.
+- **Compiled per-role permission cache** — planned together with Profiles / Permission Sets driving real object access.
+- **Cross-process lock for dashboard recomputation** — today single-flight per process (one compute per worker per minute).

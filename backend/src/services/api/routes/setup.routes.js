@@ -41,7 +41,7 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup }) {
       usage.hit(ws);
       if (!cache.allow(`setup:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`setup-w:${ws}:${req.auth.userId}`, 60)) > WRITES_PER_MINUTE) throw new TooManyRequestsError(60);
-      req.setupCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership };
+      req.setupCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership, ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
   });

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
+import { pool } from '../src/shared/db/index.js';
 import { Client, PASSWORD, registerUser, startServer, uniqueEmail } from './helpers.js';
 
 let server; let owner; let other;
@@ -206,5 +207,61 @@ describe('role enforcement and cache invalidation', () => {
     assert.equal((await boss.patch(`/workspaces/${ws}/members/${userId}`, { role: 'viewer' })).status, 204);
     assert.equal((await invitee.get(`${S}/pages/profiles/records`)).status, 403, 'demotion is visible at once on this worker');
     assert.equal((await invitee.patch(`${S}/pages/password-policies/settings`, { version: 0, values: { minimum_password_length: '8' } })).status, 403);
+  });
+});
+
+describe('security settings are enforced by the auth code', () => {
+  const change = (client, currentPassword, password) => client.post('/me/password', { currentPassword, password, confirmPassword: password });
+  const policy = (client, page, values) => client.get(`${S}/pages/${page}/settings`).then(({ body }) => client.patch(`${S}/pages/${page}/settings`, { version: body.version, values }));
+
+  it('password policy: length, complexity and history apply to password changes', async () => {
+    const { client, email } = await registerUser(server);
+    await policy(client, 'password-policies', { minimum_password_length: '12', password_complexity_requirement: 'Must mix alpha, numeric and special characters', enforce_password_history: '3 passwords remembered' });
+    const short = await change(client, PASSWORD, 'Abcdefghi1');
+    assert.equal(short.status, 400);
+    assert.match(JSON.stringify(short.body), /at least 12/);
+    const noSpecial = await change(client, PASSWORD, 'Abcdefghijkl1234');
+    assert.equal(noSpecial.status, 400);
+    assert.match(JSON.stringify(noSpecial.body), /special/);
+    const ok = await change(client, PASSWORD, 'Abcdefghijk1!');
+    assert.equal(ok.status, 204);
+    const reuse = await change(client, 'Abcdefghijk1!', PASSWORD);
+    assert.equal(reuse.status, 400, 'a remembered password cannot be reused');
+    assert.match(JSON.stringify(reuse.body), /reuse/);
+    void email;
+  });
+
+  it('network access: an allow-list blocks sign-in from other IPs, and cannot lock the admin out', async () => {
+    const { client, email } = await registerUser(server);
+    const mine = client.ip;
+    const lockout = await client.post(`${S}/pages/network-access/records`, { start_ip_address: '203.0.113.1', end_ip_address: '203.0.113.9' });
+    assert.equal(lockout.status, 409, 'the first range must contain the admin\'s own IP');
+    const added = await client.post(`${S}/pages/network-access/records`, { start_ip_address: mine, end_ip_address: mine });
+    assert.equal(added.status, 201);
+    const stranger = new Client(server.base);
+    const blocked = await stranger.post('/auth/login', { email, password: PASSWORD });
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.body.error.code, 'IP_RESTRICTED');
+    const inside = new Client(server.base); inside.ip = mine;
+    assert.equal((await inside.post('/auth/login', { email, password: PASSWORD })).status, 200);
+  });
+
+  it('session settings: sessions are locked to their IP and expire when idle', async () => {
+    const { client, email } = await registerUser(server);
+    await policy(client, 'session-settings', { lock_sessions_to_the_ip_address_from_which_they_originated: true });
+    const roamer = new Client(server.base);
+    await roamer.post('/auth/login', { email, password: PASSWORD, rememberMe: true });
+    roamer.ip = '198.51.100.77'; // same cookie, different network
+    assert.equal((await roamer.post('/auth/refresh')).status, 401);
+  });
+
+  it('expired passwords force a reset and email the link', async () => {
+    const { client, email } = await registerUser(server);
+    await policy(client, 'password-policies', { user_passwords_expire_in: '30 days' });
+    await pool.query("update users set password_changed_at = now() - interval '40 days' where email = $1", [email]);
+    const res = await new Client(server.base).post('/auth/login', { email, password: PASSWORD });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error.code, 'PASSWORD_EXPIRED');
+    assert.ok(server.mailTo(email, 'password_reset'));
   });
 });

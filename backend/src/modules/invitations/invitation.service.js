@@ -10,8 +10,8 @@ const DAY_MS = 86_400_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export class InvitationService {
-  constructor({ repos, uow, hasher, sessions, mail, audit, ttlDays }) {
-    Object.assign(this, { repos, uow, hasher, sessions, mail, audit, ttlDays });
+  constructor({ repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays }) {
+    Object.assign(this, { repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays });
   }
 
   async invite({ actor, workspaceId, email, role }) {
@@ -73,6 +73,7 @@ export class InvitationService {
     if (!existing && !(profile.firstName && profile.lastName && profile.password && profile.acceptTerms)) {
       throw new ValidationError(undefined, 'Complete your profile to accept this invitation');
     }
+    if (!existing) this.securityPolicy.assertPasswordAllowed(profile.password, await this.securityPolicy.forWorkspace(invitation.workspaceId)); // the workspace's Password Policies apply to people it invites
     const passwordHash = existing ? null : await this.hasher.hash(profile.password);
 
     const user = await this.uow.run(async (repos) => {

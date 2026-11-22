@@ -9,3 +9,4 @@ export * from './oauthAccounts.js';
 export * from './authEvents.js';
 export * from './rateLimits.js';
 export * from './setup.js';
+export * from './passwordHistory.js';

@@ -22,6 +22,13 @@
       "when": 1795338481791,
       "tag": "0002_cultured_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795366443722,
+      "tag": "0003_little_whirlwind",
+      "breakpoints": true
     }
   ]
 }

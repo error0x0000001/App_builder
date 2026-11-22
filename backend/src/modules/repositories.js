@@ -1,4 +1,5 @@
 import { AuditRepository } from './audit/audit.repository.js';
+import { PasswordHistoryRepository } from './auth/passwordHistory.repository.js';
 import { AuthTokenRepository } from './authTokens/authToken.repository.js';
 import { InvitationRepository } from './invitations/invitation.repository.js';
 import { RecoveryCodeRepository } from './mfa/recoveryCode.repository.js';
@@ -22,6 +23,7 @@ export const createRepositories = (executor) => ({
   oauthAccounts: new OAuthAccountRepository(executor),
   audit: new AuditRepository(executor),
   rateLimits: new RateLimitRepository(executor),
+  passwordHistory: new PasswordHistoryRepository(executor),
   setupSettings: new SettingsRepository(executor),
   setupRecords: new RecordsRepository(executor),
   setupAudit: new SetupAuditRepository(executor),

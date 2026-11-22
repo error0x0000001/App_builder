@@ -5,6 +5,7 @@ import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { getAdapterMeta } from '@app/shared';
 import { getCollection } from '@app/shared/setup-registry';
 import { config } from '../../shared/config.js';
+import { ipInRange } from './ip.js';
 import { hasSeed, roleNodes, seedFlat, seedGroup, seedMembers } from './seeding.js';
 
 const NS = (ws, collection) => `r:${ws}:${collection}`;
@@ -40,6 +41,15 @@ export class RecordsService {
     return this.cache.remember(NS(ctx.workspaceId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
   }
 
+  /** The first Network Access range must contain the admin's own IP, otherwise saving it would lock them out of the workspace. */
+  async #assertNotLockingOut(ctx, collection, data) {
+    if (collection.key !== 'network-access' || !ctx.ip) return;
+    if ((await this.repos.setupRecords.countCapped(ctx.workspaceId, 'network-access', {}, 1)) > 0) return;
+    if (!ipInRange(ctx.ip, data.start_ip_address, data.end_ip_address || data.start_ip_address)) {
+      throw new ConflictError(`Your current IP (${ctx.ip}) must be inside the first range, or you would lock yourself out.`);
+    }
+  }
+
   #assertWritable(collection) {
     if (collection.readOnly) throw new ForbiddenError('This page is read-only');
   }
@@ -71,6 +81,7 @@ export class RecordsService {
     this.#assertWritable(collection);
     const { parentId, ...fields } = input ?? {};
     const data = recordSchemas(collection).create.parse(fields);
+    await this.#assertNotLockingOut(ctx, collection, data);
     await this.#ensureSeeded(ctx.workspaceId, collection);
     const row = await this.repos.setupRecords.insert(ctx.workspaceId, collection.key, this.#parts(collection, data, ctx.userId, { parentId }));
     await this.changed(ctx, collection, 'create', `Created ${collection.name}: ${row.label}`);

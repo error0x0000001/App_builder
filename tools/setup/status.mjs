@@ -10,7 +10,12 @@ import { SETUP_TOOLS } from '../../packages/shared/src/setup/tools.js';
 
 const BINDINGS = new Set(['company-information', 'my-domain']);
 const PROVIDERS = new Set(['adoption-manager', 'storage-usage', 'platform-cache', 'optimizer', 'readiness-assessor', 'data-integration-metrics', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
-const SCORED = new Set(['password-policies', 'session-settings']); // read by the Health Check (still not enforced by the auth code)
+// Settings the auth code reads and enforces (see backend/src/modules/setup/securityPolicy.service.js). Keep in sync with that file.
+const ENFORCED = {
+  'password-policies': ['minimum_password_length', 'password_complexity_requirement', 'user_passwords_expire_in', 'enforce_password_history', 'maximum_invalid_login_attempts', 'lockout_effective_period', 'require_a_minimum_1_day_password_lifetime'],
+  'session-settings': ['timeout_value', 'lock_sessions_to_the_ip_address_from_which_they_originated'],
+};
+const ENFORCED_RECORDS = new Set(['network-access']); // every row is an allowed IP range at sign-in and on session refresh
 const NOT_ACTIVE = new Set(['readiness-assessor', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
 
 const classify = (p) => {
@@ -19,8 +24,14 @@ const classify = (p) => {
   if (p.kind === 'special') return ['Real data + engine', `Dedicated page (${p.special}).`];
   if (p.kind === 'dashboard') return NOT_ACTIVE.has(p.key) ? ['Reports "not enabled"', 'Honest empty state: the feature does not exist in this product.'] : ['Live metrics', 'Computed from real data, cached 60 s.'];
   if (p.kind === 'info') return SETUP_TOOLS[p.key] ? ['Working tool', `Handler: ${SETUP_TOOLS[p.key].handler}.`] : ['Recorded only', 'The request is audited; the tool engine is not active, and the UI says so.'];
+  if (ENFORCED_RECORDS.has(p.key)) return ['Enforced by sign-in / sessions', 'Each row is an allowed IP range; sign-in and session refresh outside every range are refused. The first range must contain the admin\'s own IP.'];
   if (p.kind === 'tree') return ['Records', 'Hierarchy stored as parent-linked records.'];
-  if (p.kind === 'form') return SCORED.has(p.key) ? ['Stored + scored', 'Saved, versioned and audited; scored by Health Check. NOT yet enforced by the auth code.'] : ['Stored only', 'Saved, versioned and audited. No other code reads these values yet.'];
+  if (ENFORCED[p.key]) {
+    const all = p.sections.flatMap((s) => s.fields ?? []);
+    const live = ENFORCED[p.key]; const dead = all.filter((f) => !live.includes(f.key)).map((f) => f.label);
+    return ['Enforced by sign-in / sessions', `${live.length} of ${all.length} settings change behaviour; not yet: ${dead.join(', ')}.`];
+  }
+  if (p.kind === 'form') return ['Stored only', 'Saved, versioned and audited. No other code reads these values yet.'];
   return p.engine ? ['Stored only', 'Records are managed here; the behaviour they describe is not built yet.'] : ['Records', 'Managed records (create / edit / delete / search).'];
 };
 

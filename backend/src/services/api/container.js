@@ -26,6 +26,7 @@ import { createSetupAdapters } from '../../modules/setup/adapters.js';
 import { HealthService } from '../../modules/setup/health.service.js';
 import { MetricsService } from '../../modules/setup/metrics.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
+import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { SettingsService } from '../../modules/setup/settings.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 
@@ -35,6 +36,11 @@ const MINUTE_MS = 60_000;
 export function createContainer({ boss }) {
   const repos = createRepositories(db);
   const uow = new UnitOfWork(db);
+  const cache = createCache();
+  const usage = new UsageMeter({ redis: cache.redis });
+  const membershipLookup = new MembershipLookup({ repos, cache });
+  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host }) });
+  const securityPolicy = new SecurityPolicyService({ repos, settings: setupSettings, cache, defaults: { maxAttempts: config.MAX_FAILED_LOGINS, lockMs: config.LOCKOUT_MINUTES * MINUTE_MS } });
   const hasher = new PasswordHasher();
   const tokens = new TokenService({ secret: config.JWT_SECRET, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS });
   const secretBox = new SecretBox(config.ENCRYPTION_KEY);
@@ -43,23 +49,20 @@ export function createContainer({ boss }) {
   const audit = new AuditService({ repos, logger });
   const oneTime = new OneTimeTokenService({ repos, pepper: config.JWT_SECRET });
   const sessions = new SessionService({
-    repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
+    securityPolicy, repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
   });
-  const cache = createCache();
-  const usage = new UsageMeter({ redis: cache.redis });
-  const membershipLookup = new MembershipLookup({ repos, cache });
   const workspaces = new WorkspaceService({ repos, uow, sessions, membershipLookup });
+  const password = new PasswordService({ repos, hasher, oneTime, sessions, mail, audit, securityPolicy, resetTtlMs: config.PASSWORD_RESET_TTL_MINUTES * MINUTE_MS });
   const mfa = new MfaService({ repos, uow, totp, secretBox, hasher, sessions, audit, mail, pepper: config.JWT_SECRET });
   const auth = new AuthService({
-    repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces,
+    repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces, password, securityPolicy,
     policy: {
       maxAttempts: config.MAX_FAILED_LOGINS,
       lockMs: config.LOCKOUT_MINUTES * MINUTE_MS,
       verificationTtlMs: config.VERIFICATION_CODE_TTL_MINUTES * MINUTE_MS,
     },
   });
-  const password = new PasswordService({ repos, hasher, oneTime, sessions, mail, audit, resetTtlMs: config.PASSWORD_RESET_TTL_MINUTES * MINUTE_MS });
-  const invitations = new InvitationService({ repos, uow, hasher, sessions, mail, audit, ttlDays: config.INVITATION_TTL_DAYS });
+  const invitations = new InvitationService({ repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays: config.INVITATION_TTL_DAYS });
   const users = new UserService({ repos });
   const oauth = googleEnabled
     ? new OAuthService({
@@ -68,7 +71,6 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host }) });
   const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos }) });
   const health = new HealthService({ settings: setupSettings });
   const setup = {
@@ -78,5 +80,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }
