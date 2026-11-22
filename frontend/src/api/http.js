@@ -16,9 +16,10 @@ const expiredListeners = new Set();
 export const tokenStore = { clear: () => { accessToken = null; } };
 export const onSessionExpired = (listener) => { expiredListeners.add(listener); return () => expiredListeners.delete(listener); };
 
-async function send(path, { method = 'GET', body } = {}) {
+async function send(path, { method = 'GET', body, signal } = {}) {
   const response = await fetch(`${BASE}${path}`, {
     method,
+    signal,
     credentials: 'include',
     headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -59,7 +60,7 @@ export async function request(path, options) {
   }
 }
 
-export const get = (path) => request(path);
+export const get = (path, options) => request(path, options); // options: { signal } to cancel a stale request
 export const post = (path, body = {}) => request(path, { method: 'POST', body });
 export const patch = (path, body = {}) => request(path, { method: 'PATCH', body });
 export const del = (path) => request(path, { method: 'DELETE' });

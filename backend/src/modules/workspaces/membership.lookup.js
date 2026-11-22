@@ -11,5 +11,5 @@ export class MembershipLookup {
   }
 
   /** Call after any role change or removal so access changes apply immediately on every worker. */
-  invalidate(workspaceId) { return this.cache.bump(NS(workspaceId)); }
+  invalidate(workspaceId) { return Promise.all([this.cache.bump(NS(workspaceId)), this.cache.bump(`search:${workspaceId}`)]); } // roles and profiles change what people may find
 }

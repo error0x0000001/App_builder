@@ -40,6 +40,9 @@ export function objectRoutes({ tokens, membershipLookup, cache, objects, users }
     return res.type('application/json').send(entry.body);
   });
 
+  router.get('/:object/records/:id', validate({ params: recordParam }), async (req, res) => {
+    res.set('Cache-Control', 'private, no-cache').json(await objects.get(req.objectCtx, req.params.object, req.params.id));
+  });
   router.post('/:object/records', validate({ params: objectParam }), async (req, res) => {
     res.status(201).json(await objects.create(req.objectCtx, req.params.object, req.body));
   });

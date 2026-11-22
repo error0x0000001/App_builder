@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { SETUP_LIST } from '@app/shared';
 import { Fragment, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
 import { Alert } from '../../components/ui/Alert.jsx';
@@ -44,7 +45,8 @@ const renderCell = (type) => (row, key) => {
 function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onOpen }) {
   const { page, adapter, views } = definition;
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(() => params.get('q') ?? ''); // global search deep link
   const [view, setView] = useState(views?.[0] ?? '');
   const [selected, setSelected] = useState(() => new Set());
   const [dialog, setDialog] = useState(null); // { mode: 'create' | 'edit', record? }

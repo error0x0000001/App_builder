@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError } from '../../shared/errors.js';
 
 const coll = (key) => `obj:${key}`;
 const NS = (ws, key) => `r:${ws}:${coll(key)}`;
+const SEARCH_NS = (ws) => `search:${ws}`; // keep in step with searchNs() in search.service.js
 const today = () => new Date().toISOString().slice(0, 10);
 const flat = (row) => ({ id: row.id, ...row.data, createdAt: row.created_at, updatedAt: row.updated_at });
 
@@ -17,7 +18,7 @@ export class ObjectsService {
 
   /** { key, plural, nameKey, statusKey, fields } — cached; invalidated when Object Manager records change. */
   definition(ws, key) {
-    return this.cache.rememberValue(`r:${ws}:object-manager-fields`, `def:${key}`, { ttlMs: 30_000 }, async () => {
+    return this.cache.rememberValue(`r:${ws}:object-manager-fields`, `def:${key}`, { ttlMs: 30_000, staleMs: 300_000 }, async () => { // stale-while-revalidate: a refresh never blocks a request
       await this.records.ensureSeeded(ws, getCollection('object-manager-objects'));
       const object = await this.repos.setupRecords.findByLabel(ws, 'object-manager-objects', key);
       if (!object) return null;
@@ -44,6 +45,37 @@ export class ObjectsService {
     return { read, create, edit, delete: del, scope };
   }
 
+  /**
+   * What the person may search: collections they can read in full, collections where they only see their own records
+   * (Private sharing), and a label per collection. Uses the cached definitions and access indexes, so it is cheap per request.
+   */
+  async readScopes(ctx) {
+    const keys = await this.cache.rememberValue(`r:${ctx.workspaceId}:object-manager-objects`, 'keys', { ttlMs: 30_000, staleMs: 300_000 }, async () => {
+      await this.records.ensureSeeded(ctx.workspaceId, getCollection('object-manager-objects'));
+      return (await this.repos.setupRecords.listAll(ctx.workspaceId, 'object-manager-objects')).map((r) => r.label);
+    });
+    const all = []; const own = []; const plural = new Map();
+    await Promise.all(keys.map(async (key) => {
+      const def = await this.definition(ctx.workspaceId, key);
+      if (!def) return;
+      const perms = await this.access.forObject(ctx, def);
+      if (!perms.read) return;
+      plural.set(coll(key), def.plural);
+      if (perms.scope === 'own') { if (perms.ownerKey && ctx.email) own.push({ collection: coll(key), ownerKey: perms.ownerKey }); } else all.push(coll(key));
+    }));
+    return { all, own, plural };
+  }
+
+  /** One record, under the same read permission and sharing scope as the list. */
+  async get(ctx, key, id) {
+    const def = await this.#require(ctx.workspaceId, key);
+    const perms = await this.access.forObject(ctx, def);
+    this.access.assert(perms, 'read');
+    const row = await this.repos.setupRecords.get(ctx.workspaceId, coll(key), id);
+    if (!row || (perms.scope === 'own' && !this.access.mayChange(perms, ctx, row.data))) throw new NotFoundError('Record not found');
+    return { record: flat(row) };
+  }
+
   async list(ctx, key, params) {
     const def = await this.#require(ctx.workspaceId, key);
     const perms = await this.access.forObject(ctx, def);
@@ -59,7 +91,7 @@ export class ObjectsService {
     const data = this.#defaults(def, parsed, ctx);
     const { data: prepared, warnings } = await this.automation.beforeSave(ctx, def, data, { mode: 'create' });
     const row = await this.repos.setupRecords.insert(ctx.workspaceId, coll(key), this.#parts(def, prepared, ctx.userId));
-    await this.cache.bump(NS(ctx.workspaceId, key));
+    await Promise.all([this.cache.bump(NS(ctx.workspaceId, key)), this.cache.bump(SEARCH_NS(ctx.workspaceId))]);
     const saved = await this.automation.afterSave(ctx, def, row, { mode: 'create' });
     return { record: flat(saved), warnings };
   }
@@ -76,12 +108,12 @@ export class ObjectsService {
     const { data: prepared, warnings } = await this.automation.beforeSave(ctx, def, merged, { mode: 'update', id });
     const parts = this.#parts(def, prepared, null);
     const row = await this.repos.setupRecords.update(ctx.workspaceId, coll(key), id, { data: prepared, label: parts.label, status: parts.status });
-    await this.cache.bump(NS(ctx.workspaceId, key));
+    await Promise.all([this.cache.bump(NS(ctx.workspaceId, key)), this.cache.bump(SEARCH_NS(ctx.workspaceId))]);
     const saved = await this.automation.afterSave(ctx, def, row, { mode: 'update' });
     return { record: flat(saved), warnings };
   }
 
-  invalidate(ws, key) { return this.cache.bump(NS(ws, key)); }
+  invalidate(ws, key) { return Promise.all([this.cache.bump(NS(ws, key)), this.cache.bump(SEARCH_NS(ws))]); }
 
   async remove(ctx, key, ids) {
     const def = await this.#require(ctx.workspaceId, key);
@@ -94,7 +126,7 @@ export class ObjectsService {
       }
     }
     const removed = await this.repos.setupRecords.remove(ctx.workspaceId, coll(key), ids);
-    await this.cache.bump(NS(ctx.workspaceId, key));
+    await Promise.all([this.cache.bump(NS(ctx.workspaceId, key)), this.cache.bump(SEARCH_NS(ctx.workspaceId))]);
     return removed;
   }
 

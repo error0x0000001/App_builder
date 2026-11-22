@@ -177,7 +177,7 @@ export class RecordsService {
   }
 
   async changed(ctx, collection, action, summary) {
-    await this.cache.bump(NS(ctx.workspaceId, collection.key));
+    await Promise.all([this.cache.bump(NS(ctx.workspaceId, collection.key)), this.cache.bump(`search:${ctx.workspaceId}`)]); // search results depend on Setup records, sharing and profiles
     await this.repos.setupAudit.record(ctx.workspaceId, ctx.userId, collection.key, action, summary);
   }
 

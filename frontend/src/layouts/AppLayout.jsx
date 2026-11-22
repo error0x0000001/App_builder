@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '../lib/cn.js';
 import { pageFor } from './navigation.js';
 import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
 import { SidebarProvider, useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
-import { CommandPalette } from './CommandPalette.jsx';
 import { CustomizeProvider } from './CustomizeContext.jsx';
 import { CustomizeSheet } from './CustomizeSheet.jsx';
+import { GlobalSearch } from './GlobalSearch.jsx';
+import { SearchProvider } from './SearchContext.jsx';
 import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
 import { TopBar } from './TopBar.jsx';
 
 /** Sidebar or top bar (the person's choice; phones always get the drawer), then the content card. */
-function Shell({ onSearch, bleed }) {
+function Shell({ bleed }) {
   const { layout } = useSidebar();
   const content = (
     <SidebarInset>
@@ -24,7 +24,7 @@ function Shell({ onSearch, bleed }) {
       </main>
     </SidebarInset>
   );
-  return layout === 'topbar' ? <><TopBar />{content}</> : <><AppSidebar onSearch={onSearch} />{content}</>;
+  return layout === 'topbar' ? <><TopBar />{content}</> : <><AppSidebar />{content}</>;
 }
 
 /**
@@ -32,25 +32,18 @@ function Shell({ onSearch, bleed }) {
  * The card's header is pinned; only the content below it scrolls.
  */
 export function AppLayout() {
-  const [searchOpen, setSearchOpen] = useState(false);
   const bleed = pageFor(useLocation().pathname).bleed; // pages that lay out their own panes (Setup) get the bare card body
-
-  useEffect(() => {
-    const onKey = (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearchOpen(true); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   return (
     <SidebarProvider>
       <CustomizeProvider>
-        <PageHeaderProvider>
-          <Shell onSearch={() => setSearchOpen(true)} bleed={bleed} />
-          <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-          <CustomizeSheet />
-        </PageHeaderProvider>
+        <SearchProvider>
+          <PageHeaderProvider>
+            <Shell bleed={bleed} />
+            <GlobalSearch />
+            <CustomizeSheet />
+          </PageHeaderProvider>
+        </SearchProvider>
       </CustomizeProvider>
     </SidebarProvider>
   );

@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { SidebarTrigger } from '../components/sidebar/Sidebar.jsx';
 import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
+import { Button } from '../components/ui/Button.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
+import { useSearch } from './SearchContext.jsx';
 import { pageFor } from './navigation.js';
 
 const HeaderSlots = createContext(null);
@@ -23,7 +25,8 @@ export function PageHeader() {
   const { pathname } = useLocation();
   const { setMetaEl, setActionsEl, title } = useContext(HeaderSlots);
   const { iconOnly, isMobile } = useSidebar();
-  const { icon, label } = title ?? pageFor(pathname); // pages whose name comes from data (Setup) override the nav lookup
+  const { icon, label } = title ?? pageFor(pathname);
+  const { show: showSearch } = useSearch(); // pages whose name comes from data (Setup) override the nav lookup
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
       {(isMobile || iconOnly) && <SidebarTrigger />}
@@ -31,6 +34,7 @@ export function PageHeader() {
       <h1 className="min-w-0 truncate text-sm font-semibold text-ink">{label}</h1>
       <span ref={setMetaEl} className="hidden min-w-0 items-center gap-2 text-sm text-muted empty:hidden sm:flex" />
       <div ref={setActionsEl} className="ml-auto flex items-center gap-2" />
+      <Button size="icon" variant="ghost" aria-label="Search" onClick={showSearch} className="md:hidden"><Icon name="search" className="size-4" /></Button> {/* phones have no Ctrl/⌘ K */}
     </header>
   );
 }
