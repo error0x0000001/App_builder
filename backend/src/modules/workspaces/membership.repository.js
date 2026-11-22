@@ -42,6 +42,11 @@ export class MembershipRepository {
     return (await this.db.delete(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning({ id: memberships.userId })).length === 1;
   }
 
+  async countMembers(workspaceId) {
+    const [row] = await this.db.select({ n: sql`count(*)::int` }).from(memberships).where(eq(memberships.workspaceId, workspaceId));
+    return row.n;
+  }
+
   async countOwners(workspaceId) {
     const [row] = await this.db.select({ n: sql`count(*)::int` }).from(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.role, 'owner')));
     return row.n;

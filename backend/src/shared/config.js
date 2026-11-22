@@ -8,6 +8,10 @@ const schema = z.object({
   APP_URL: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().url(),
   DB_POOL_MAX: z.coerce.number().default(20),
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().default(8000),
+  DB_READ_REPLICA_URL: z.string().url().optional(), // optional read replica for read-only setup queries
+  REDIS_URL: z.string().url().optional(),
+  API_WORKERS: z.coerce.number().default(1), // prefork worker processes (cluster.js)
   LOG_LEVEL: z.string().default('info'),
   TRUST_PROXY: z.coerce.number().default(0),
   WORKER_CONCURRENCY: z.coerce.number().default(5),

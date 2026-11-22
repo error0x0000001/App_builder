@@ -24,5 +24,6 @@ export const sessions = pgTable(
   (t) => [
     index('sessions_user_active_idx').on(t.userId, t.lastUsedAt).where(sql`${t.revokedAt} is null`),
     index('sessions_expires_idx').on(t.expiresAt),
+    index('sessions_workspace_active_idx').on(t.workspaceId, t.lastUsedAt).where(sql`${t.revokedAt} is null`), // session management
   ],
 );

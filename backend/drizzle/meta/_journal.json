@@ -15,6 +15,13 @@
       "when": 1795335524017,
       "tag": "0001_aspiring_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795338481791,
+      "tag": "0002_cultured_maggott",
+      "breakpoints": true
     }
   ]
 }
