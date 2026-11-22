@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { SidebarTrigger } from '../components/sidebar/Sidebar.jsx';
 import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
-import { ThemeToggle } from '../components/ui/ThemeToggle.jsx';
 import { pageFor } from './navigation.js';
 
 const HeaderSlots = createContext(null);
@@ -32,7 +31,6 @@ export function PageHeader() {
       <h1 className="min-w-0 truncate text-sm font-semibold text-ink">{label}</h1>
       <span ref={setMetaEl} className="hidden min-w-0 items-center gap-2 text-sm text-muted empty:hidden sm:flex" />
       <div ref={setActionsEl} className="ml-auto flex items-center gap-2" />
-      <ThemeToggle />
     </header>
   );
 }

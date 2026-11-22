@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uuidField, workspaceLookupSchema } from '@app/shared';
+import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uiSettingsPatchSchema, uuidField, workspaceLookupSchema } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -35,6 +35,12 @@ export function workspaceRoutes({ workspaces, invitations, sessions, tokens, rep
 
   router.patch('/:workspaceId/theme', ...member('admin'), validate({ body: tenantThemeSchema }), async (req, res) => {
     res.json({ workspace: await workspaces.updateTheme(req.params.workspaceId, req.valid.body.theme) });
+  });
+
+  // Customize sheet: only the workspace owner changes how the whole workspace looks.
+  router.patch('/:workspaceId/ui', ...member('owner'), validate({ body: uiSettingsPatchSchema }), async (req, res) => {
+    const workspace = await workspaces.updateUiSettings(req.params.workspaceId, req.valid.body);
+    res.json({ workspace: { id: workspace.id, uiSettings: workspace.uiSettings } });
   });
 
   router.get('/:workspaceId/members', ...member('viewer'), validate({ query: pageQuerySchema }), async (req, res) => {

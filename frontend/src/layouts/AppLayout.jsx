@@ -6,6 +6,8 @@ import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
 import { SidebarProvider, useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
 import { CommandPalette } from './CommandPalette.jsx';
+import { CustomizeProvider } from './CustomizeContext.jsx';
+import { CustomizeSheet } from './CustomizeSheet.jsx';
 import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
 import { TopBar } from './TopBar.jsx';
@@ -42,11 +44,14 @@ export function AppLayout() {
   }, []);
 
   return (
-    <SidebarProvider defaultVariant="inset">
-      <PageHeaderProvider>
-        <Shell onSearch={() => setSearchOpen(true)} bleed={bleed} />
-        <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-      </PageHeaderProvider>
+    <SidebarProvider>
+      <CustomizeProvider>
+        <PageHeaderProvider>
+          <Shell onSearch={() => setSearchOpen(true)} bleed={bleed} />
+          <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+          <CustomizeSheet />
+        </PageHeaderProvider>
+      </CustomizeProvider>
     </SidebarProvider>
   );
 }

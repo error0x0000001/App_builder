@@ -1,32 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../auth/AuthProvider.jsx';
 import { useLocalStorageState } from '../../hooks/useLocalStorageState.js';
 import { useMediaQuery } from '../../hooks/useMediaQuery.js';
-
-export const SIDEBAR_VARIANTS = [
-  { value: 'inset', label: 'Inset' },
-  { value: 'floating', label: 'Floating' },
-];
-
-export const NAV_LAYOUTS = [
-  { value: 'sidebar', label: 'Sidebar' },
-  { value: 'topbar', label: 'Top bar' },
-];
 
 const SidebarContext = createContext(null);
 
 /**
- * Navigation state: layout (sidebar | top bar), style variant (inset | floating — applies to both), desktop icon-collapse,
- * mobile drawer. Phones always use the drawer. Cmd/Ctrl+B toggles the sidebar; Escape closes the mobile drawer.
+ * Navigation state. Layout (sidebar | top bar) and style (inset | floating) are the workspace owner's choice
+ * (Customize, saved in the database); phones always use the drawer. Icon-collapse is personal (this browser).
+ * Cmd/Ctrl+B toggles the sidebar; Escape closes the mobile drawer.
  */
-export function SidebarProvider({ defaultVariant = 'inset', children }) {
+export function SidebarProvider({ children }) {
+  const { ui } = useAuth();
   const isMobile = useMediaQuery('(max-width: 767px)');
-  const [storedVariant, setVariant] = useLocalStorageState('sidebar:variant', defaultVariant);
-  const [storedLayout, setLayout] = useLocalStorageState('nav:layout', 'sidebar');
   const [collapsed, setCollapsed] = useLocalStorageState('sidebar:collapsed', false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const variant = SIDEBAR_VARIANTS.some((v) => v.value === storedVariant) ? storedVariant : defaultVariant;
-  const preferredLayout = NAV_LAYOUTS.some((l) => l.value === storedLayout) ? storedLayout : 'sidebar';
-  const layout = isMobile ? 'sidebar' : preferredLayout; // the top bar is a desktop layout; phones keep the drawer
+  const { variant } = ui;
+  const layout = isMobile ? 'sidebar' : ui.layout; // the top bar is a desktop layout; phones keep the drawer
 
   const toggle = useCallback(() => (isMobile ? setMobileOpen((open) => !open) : layout === 'sidebar' ? setCollapsed((c) => !c) : undefined), [isMobile, layout, setCollapsed]);
 
@@ -40,8 +30,8 @@ export function SidebarProvider({ defaultVariant = 'inset', children }) {
   }, [toggle]);
 
   const value = useMemo(
-    () => ({ variant, setVariant, layout, preferredLayout, setLayout, isMobile, iconOnly: layout === 'sidebar' && collapsed && !isMobile, collapsed, expand: () => setCollapsed(false), mobileOpen, setMobileOpen, toggle }),
-    [variant, setVariant, layout, preferredLayout, setLayout, isMobile, collapsed, setCollapsed, mobileOpen, toggle],
+    () => ({ variant, layout, isMobile, iconOnly: layout === 'sidebar' && collapsed && !isMobile, collapsed, expand: () => setCollapsed(false), mobileOpen, setMobileOpen, toggle }),
+    [variant, layout, isMobile, collapsed, setCollapsed, mobileOpen, toggle],
   );
 
   return (

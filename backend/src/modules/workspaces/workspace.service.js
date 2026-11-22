@@ -35,6 +35,12 @@ export class WorkspaceService {
     return this.get(workspaceId);
   }
 
+  /** Owner's UI customization: merges the validated patch into the stored settings (unknown keys can't get in — the schema is strict). */
+  async updateUiSettings(workspaceId, patch) {
+    const current = await this.get(workspaceId);
+    return this.repos.workspaces.update(workspaceId, { uiSettings: { ...(current.uiSettings ?? {}), ...patch } });
+  }
+
   async updateTheme(workspaceId, theme) {
     await this.repos.workspaces.update(workspaceId, { theme });
     return this.get(workspaceId);

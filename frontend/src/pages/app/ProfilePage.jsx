@@ -7,8 +7,6 @@ import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Section } from '../../components/ui/Card.jsx';
 import { Input } from '../../components/ui/Input.jsx';
-import { Select } from '../../components/ui/Select.jsx';
-import { NAV_LAYOUTS, SIDEBAR_VARIANTS, useSidebar } from '../../components/sidebar/SidebarContext.jsx';
 
 /** Shared by the profile page and onboarding's "About you" step. */
 export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
@@ -38,25 +36,12 @@ export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
   );
 }
 
-function AppearanceSection() {
-  const { variant, setVariant, preferredLayout, setLayout, isMobile } = useSidebar();
-  return (
-    <Section title="Appearance" description="Navigation on the side or along the top. With the top bar, anything that doesn't fit moves into “More”. Press Ctrl/Cmd + B to collapse the sidebar.">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Select label="Navigation layout" value={preferredLayout} onChange={setLayout} options={NAV_LAYOUTS} hint={isMobile ? 'Phones always use the slide-out menu.' : undefined} />
-        <Select label="Navigation style" value={variant} onChange={setVariant} options={SIDEBAR_VARIANTS} hint="Inset sits flush with the page; floating is a bordered card." />
-      </div>
-    </Section>
-  );
-}
-
 export default function ProfilePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <Section title="Profile" description="How you appear to teammates.">
         <ProfileForm />
       </Section>
-      <AppearanceSection />
     </div>
   );
 }

@@ -1,4 +1,7 @@
+import { THEME_MODES } from '@app/shared';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../hooks/useTheme.js';
+import { useCustomize } from './CustomizeContext.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../components/sidebar/SidebarParts.jsx';
@@ -8,9 +11,12 @@ import { Icon } from '../components/ui/Icon.jsx';
 
 /** Account menu body (identity, Profile, Security, Log out) — shared by the sidebar footer and the top bar. */
 function UserMenuContent({ side, align, className }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, activeWorkspace, setThemeMode } = useAuth();
+  const { mode } = useTheme();
+  const { show: showCustomize } = useCustomize();
   const navigate = useNavigate();
   const fullName = `${user.firstName} ${user.lastName}`;
+  const THEME_ICON = { light: 'sun', dark: 'moon', system: 'monitor' };
   return (
     <DropdownMenuContent side={side} align={align} className={className}>
       <DropdownMenuLabel className="flex items-center gap-2 p-1.5 text-ink!">
@@ -18,6 +24,14 @@ function UserMenuContent({ side, align, className }) {
         <span className="grid min-w-0 leading-tight"><span className="truncate text-sm font-medium">{fullName}</span><span className="truncate text-xs opacity-70">{user.email}</span></span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+      <DropdownMenuLabel>Theme</DropdownMenuLabel>
+      {THEME_MODES.map((m) => (
+        <DropdownMenuItem key={m.value} icon={THEME_ICON[m.value]} onSelect={() => setThemeMode(m.value)}>
+          {m.label}{mode === m.value && <Icon name="check" className="ml-auto size-4" />}
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator />
+      {activeWorkspace?.role === 'owner' && <DropdownMenuItem icon="sliders" onSelect={showCustomize}>Customize</DropdownMenuItem>}
       <DropdownMenuItem icon="user" onSelect={() => navigate('/app/profile')}>Profile</DropdownMenuItem>
       <DropdownMenuItem icon="shield" onSelect={() => navigate('/app/security')}>Security</DropdownMenuItem>
       <DropdownMenuSeparator />

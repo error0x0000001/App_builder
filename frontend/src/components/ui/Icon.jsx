@@ -19,6 +19,7 @@ const PATHS = {
   search: 'M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
   'more-horizontal': 'M5 12h.01M12 12h.01M19 12h.01',
   'chevron-down': 'M6 9l6 6 6-6',
+  monitor: 'M3 5h18v11H3V5zm5 15h8m-4-4v4',
   'chevron-left': 'M15 6l-6 6 6 6',
   calendar: 'M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
