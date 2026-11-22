@@ -92,7 +92,7 @@ function ObjectBody({ object, definition, permissions }) {
 
       {notice.map((n) => <Alert key={n} tone="warning">{n}</Alert>)}
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${definition.plural.toLowerCase()}`} label={`Search ${definition.plural}`} className="w-full sm:w-72" />
+        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${definition.plural.toLowerCase()}`} label={`Search ${definition.plural}`} className="w-full sm:w-72" />
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />Delete ({selected.size})</Button>}
       </div>
 

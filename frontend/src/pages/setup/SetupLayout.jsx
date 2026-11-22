@@ -20,7 +20,7 @@ function SetupTreePanel({ className }) {
 
   return (
     <aside aria-label="Setup" className={cn('flex min-h-0 w-full shrink-0 flex-col border-line lg:w-72 lg:border-r', className)}>
-      <div className="p-3"><SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Quick Find" label="Quick Find" /></div>
+      <div className="p-3"><SearchInput value={query} onChange={(e) => setQuery(e.target.value)} onClear={() => setQuery('')} placeholder="Quick Find" label="Quick Find" /></div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
         {isPending ? <div className="grid place-items-center py-8 text-muted"><Spinner /></div> : (
           <TreeNav nodes={visible} label="Setup pages" forceOpen={Boolean(query.trim())} isOpenByDefault={(node) => hasActive(node, pathname)} />
