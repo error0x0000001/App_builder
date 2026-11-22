@@ -109,3 +109,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
     radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.95) 0 5%, transparent 20%),
     radial-gradient(circle at 50% 55%, var(--orb-a), var(--orb-b) 78%);
 }
+
+/* Colourful tints driven by one hue (--h): soft tile, solid gradient avatar. Used by global search. */
+.tint { --c: oklch(0.58 0.2 var(--h)); background: color-mix(in oklch, var(--c) 15%, transparent); color: var(--c); border-color: color-mix(in oklch, var(--c) 28%, transparent); }
+.tint-solid { background: linear-gradient(135deg, oklch(0.74 0.17 var(--h)), oklch(0.58 0.2 calc(var(--h) + 45))); color: #fff; }
+html[data-theme='dark'] .tint { --c: oklch(0.8 0.14 var(--h)); }
+.tint-text { color: oklch(0.58 0.2 var(--h)); }
+html[data-theme='dark'] .tint-text { color: oklch(0.8 0.14 var(--h)); }

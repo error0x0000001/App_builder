@@ -7,9 +7,10 @@ import { Icon } from '../components/ui/Icon.jsx';
 import { Spinner } from '../components/ui/Spinner.jsx';
 import { Tabs } from '../components/ui/Tabs.jsx';
 import { useGlobalSearch } from '../hooks/useGlobalSearch.js';
+import { hueOf, KIND_HUE } from '../lib/hue.js';
 import { readRecent, rememberRecent } from '../lib/recentSearch.js';
 import { NAV_ITEMS } from './navigation.js';
-import { EmptyState, FilterChip, Footer, ResultRow, SectionLabel } from './GlobalSearchParts.jsx';
+import { EmptyState, FilterChip, Footer, ResultRow, RoundButton, SectionLabel } from './GlobalSearchParts.jsx';
 import { useSearch } from './SearchContext.jsx';
 
 const GROUP_TITLES = { pages: 'Pages', records: 'Records', people: 'People', setup: 'Setup' };
@@ -29,12 +30,13 @@ export function GlobalSearch() {
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
   const [tag, setTag] = useState(null);
+  const [sort, setSort] = useState('relevance');
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState([]);
   const list = useRef(null);
   const input = useRef(null);
 
-  useEffect(() => { if (open) { setQuery(''); setType('all'); setTag(null); setActive(0); setRecent(readRecent()); } }, [open]);
+  useEffect(() => { if (open) { setQuery(''); setType('all'); setTag(null); setSort('relevance'); setActive(0); setRecent(readRecent()); } }, [open]);
 
   const server = useGlobalSearch(query, type, open);
   const needle = query.trim().toLowerCase();
@@ -57,8 +59,9 @@ export function GlobalSearch() {
       if (key === 'records' && activeTag) items = items?.filter((r) => r.tag === activeTag);
       if (items?.length && (type === 'all' || type === key)) out[key] = items;
     }
-    return GROUP_ORDER.filter((k) => out[k]?.length).map((k) => [k, out[k]]);
-  }, [searching, recent, navItems, type, localPages, server.groups, activeTag]);
+    const order = (items) => (sort === 'name' ? [...items].sort((x, y) => x.title.localeCompare(y.title)) : items);
+    return GROUP_ORDER.filter((k) => out[k]?.length).map((k) => [k, order(out[k])]);
+  }, [searching, recent, navItems, type, localPages, server.groups, activeTag, sort]);
   const flat = groups.flatMap(([, items]) => items);
 
   useEffect(() => setActive(0), [query, type, activeTag]);
@@ -78,35 +81,41 @@ export function GlobalSearch() {
     else if (mod && event.shiftKey && event.key.toLowerCase() === 'l' && flat[active]) { event.preventDefault(); copyLink(flat[active]); }
   };
 
-  const tabs = [{ id: 'all', label: 'All', icon: 'search' }, { id: 'records', label: 'Records', icon: 'users' }, { id: 'people', label: 'People', icon: 'user' }, { id: 'pages', label: 'Pages', icon: 'home' }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders' }] : [])];
+  const tabs = [{ id: 'all', label: 'All', hue: KIND_HUE.all }, { id: 'records', label: 'Records', icon: 'users', hue: KIND_HUE.record, iconOnly: true }, { id: 'people', label: 'People', icon: 'user', hue: KIND_HUE.person, iconOnly: true }, { id: 'pages', label: 'Pages', icon: 'home', hue: KIND_HUE.page, iconOnly: true }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders', hue: KIND_HUE.config, iconOnly: true }] : [])];
   const nothing = searching && !flat.length && !server.loading && (type === 'pages' || server.searched);
   const filtered = type !== 'all' || Boolean(activeTag);
   const clear = () => { setType('all'); setTag(null); input.current?.focus(); };
   const label = { recent: 'Recent', actions: 'Quick actions', ...GROUP_TITLES };
 
   return (
-    <Dialog open={open} onClose={close} label="Search" className="max-w-[740px] rounded-2xl">
-      <div className="flex items-center gap-3 px-5">
-        <Icon name="search" className="size-5 shrink-0 text-muted" />
+    <Dialog open={open} onClose={close} label="Search" className="max-w-[660px] rounded-2xl">
+      <div className="flex items-center gap-3 px-4">
+        <Icon name="search" className="size-[18px] shrink-0 text-muted" />
         <input
           ref={input} autoFocus value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown} role="combobox" aria-expanded aria-controls="global-search-results" aria-activedescendant={flat[active] ? `gs-${active}` : undefined}
           placeholder="Start typing here…" aria-label="Search" autoComplete="off" spellCheck={false}
-          className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted"
+          className="h-12 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
         />
         {server.loading && <Spinner className="size-4 text-muted" />}
         {query && <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); input.current?.focus(); }} className="grid size-6 shrink-0 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-ink"><Icon name="x" className="size-4" /></button>}
         <button type="button" aria-label="Close search" onClick={close} className="hidden h-6 shrink-0 items-center rounded-md border border-line px-1.5 text-[10px] font-medium text-muted hover:bg-surface-2 hover:text-ink sm:flex">Esc</button>
       </div>
 
-      <Tabs tabs={tabs} value={type} onChange={(id) => { setType(id); setTag(null); input.current?.focus(); }} label="Search in" className="overflow-x-auto border-t px-3" />
+      <Tabs tabs={tabs} value={type} onChange={(id) => { setType(id); setTag(null); input.current?.focus(); }} label="Search in" className="overflow-x-auto border-t px-2" />
 
-      {searching && tags.length > 1 && (type === 'all' || type === 'records') && (
-        <div className="flex gap-2 overflow-x-auto border-b border-line px-5 py-2.5">
-          {tags.map((t) => <FilterChip key={t} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)}
+      {searching && (
+        <div className="flex items-center gap-2 border-b border-line px-4 py-2">
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+            {tags.length > 1 && (type === 'all' || type === 'records')
+              ? tags.map((t) => <FilterChip key={t} hue={hueOf(t)} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
+              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} hue={t.hue} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
+          </div>
+          <RoundButton icon="sliders" label="Clear filters" onClick={clear} active={filtered} />
+          <RoundButton icon="chevrons-up-down" label={sort === 'name' ? 'Sorted by name' : 'Sorted by relevance'} onClick={() => setSort((v) => (v === 'name' ? 'relevance' : 'name'))} active={sort === 'name'} />
         </div>
       )}
 
-      <div ref={list} id="global-search-results" role="listbox" aria-label="Results" className="h-[min(50vh,380px)] overflow-y-auto px-2 pb-2">
+      <div ref={list} id="global-search-results" role="listbox" aria-label="Results" className="h-[min(46vh,330px)] overflow-y-auto px-2 pb-2">
         {nothing ? <EmptyState title="No matches found" hint="We couldn’t find anything matching your search. Try adjusting your keywords, filters, or check for typos." onClear={filtered ? clear : () => setQuery('')} /> : (() => {
           let index = -1;
           return groups.map(([key, items]) => (
