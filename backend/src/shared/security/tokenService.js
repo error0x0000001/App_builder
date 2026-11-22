@@ -30,13 +30,14 @@ export class TokenService {
     }
   }
 
-  signAccess({ userId, sessionId, workspaceId, role }) {
-    return this.#sign({ typ: 'access', sid: sessionId, wid: workspaceId ?? null, role: role ?? null }, userId, this.accessTtlSeconds);
+  /** `actorId` marks an impersonation token (an admin acting as `userId`); those are short-lived and can't be refreshed. */
+  signAccess({ userId, sessionId, workspaceId, role, actorId, ttlSeconds }) {
+    return this.#sign({ typ: 'access', sid: sessionId, wid: workspaceId ?? null, role: role ?? null, ...(actorId ? { act: actorId } : {}) }, userId, ttlSeconds ?? this.accessTtlSeconds);
   }
 
   async verifyAccess(token) {
     const p = await this.#verify(token, 'access');
-    return { userId: p.sub, sessionId: p.sid, workspaceId: p.wid, role: p.role };
+    return { userId: p.sub, sessionId: p.sid, workspaceId: p.wid, role: p.role, impersonatedBy: p.act ?? null };
   }
 
   signMfa({ userId, workspaceId, persistent = true }) {

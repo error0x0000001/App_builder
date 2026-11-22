@@ -3,6 +3,7 @@ import { ROLES, ROLE_LABELS, hasRole, outranks } from '@app/shared';
 import { workspacesApi } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
+import { PageHeaderActions } from '../../layouts/PageHeader.jsx';
 import { InviteForm } from '../../components/workspace/InviteForm.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -83,13 +84,18 @@ export default function MembersPage() {
   if (!activeWorkspace) return <Alert tone="info">Select or create a workspace to manage its members.</Alert>;
   const canInvite = hasRole(activeWorkspace.role, 'admin');
   return (
-    <>
+ <>
+      {canInvite && (
+        <PageHeaderActions>
+          <Button size="sm" onClick={() => document.getElementById('invite-people')?.scrollIntoView({ behavior: 'smooth' })}><Icon name="plus" />Invite people</Button>
+        </PageHeaderActions>
+      )}
       <Section title="Members" description={`People with access to ${activeWorkspace.name}.`}>
         <MemberList workspaceId={activeWorkspace.id} actorRole={activeWorkspace.role} currentUserId={user.id} />
       </Section>
       {canInvite && (
         <>
-          <Section title="Invite people" description="They’ll get an email to set a password and join."><InviteForm workspaceId={activeWorkspace.id} /></Section>
+          <div id="invite-people"><Section title="Invite people" description="They’ll get an email to set a password and join."><InviteForm workspaceId={activeWorkspace.id} /></Section></div>
           <PendingInvitations workspaceId={activeWorkspace.id} />
         </>
       )}

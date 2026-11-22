@@ -15,10 +15,10 @@ Multi-tenant, multi-workspace SaaS foundation with complete authentication. npm-
 ```bash
 cp .env.example .env     # set JWT_SECRET / ENCRYPTION_KEY
 npm install
-npm run db:up            # Postgres + Mailpit (emails at http://localhost:8025)
+npm run db:up            # Postgres + Redis + Mailpit (emails at http://localhost:8025)
 npm run db:migrate
 npm run dev              # api :4000 · worker · web :5173
-npm test                 # 19 integration tests against a real Postgres (uses .env.test)
+npm test                 # integration tests against a real Postgres + Redis (uses .env.test)
 ```
 
 ## Auth features
@@ -28,6 +28,13 @@ forgot/reset password (single-use hashed link) · change password · TOTP two-fa
 rotating refresh tokens with reuse detection · session list + revoke + sign-out-everywhere · login history (audit trail) ·
 brute-force lockout + DB-backed rate limits · no account enumeration · multi-tenant workspaces (create, switch, sign in by workspace URL) ·
 roles (owner/admin/member/viewer) with last-owner protection · invitations (new and existing users) · onboarding.
+
+## Setup area (`/app/setup`, admins only)
+
+266 pages driven by one registry (`packages/shared/src/setup/registry.generated.json`, generated from the design by `tools/setup/build-registry.cjs`)
+and rendered by a handful of templates (list · settings form · tool · dashboard · hierarchy · specials). A page is configuration, not code.
+**What is real vs. stored-only is listed per page in [`docs/setup-status.md`](docs/setup-status.md)** (generated). Architecture, scale design,
+the Odoo research it follows and measured load-test results: [`docs/setup-engine.md`](docs/setup-engine.md).
 
 ## Architecture & scale notes
 

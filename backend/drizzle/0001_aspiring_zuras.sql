@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "theme" text DEFAULT 'graphite' NOT NULL;

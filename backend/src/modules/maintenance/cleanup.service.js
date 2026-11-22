@@ -11,6 +11,7 @@ export class CleanupService {
       authTokens: () => this.repos.authTokens.deleteExpired(BATCH),
       invitations: () => this.repos.invitations.deleteExpired(BATCH),
       rateLimits: () => this.repos.rateLimits.deleteExpired(BATCH),
+      emailLog: () => this.repos.setupRecords.deleteOlderThan('email-log', 30, BATCH),
       auditEvents: () => this.repos.audit.deleteOlderThan(AUDIT_RETENTION_DAYS, BATCH),
     };
     const totals = {};

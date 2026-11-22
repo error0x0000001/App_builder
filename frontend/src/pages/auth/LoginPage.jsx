@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { loginSchema } from '@app/shared';
 import { authApi, workspacesApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
@@ -9,7 +9,7 @@ import { CheckboxField, PasswordField, SubmitButton, TextField } from '../../com
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { AuthCard } from '../../components/ui/AuthCard.jsx';
-import { Button } from '../../components/ui/Button.jsx';
+import { Icon } from '../../components/ui/Icon.jsx';
 import { TextLink } from '../../components/ui/TextLink.jsx';
 
 export default function LoginPage() {
@@ -38,27 +38,24 @@ export default function LoginPage() {
   });
 
   return (
-    <div className="w-full max-w-[25rem] space-y-4">
-      <AuthCard title={workspace.data ? `Sign in to ${workspace.data.name}` : 'Log in'} width="sm">
-        {params.get('error') === 'oauth' && <Alert tone="error">Google sign-in failed. Please try again.</Alert>}
-        {location.state?.notice && <Alert tone="success">{location.state.notice}</Alert>}
-        {slug && workspace.isError && <Alert tone="warning">We couldn’t find that workspace, so you’ll sign in to your default one.</Alert>}
-        <SocialLogin />
-        <Form form={form} onSubmit={submit} error={formError}>
-          <TextField name="email" label="Email" type="email" autoComplete="username" inputMode="email" />
-          <PasswordField name="password" label="Password" autoComplete="current-password" />
+    <AuthCard
+      title={workspace.data ? `Sign in to ${workspace.data.name}` : 'Welcome back'}
+      description="Sign in to access your Cloudbase workspace"
+      footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/workspace">Use workspace URL</TextLink></>}
+    >
+      {params.get('error') === 'oauth' && <Alert tone="error">Google sign-in failed. Please try again.</Alert>}
+      {location.state?.notice && <Alert tone="success">{location.state.notice}</Alert>}
+      {slug && workspace.isError && <Alert tone="warning">We couldn’t find that workspace, so you’ll sign in to your default one.</Alert>}
+      <Form form={form} onSubmit={submit} error={formError}>
+        <TextField name="email" label="Email" type="email" placeholder="you@example.com" autoComplete="username" inputMode="email" prefix={<Icon name="mail" />} />
+        <PasswordField name="password" label="Password" placeholder="••••••••" autoComplete="current-password" prefix={<Icon name="lock" />} />
+        <div className="flex items-center justify-between gap-3">
           <CheckboxField name="rememberMe" label="Remember me" />
-          <SubmitButton fullWidth>Log in</SubmitButton>
-        </Form>
-        <div className="flex justify-between text-sm">
-          <TextLink to="/forgot-password">Forgot your password?</TextLink>
-          <TextLink to="/login/workspace">Use workspace URL</TextLink>
+          <TextLink to="/forgot-password" className="text-sm font-medium text-ink">Forgot password?</TextLink>
         </div>
-      </AuthCard>
-      <div className="space-y-2 text-center text-sm text-muted">
-        <p>Not a customer?</p>
-        <Button as={Link} to="/signup" variant="neutral" fullWidth>Try for free</Button>
-      </div>
-    </div>
+        <SubmitButton size="lg" fullWidth>Log in</SubmitButton>
+      </Form>
+      <SocialLogin />
+    </AuthCard>
   );
 }

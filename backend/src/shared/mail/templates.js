@@ -5,6 +5,21 @@ import { ROLE_LABELS } from '@app/shared';
  * Add a template by adding an entry — no HTML duplication.
  */
 export const TEMPLATES = Object.freeze({
+  /** Generic message: workflow email alerts, auto-response rules, approval requests. */
+  notification: ({ subject, body }) => ({ subject, heading: subject, paragraphs: String(body ?? '').split(/\n{2,}/).filter(Boolean), footnote: 'Sent by a Cloudbase automation rule.' }),
+  test_email: ({ workspace }) => ({
+    subject: 'Cloudbase test email',
+    heading: 'Email deliverability test',
+    paragraphs: [`This message confirms that email from ${workspace} is being delivered.`],
+    footnote: 'You can ignore this message.',
+  }),
+  password_expired: ({ url, ttlMinutes }) => ({
+    subject: 'Choose a new Cloudbase password',
+    heading: 'Your password has expired',
+    paragraphs: ['An administrator expired all passwords in your workspace. You were signed out everywhere — choose a new password to continue.'],
+    cta: { label: 'Choose a new password', url },
+    footnote: `The link expires in ${ttlMinutes} minutes and can be used once.`,
+  }),
   verify_email: ({ code, ttlMinutes }) => ({
     subject: `${code} is your Cloudbase verification code`,
     heading: 'Verify your email',

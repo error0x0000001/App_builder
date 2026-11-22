@@ -1,7 +1,7 @@
 import { cn } from '../../lib/cn.js';
 
 export function Card({ as: Component = 'section', className, children, ...rest }) {
-  return <Component className={cn('rounded-xl border border-line bg-surface p-5 shadow-sm sm:p-6', className)} {...rest}>{children}</Component>;
+  return <Component className={cn('rounded-xl border border-line bg-surface p-5 sm:p-6', className)} {...rest}>{children}</Component>;
 }
 
 /** A titled block inside a page (settings sections, lists). */

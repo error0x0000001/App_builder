@@ -1,5 +1,7 @@
 import { del, get, patch, post, qs } from './http.js';
 
+export { download } from './http.js';
+
 export const authApi = {
   config: () => get('/auth/config'),
   signup: (body) => post('/auth/signup', body),
@@ -31,10 +33,12 @@ export const workspacesApi = {
   lookup: (workspace) => get(`/workspaces/lookup${qs({ workspace })}`),
   create: (body) => post('/workspaces', body),
   switch: (id) => post(`/workspaces/${id}/switch`),
+  updateTheme: (id, theme) => patch(`/workspaces/${id}/theme`, { theme }),
   completeOnboarding: (id, body) => patch(`/workspaces/${id}/onboarding`, body),
   members: (id, { after } = {}) => get(`/workspaces/${id}/members${qs({ limit: 20, after })}`),
   changeRole: (id, userId, role) => patch(`/workspaces/${id}/members/${userId}`, { role }),
   removeMember: (id, userId) => del(`/workspaces/${id}/members/${userId}`),
+  loginAs: (id, userId) => post(`/workspaces/${id}/members/${userId}/login-as`),
   invitations: (id) => get(`/workspaces/${id}/invitations`),
   invite: (id, invitations) => post(`/workspaces/${id}/invitations`, { invitations }),
   resendInvitation: (id, invitationId) => post(`/workspaces/${id}/invitations/${invitationId}/resend`),
@@ -44,4 +48,29 @@ export const workspacesApi = {
 export const invitationsApi = {
   preview: (token) => get(`/invitations/preview${qs({ token })}`),
   accept: (body) => post('/invitations/accept', body),
+};
+
+const page = (key, rest = '') => `/setup/pages/${key}${rest}`;
+export const setupApi = {
+  tree: () => get('/setup/tree'),
+  page: (key) => get(page(key)),
+  settings: (key) => get(page(key, '/settings')),
+  saveSettings: (key, version, values) => patch(page(key, '/settings'), { version, values }),
+  records: (key, { after, q, view, parent, total } = {}) => get(`${page(key, '/records')}${qs({ limit: 80, after, q, view, parent, total: total ? 'true' : undefined })}`),
+  createRecord: (key, body) => post(page(key, '/records'), body),
+  updateRecord: (key, id, body) => patch(page(key, `/records/${id}`), body),
+  deleteRecords: (key, ids) => post(page(key, '/records/delete'), { ids }),
+  hierarchy: (key) => get(page(key, '/tree')),
+  metrics: (key) => get(page(key, '/metrics')),
+  fixHealth: (key) => post(page(key, '/fix')),
+  run: (key, body) => post(page(key, '/run'), body),
+};
+
+export const objectsApi = {
+  definition: (object) => get(`/objects/${object}`),
+  records: (object, { after, q } = {}) => get(`/objects/${object}/records${qs({ limit: 80, after, q })}`),
+  create: (object, body) => post(`/objects/${object}/records`, body),
+  update: (object, id, body) => patch(`/objects/${object}/records/${id}`, body),
+  remove: (object, ids) => post(`/objects/${object}/records/delete`, { ids }),
+  decide: (object, id, body) => post(`/objects/${object}/records/${id}/approval`, body),
 };

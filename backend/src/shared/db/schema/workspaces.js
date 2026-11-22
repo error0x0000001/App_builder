@@ -11,6 +11,7 @@ export const workspaces = pgTable(
     industry: text('industry'),
     teamSize: text('team_size'),
     timezone: text('timezone'),
+    theme: text('theme').notNull().default('graphite'), // tenant colour theme, chosen by admins (see TENANT_THEMES)
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     onboardedAt: tz('onboarded_at'),
     createdAt: createdAt(),

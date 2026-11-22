@@ -7,7 +7,7 @@ import { Section } from '../../../components/ui/Card.jsx';
 import { List, ListRow } from '../../../components/ui/ListRow.jsx';
 import { Spinner } from '../../../components/ui/Spinner.jsx';
 import { formatDateTime } from '../../../lib/format.js';
-import { describeUserAgent } from '../../../lib/userAgent.js';
+import { describeUserAgent } from '@app/shared';
 
 export function ActivitySection() {
   const query = useInfiniteQuery({ queryKey: ['activity'], queryFn: ({ pageParam }) => meApi.activity({ after: pageParam }), ...cursorPagination });

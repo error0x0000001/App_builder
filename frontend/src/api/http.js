@@ -67,3 +67,15 @@ export const qs = (params) => {
   const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
   return query ? `?${query}` : '';
 };
+
+/** Authenticated file download (the bearer token can't ride on a plain <a href>): fetch → blob → save. */
+export async function download(path, filename) {
+  const response = await fetch(`${BASE}${path.replace(/^\/api\/v1/, '')}`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
+  if (!response.ok) throw new ApiError(response.status, (await response.json().catch(() => null))?.error);
+  const url = URL.createObjectURL(await response.blob());
+  const link = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

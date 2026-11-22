@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, uuidField, workspaceLookupSchema } from '@app/shared';
+import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uuidField, workspaceLookupSchema } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -33,6 +33,10 @@ export function workspaceRoutes({ workspaces, invitations, sessions, tokens, rep
     res.json({ workspace: await workspaces.completeOnboarding(req.params.workspaceId, req.valid.body) });
   });
 
+  router.patch('/:workspaceId/theme', ...member('admin'), validate({ body: tenantThemeSchema }), async (req, res) => {
+    res.json({ workspace: await workspaces.updateTheme(req.params.workspaceId, req.valid.body.theme) });
+  });
+
   router.get('/:workspaceId/members', ...member('viewer'), validate({ query: pageQuerySchema }), async (req, res) => {
     res.json(await workspaces.listMembers(req.params.workspaceId, req.valid.query));
   });
@@ -45,6 +49,10 @@ export function workspaceRoutes({ workspaces, invitations, sessions, tokens, rep
   router.delete('/:workspaceId/members/:userId', validate({ params: memberParams }), requireWorkspaceRole(repos.memberships, 'admin'), async (req, res) => {
     await workspaces.removeMember({ actor: req.membership, workspaceId: req.params.workspaceId, targetUserId: req.params.userId });
     res.status(204).end();
+  });
+
+  router.post('/:workspaceId/members/:userId/login-as', rateLimit.ip('login-as', 30, 3600), validate({ params: memberParams }), requireWorkspaceRole(repos.memberships, 'admin'), async (req, res) => {
+    res.json(await sessions.impersonate({ actor: req.membership, sessionId: req.auth.sessionId, workspaceId: req.params.workspaceId, targetUserId: req.params.userId, ctx: req.ctx }));
   });
 
   router.post('/:workspaceId/leave', ...member('viewer'), async (req, res) => {

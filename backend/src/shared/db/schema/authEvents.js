@@ -17,5 +17,6 @@ export const authEvents = pgTable(
   (t) => [
     index('auth_events_user_idx').on(t.userId, t.id.desc()), // UUIDv7 ids sort by time
     index('auth_events_created_idx').on(t.createdAt),
+    index('auth_events_workspace_idx').on(t.workspaceId, t.id.desc()), // workspace-wide login history
   ],
 );

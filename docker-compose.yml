@@ -12,6 +12,11 @@ services:
       interval: 5s
       retries: 10
 
+  redis: # shared cache + invalidation stream (the API also runs without it, in-process only)
+    image: redis:7-alpine
+    ports: ['6379:6379']
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '512mb', '--maxmemory-policy', 'volatile-lru']
+
   mailpit: # local SMTP sink + web UI for auth emails
     image: axllent/mailpit
     ports: ["1025:1025", "8025:8025"]

@@ -12,18 +12,23 @@ import { requestContext } from './middleware/requestContext.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { invitationRoutes } from './routes/invitations.routes.js';
 import { meRoutes } from './routes/me.routes.js';
+import { objectRoutes } from './routes/objects.routes.js';
+import { publicRoutes } from './routes/public.routes.js';
+import { setupRoutes } from './routes/setup.routes.js';
 import { workspaceRoutes } from './routes/workspaces.routes.js';
 
-export function createApp(container) {
+export function createApp(container, { recycler } = {}) {
   const app = express();
   app.set('trust proxy', config.TRUST_PROXY);
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: config.APP_URL, credentials: true }));
   app.use(express.json({ limit: '100kb' }));
-  app.use(cookieParser());
-  app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url.startsWith('/health') } }));
+  // Successful requests are not logged by default (at thousands/second the log line costs more than the response);
+  // 4xx/5xx always are, and LOG_ACCESS=true restores full access logs.
+  app.use(pinoHttp({ logger, customLogLevel: (req, res, err) => (err || res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : config.LOG_ACCESS && !req.url.startsWith('/health') ? 'info' : 'silent') }));
   app.use(requestContext);
+  if (recycler) app.use(recycler);
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   app.get('/health/ready', async (req, res) => {
@@ -35,10 +40,13 @@ export function createApp(container) {
     }
   });
 
-  app.use('/api/v1/auth', authRoutes(container));
+  app.use('/api/v1/auth', cookieParser(), authRoutes(container)); // only the auth flows read cookies
   app.use('/api/v1/me', meRoutes(container));
   app.use('/api/v1/workspaces', workspaceRoutes(container));
   app.use('/api/v1/invitations', invitationRoutes(container));
+  app.use('/api/v1/setup', setupRoutes(container));
+  app.use('/api/v1/objects', objectRoutes(container));
+  app.use('/api/v1/public', publicRoutes(container));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

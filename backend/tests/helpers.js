@@ -14,7 +14,7 @@ export async function startServer() {
   return {
     base, outbox, container,
     mailTo: (to, template) => [...outbox].reverse().find((m) => m.to === to && (!template || m.template === template)),
-    stop: async () => { server.close(); await pool.end(); },
+    stop: async () => { server.close(); await container.close(); await pool.end(); },
   };
 }
 

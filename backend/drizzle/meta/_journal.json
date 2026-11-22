@@ -8,6 +8,41 @@
       "when": 1795332243071,
       "tag": "0000_messy_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795335524017,
+      "tag": "0001_aspiring_zuras",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795338481791,
+      "tag": "0002_cultured_maggott",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795366443722,
+      "tag": "0003_little_whirlwind",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795367238526,
+      "tag": "0004_object_record_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795367607356,
+      "tag": "0005_chilly_deadpool",
+      "breakpoints": true
     }
   ]
 }

@@ -77,8 +77,13 @@ describe('login, lockout & sessions', () => {
   });
 
   it('locks the account after repeated failures, even for the correct password, and emails the owner', async () => {
-    const { email } = await registerUser(server);
-    for (let i = 0; i < 5; i++) await new Client(server.base).post('/auth/login', { email, password: 'Wrong-password1' });
+    const { client, email } = await registerUser(server);
+    // The threshold is the workspace's Password Policies setting (Setup), not a constant.
+    const saved = await client.patch('/setup/pages/password-policies/settings', { version: 0, values: { maximum_invalid_login_attempts: '3' } });
+    assert.equal(saved.status, 200);
+    for (let i = 0; i < 2; i++) await new Client(server.base).post('/auth/login', { email, password: 'Wrong-password1' });
+    assert.equal(server.mailTo(email, 'account_locked'), undefined, 'not locked before the configured limit');
+    await new Client(server.base).post('/auth/login', { email, password: 'Wrong-password1' });
     assert.ok(server.mailTo(email, 'account_locked'));
     const res = await new Client(server.base).post('/auth/login', { email, password: PASSWORD });
     assert.equal(res.status, 401);
@@ -277,5 +282,27 @@ describe('audit trail', () => {
     const activity = await client.get('/me/activity?limit=10');
     const types = activity.body.items.map((e) => e.type);
     assert.ok(types.includes('login_success') && types.includes('signup'));
+  });
+});
+
+describe('tenant theme', () => {
+  it('lets admins pick a workspace theme that every member sees; members and bad values are rejected', async () => {
+    const { client: owner } = await registerUser(server);
+    const ws = (await owner.get('/me')).body.activeWorkspaceId;
+    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'graphite');
+
+    const bad = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'neon' });
+    assert.equal(bad.status, 400);
+    const ok = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'midnight' });
+    assert.equal(ok.status, 200);
+    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'midnight');
+
+    const memberEmail = uniqueEmail();
+    await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email: memberEmail, role: 'member' }] });
+    const token = new URL(server.mailTo(memberEmail, 'invitation').data.url).searchParams.get('token');
+    const member = new Client(server.base);
+    await member.post('/invitations/accept', { token, firstName: 'Mem', lastName: 'Ber', password: PASSWORD, acceptTerms: true });
+    assert.equal((await member.get('/me')).body.workspaces[0].theme, 'midnight');
+    assert.equal((await member.patch(`/workspaces/${ws}/theme`, { theme: 'rose' })).status, 403);
   });
 });

@@ -1,0 +1,36 @@
+{
+  "setupClasses": {
+    "Monitoring dashboard": 8,
+    "Read-only view / monitor": 51,
+    "Config records (create/edit)": 89,
+    "Bespoke builder / viewer": 10,
+    "Settings (stored flags/fields)": 83,
+    "Tool / one-shot action": 25
+  },
+  "setupNeedingEngine": 63,
+  "setup": 266,
+  "objects": 34,
+  "mainApps": 7,
+  "extraApps": 7,
+  "specialPages": 34,
+  "reports": 11,
+  "dashboards": 5,
+  "agents": 4,
+  "erpApps": 13,
+  "erpModels": 29,
+  "kinds": {
+    "dash": 8,
+    "list": 140,
+    "tree": 1,
+    "form": 83,
+    "info": 25,
+    "objmgr": 1,
+    "schema": 1,
+    "themes": 1,
+    "debuglogs": 1,
+    "sysoverview": 1,
+    "detail": 2,
+    "health": 1,
+    "sharing": 1
+  }
+}

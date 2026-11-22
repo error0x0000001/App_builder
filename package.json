@@ -1,7 +1,11 @@
 {
   "name": "app-builder",
   "private": true,
-  "workspaces": ["packages/*", "backend", "frontend"],
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev:api\" \"npm run dev:worker\" \"npm run dev:web\"",
     "dev:api": "npm run dev:api -w backend",
@@ -14,6 +18,7 @@
     "db:migrate": "npm run db:migrate -w backend"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "concurrently": "^9.1.0"
   }
 }

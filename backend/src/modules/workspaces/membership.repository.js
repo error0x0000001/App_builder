@@ -16,7 +16,7 @@ export class MembershipRepository {
 
   listWorkspacesForUser(userId) {
     return this.db.select({
-      id: workspaces.id, name: workspaces.name, slug: workspaces.slug, role: memberships.role,
+      id: workspaces.id, name: workspaces.name, slug: workspaces.slug, theme: workspaces.theme, role: memberships.role,
       onboarded: sql`${workspaces.onboardedAt} is not null`.mapWith(Boolean), joinedAt: memberships.createdAt,
     }).from(memberships).innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, userId)).orderBy(asc(memberships.createdAt)).limit(100);
@@ -27,7 +27,7 @@ export class MembershipRepository {
     const cursor = after ? sql`and (${memberships.createdAt}, ${memberships.userId}) > (${after.createdAt}::timestamptz, ${after.userId}::uuid)` : sql``;
     return this.db.select({
       userId: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName,
-      role: memberships.role, joinedAt: memberships.createdAt,
+      role: memberships.role, profile: memberships.profile, joinedAt: memberships.createdAt,
       cursorTs: sql`${memberships.createdAt}::text`, // full microsecond precision, so keyset paging never repeats a row
     }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(sql`${memberships.workspaceId} = ${workspaceId} ${cursor}`)
@@ -38,8 +38,17 @@ export class MembershipRepository {
     return first(await this.db.update(memberships).set({ role }).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning());
   }
 
+  async setProfile(workspaceId, userId, profile) {
+    return first(await this.db.update(memberships).set({ profile }).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning());
+  }
+
   async remove(workspaceId, userId) {
     return (await this.db.delete(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning({ id: memberships.userId })).length === 1;
+  }
+
+  async countMembers(workspaceId) {
+    const [row] = await this.db.select({ n: sql`count(*)::int` }).from(memberships).where(eq(memberships.workspaceId, workspaceId));
+    return row.n;
   }
 
   async countOwners(workspaceId) {

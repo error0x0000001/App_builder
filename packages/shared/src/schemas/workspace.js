@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ASSIGNABLE_ROLES, INDUSTRIES, ROLES, TIMEZONES } from '../constants.js';
+import { ASSIGNABLE_ROLES, INDUSTRIES, ROLES, TENANT_THEME_IDS, TIMEZONES } from '../constants.js';
 import { acceptTermsField, emailField, nameField, optionalChoice, optionalText, passwordField, passwordsMatch, teamSizeField, tokenField } from './fields.js';
 
 export const tokenOnlySchema = z.object({ token: tokenField });
@@ -12,6 +12,8 @@ export const onboardingSchema = z.object({
   teamSize: teamSizeField,
   timezone: optionalChoice(TIMEZONES),
 });
+
+export const tenantThemeSchema = z.object({ theme: z.enum(TENANT_THEME_IDS) });
 
 export const inviteSchema = z.object({ email: emailField, role: z.enum(ASSIGNABLE_ROLES).default('member') });
 export const bulkInviteSchema = z.object({ invitations: z.array(inviteSchema).min(1).max(50) });

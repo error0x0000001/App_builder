@@ -5,16 +5,30 @@ import { createMailer } from '../../shared/mail/mailer.js';
 import { QUEUES, createBoss } from '../../shared/queue.js';
 import { CleanupService } from '../../modules/maintenance/cleanup.service.js';
 import { createRepositories } from '../../modules/repositories.js';
+import { OneTimeTokenService } from '../../modules/authTokens/oneTimeToken.service.js';
+import { MailService } from '../../modules/mail/mail.service.js';
+import { AutomationService } from '../../modules/automation/automation.service.js';
+import { EscalationService } from '../../modules/automation/escalation.service.js';
+import { createCache } from '../../shared/cache/redis.js';
+import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
+import { SettingsReader } from '../../modules/setup/settingsReader.js';
+import { PasswordExpiryService } from '../../modules/setup/passwordExpiry.service.js';
 import { createCleanupJob } from './jobs/cleanup.js';
 import { createSendEmailJob } from './jobs/sendEmail.js';
 
 const boss = await createBoss();
-const cleanup = new CleanupService({ repos: createRepositories(db), logger });
+const repos = createRepositories(db);
+const cache = createCache();
+const cleanup = new CleanupService({ repos, logger });
+const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), logger, settings: new SettingsReader({ repos, cache }) }) });
+const passwordExpiry = new PasswordExpiryService({ repos, oneTime: new OneTimeTokenService({ repos, pepper: config.JWT_SECRET }), mail: new MailService({ boss }), logger });
 
 // Register new jobs here: queue name -> handler (one job per call, parallelism via batchSize).
 const handlers = {
-  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer()),
+  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
   [QUEUES.CLEANUP]: createCleanupJob(cleanup),
+  [QUEUES.ESCALATE_CASES]: () => escalation.run(),
+  [QUEUES.EXPIRE_PASSWORDS]: (job) => passwordExpiry.run(job.data),
 };
 
 for (const [queue, handler] of Object.entries(handlers)) {
@@ -24,10 +38,12 @@ for (const [queue, handler] of Object.entries(handlers)) {
   logger.info(`Worker listening on queue "${queue}"`);
 }
 await boss.schedule(QUEUES.CLEANUP, '0 3 * * *'); // daily at 03:00
+await boss.schedule(QUEUES.ESCALATE_CASES, '*/15 * * * *'); // Escalation Rules, every 15 minutes
 
 async function shutdown() {
   logger.info('Worker shutting down');
   await boss.stop();
+  await cache.close?.();
   await pool.end();
   process.exit(0);
 }

@@ -5,7 +5,7 @@ import { decodeCursor, encodeCursor, paginate } from '../../shared/pagination.js
 import { assertCanManageMember } from './permissions.js';
 
 export class WorkspaceService {
-  constructor({ repos, uow, sessions }) { Object.assign(this, { repos, uow, sessions }); }
+  constructor({ repos, uow, sessions, membershipLookup }) { Object.assign(this, { repos, uow, sessions, membershipLookup }); }
 
   /** Creates a workspace and its owner membership using the given repos (so callers can compose it into a transaction). */
   async createWithOwner(repos, { name, userId, teamSize }) {
@@ -35,6 +35,11 @@ export class WorkspaceService {
     return this.get(workspaceId);
   }
 
+  async updateTheme(workspaceId, theme) {
+    await this.repos.workspaces.update(workspaceId, { theme });
+    return this.get(workspaceId);
+  }
+
   async listMembers(workspaceId, { limit, after }) {
     const page = await paginate(
       (n) => this.repos.memberships.listMembers(workspaceId, { limit: n, after: decodeCursor(after) }),
@@ -48,7 +53,18 @@ export class WorkspaceService {
     const target = await this.#requireMember(workspaceId, targetUserId);
     assertCanManageMember({ actorRole: actor.role, targetRole: target.role, newRole: role });
     if (target.role === 'owner' && role !== 'owner') await this.#assertNotLastOwner(workspaceId);
-    return this.repos.memberships.updateRole(workspaceId, targetUserId, role);
+    const updated = await this.repos.memberships.updateRole(workspaceId, targetUserId, role);
+    await this.membershipLookup.invalidate(workspaceId);
+    return updated;
+  }
+
+  /** Assigns a Setup profile (or clears it with null); takes effect immediately on every worker. */
+  async setProfile({ actor, workspaceId, targetUserId, profile }) {
+    const target = await this.#requireMember(workspaceId, targetUserId);
+    assertCanManageMember({ actorRole: actor.role, targetRole: target.role, newRole: target.role });
+    const updated = await this.repos.memberships.setProfile(workspaceId, targetUserId, profile);
+    await this.membershipLookup.invalidate(workspaceId);
+    return updated;
   }
 
   async removeMember({ actor, workspaceId, targetUserId }) {
@@ -56,12 +72,14 @@ export class WorkspaceService {
     assertCanManageMember({ actorRole: actor.role, targetRole: target.role });
     if (target.role === 'owner') await this.#assertNotLastOwner(workspaceId);
     await this.repos.memberships.remove(workspaceId, targetUserId);
+    await this.membershipLookup.invalidate(workspaceId);
   }
 
   async leave({ userId, workspaceId }) {
     const membership = await this.#requireMember(workspaceId, userId);
     if (membership.role === 'owner') await this.#assertNotLastOwner(workspaceId);
     await this.repos.memberships.remove(workspaceId, userId);
+    await this.membershipLookup.invalidate(workspaceId);
   }
 
   async #requireMember(workspaceId, userId) {
