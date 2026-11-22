@@ -10,7 +10,7 @@ import { validate } from '../middleware/validate.js';
 const objectParam = z.object({ object: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,79}$/) });
 const recordParam = objectParam.extend({ id: uuidField });
 
-/** Records of Object Manager objects: viewers read, members write, admins delete. Tenant always comes from the verified membership. */
+/** Records of Object Manager objects. Any member may call; what they can do is decided per object by Profiles / Permission Sets / Sharing (AccessService). Tenant always comes from the verified membership. */
 export function objectRoutes({ tokens, membershipLookup, cache, objects, users }) {
   const router = Router();
   router.use(authenticate(tokens));
@@ -30,7 +30,7 @@ export function objectRoutes({ tokens, membershipLookup, cache, objects, users }
   router.get('/:object', validate({ params: objectParam }), async (req, res) => {
     const def = await objects.definition(req.objectCtx.workspaceId, req.params.object);
     if (!def) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown object' } });
-    res.set('Cache-Control', 'private, no-cache').json({ definition: def });
+    res.set('Cache-Control', 'private, no-cache').json({ definition: def, permissions: await objects.permissions(req.objectCtx, req.params.object) });
   });
 
   router.get('/:object/records', validate({ params: objectParam, query: setupListQuerySchema }), async (req, res) => {
@@ -40,16 +40,16 @@ export function objectRoutes({ tokens, membershipLookup, cache, objects, users }
     return res.type('application/json').send(entry.body);
   });
 
-  router.post('/:object/records', role('member'), validate({ params: objectParam }), async (req, res) => {
+  router.post('/:object/records', validate({ params: objectParam }), async (req, res) => {
     res.status(201).json(await objects.create(req.objectCtx, req.params.object, req.body));
   });
-  router.patch('/:object/records/:id', role('member'), validate({ params: recordParam }), async (req, res) => {
+  router.patch('/:object/records/:id', validate({ params: recordParam }), async (req, res) => {
     res.json(await objects.update(req.objectCtx, req.params.object, req.params.id, req.body));
   });
-  router.post('/:object/records/delete', role('admin'), validate({ params: objectParam, body: setupIdsSchema }), async (req, res) => {
+  router.post('/:object/records/delete', validate({ params: objectParam, body: setupIdsSchema }), async (req, res) => {
     res.json({ removed: await objects.remove(req.objectCtx, req.params.object, req.valid.body.ids) });
   });
-  router.post('/:object/records/:id/approval', role('member'), validate({ params: recordParam, body: approvalDecisionSchema }), async (req, res) => {
+  router.post('/:object/records/:id/approval', validate({ params: recordParam, body: approvalDecisionSchema }), async (req, res) => {
     res.json(await objects.decide(req.objectCtx, req.params.object, req.params.id, req.valid.body));
   });
   return router;

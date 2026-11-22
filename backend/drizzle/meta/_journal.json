@@ -36,6 +36,13 @@
       "when": 1795367238526,
       "tag": "0004_object_record_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795367607356,
+      "tag": "0005_chilly_deadpool",
+      "breakpoints": true
     }
   ]
 }

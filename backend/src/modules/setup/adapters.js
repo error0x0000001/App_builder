@@ -11,7 +11,7 @@ const PROFILE = { owner: 'System Administrator', admin: 'System Administrator', 
  * Adapters expose real platform tables through the same list contract as record-backed pages:
  *   list(ctx, { limit, after }) -> { items, nextCursor };  create/update/remove as the page allows.
  */
-export function createSetupAdapters({ db, workspaces, invitations, sessions, repos }) {
+export function createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles }) {
   const users = {
     async list(ctx, { limit, after }) {
       const { items, nextCursor } = await workspaces.listMembers(ctx.workspaceId, { limit, after });
@@ -19,7 +19,7 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
         nextCursor,
         items: items.map((m) => ({
           id: m.userId, full_name: `${m.firstName} ${m.lastName}`, alias: m.email.split('@')[0], username: m.email, email: m.email,
-          role: ROLE_LABELS[m.role], active: true, profile: PROFILE[m.role], createdAt: m.joinedAt,
+          role: ROLE_LABELS[m.role], active: true, profile: m.profile ?? PROFILE[m.role], createdAt: m.joinedAt,
         })),
       };
     },
@@ -28,11 +28,21 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
       if (result.status !== 'sent') throw new ValidationError(undefined, result.reason ?? 'Could not invite this person');
       return { id: email, email, username: email, role: role ?? 'Member', active: false, full_name: `${email} (invited)` };
     },
-    async update(ctx, id, { role }) {
-      const next = roleFromLabel(role);
-      if (!next) throw new ValidationError(undefined, 'Unknown role');
-      await workspaces.changeRole({ actor: ctx.actor, workspaceId: ctx.workspaceId, targetUserId: id, role: next });
-      return { id, role };
+    async update(ctx, id, { role, profile }) {
+      if (role !== undefined) {
+        const next = roleFromLabel(role);
+        if (!next) throw new ValidationError(undefined, 'Unknown role');
+        await workspaces.changeRole({ actor: ctx.actor, workspaceId: ctx.workspaceId, targetUserId: id, role: next });
+      }
+      if (profile !== undefined) {
+        const name = profile.trim();
+        if (name) { // must be an existing Setup profile
+          await seedProfiles(ctx.workspaceId);
+          if (!(await repos.setupRecords.findByLabel(ctx.workspaceId, 'profiles', name))) throw new ValidationError([{ field: 'profile', message: `No profile named “${name}”` }]);
+        }
+        await workspaces.setProfile({ actor: ctx.actor, workspaceId: ctx.workspaceId, targetUserId: id, profile: name || null });
+      }
+      return { id, role, profile };
     },
     async remove(ctx, ids) {
       for (const targetUserId of ids) await workspaces.removeMember({ actor: ctx.actor, workspaceId: ctx.workspaceId, targetUserId });

@@ -27,7 +27,7 @@ export class MembershipRepository {
     const cursor = after ? sql`and (${memberships.createdAt}, ${memberships.userId}) > (${after.createdAt}::timestamptz, ${after.userId}::uuid)` : sql``;
     return this.db.select({
       userId: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName,
-      role: memberships.role, joinedAt: memberships.createdAt,
+      role: memberships.role, profile: memberships.profile, joinedAt: memberships.createdAt,
       cursorTs: sql`${memberships.createdAt}::text`, // full microsecond precision, so keyset paging never repeats a row
     }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(sql`${memberships.workspaceId} = ${workspaceId} ${cursor}`)
@@ -36,6 +36,10 @@ export class MembershipRepository {
 
   async updateRole(workspaceId, userId, role) {
     return first(await this.db.update(memberships).set({ role }).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning());
+  }
+
+  async setProfile(workspaceId, userId, profile) {
+    return first(await this.db.update(memberships).set({ profile }).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId))).returning());
   }
 
   async remove(workspaceId, userId) {

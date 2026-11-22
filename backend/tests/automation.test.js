@@ -177,3 +177,71 @@ describe('platform pages', () => {
     void uniqueEmail; void PASSWORD;
   });
 });
+
+/** Adds a new person to the boss's workspace with the given role; returns their signed-in client and email. */
+async function joinWorkspace(boss, role) {
+  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const email = uniqueEmail();
+  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
+  const person = new Client(server.base);
+  const accepted = await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
+  assert.equal(accepted.status, 201);
+  await person.post(`/workspaces/${ws}/switch`);
+  return { person, email, ws };
+}
+
+describe('profiles, permission sets and sharing decide access', () => {
+  it('role defaults apply until a profile or permission set says otherwise', async () => {
+    const { client: boss } = await registerUser(server);
+    const { person: viewer } = await joinWorkspace(boss, 'viewer');
+    assert.equal((await viewer.get(`${O}/Lead/records`)).status, 200);
+    assert.equal((await lead(viewer, {})).status, 403, 'viewers cannot create');
+    const def = await viewer.get(`${O}/Lead`);
+    assert.deepEqual([def.body.permissions.read, def.body.permissions.create], [true, false]);
+  });
+
+  it('a profile restricts a member; a permission set grants more to a viewer', async () => {
+    const { client: boss } = await registerUser(server);
+    const { person: member, email: memberEmail } = await joinWorkspace(boss, 'member');
+    const { person: viewer, email: viewerEmail } = await joinWorkspace(boss, 'viewer');
+    assert.equal((await lead(member, {})).status, 201, 'member default: can create');
+
+    // Assign the seeded "Read Only" profile (All objects: read only) to the member.
+    const profileRes = await boss.patch(`${S}/pages/users/records/${(await boss.get(`${S}/pages/users/records`)).body.items.find((u) => u.email === memberEmail).id}`, { profile: 'Read Only' });
+    assert.equal(profileRes.status, 200, JSON.stringify(profileRes.body));
+    assert.equal((await lead(member, {})).status, 403, 'profile removes create');
+    assert.equal((await member.get(`${O}/Lead/records`)).status, 200, 'but read still works');
+    assert.equal((await boss.patch(`${S}/pages/users/records/${(await boss.get(`${S}/pages/users/records`)).body.items.find((u) => u.email === memberEmail).id}`, { profile: 'No Such Profile' })).status, 400);
+
+    // A permission set gives the viewer create/edit on Leads only.
+    await rule(boss, 'object-settings', { object: 'Lead', permission_set: 'Lead Editors', read: 'Yes', create: 'Yes', edit: 'Yes', delete: 'No' });
+    await rule(boss, 'manage-assignments', { user: viewerEmail, permission_set: 'Lead Editors', assigned: '2026-01-01' });
+    assert.equal((await lead(viewer, {})).status, 201, 'permission set grants create on Lead');
+    assert.equal((await viewer.post(`${O}/Account/records`, { account_name: 'X' })).status, 403, 'but not on other objects');
+    const leads = (await viewer.get(`${O}/Lead/records`)).body.items;
+    assert.equal((await viewer.post(`${O}/Lead/records/delete`, { ids: [leads[0].id] })).status, 403, 'delete was not granted');
+  });
+
+  it('organization-wide defaults: Private shows people only their own records', async () => {
+    const { client: boss } = await registerUser(server);
+    const { person: a } = await joinWorkspace(boss, 'member');
+    const { person: b } = await joinWorkspace(boss, 'member');
+    const mine = await lead(a, { name: 'A-owned' });
+    await lead(b, { name: 'B-owned' });
+    assert.equal((await a.get(`${O}/Lead/records`)).body.items.length, 2, 'open by default');
+
+    const owd = await boss.get(`${S}/pages/sharing-defaults/records?q=Lead`);
+    const row = owd.body.items.find((r) => r.object === 'Lead');
+    await boss.patch(`${S}/pages/sharing-defaults/records/${row.id}`, { default_internal_access: 'Private' });
+    const seen = (await a.get(`${O}/Lead/records`)).body.items;
+    assert.deepEqual(seen.map((l) => l.name), ['A-owned'], 'only own records');
+    assert.equal((await boss.get(`${O}/Lead/records`)).body.items.length, 2, 'admins see everything');
+    assert.equal((await b.patch(`${O}/Lead/records/${mine.body.record.id}`, { status: 'x' })).status, 403, 'cannot edit someone else\'s record');
+
+    await boss.patch(`${S}/pages/sharing-defaults/records/${row.id}`, { default_internal_access: 'Public Read Only' });
+    assert.equal((await a.get(`${O}/Lead/records`)).body.items.length, 2, 'read-only sharing: everyone reads');
+    assert.equal((await b.patch(`${O}/Lead/records/${mine.body.record.id}`, { status: 'x' })).status, 403, '…but only owners edit');
+    assert.equal((await a.patch(`${O}/Lead/records/${mine.body.record.id}`, { status: 'Qualified' })).status, 200);
+  });
+});

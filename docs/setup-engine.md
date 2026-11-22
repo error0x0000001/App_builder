@@ -99,6 +99,14 @@ passes its criteria (field / operator / value; empty = every record) **and** has
 Limits worth knowing: a rule has **one** criterion and **one** action (several actions = several rules); picklist fields accept any text because Object Manager does not hold picklist values yet;
 rules are cached 30 s per workspace and invalidated on change.
 
+## Access control (Profiles, Permission Sets, Sharing)
+Enforced on every `/api/v1/objects` call by `AccessService`, and reflected in the UI (buttons appear only when allowed).
+- **Grants** are Object Settings rows (object · permission set · Yes/No for read/create/edit/delete). The container name is a **profile** (assigned on the Users page) or a **permission set** (assigned in Manage Assignments, by email). The union of everything that covers the object wins; object `All` covers every object.
+- **No grant covers the object** → the workspace role's baseline: viewer reads; member reads/creates/edits; admin/owner everything.
+- **Standard profiles** are seeded with their meaning: System Administrator (all), Standard User (no delete), Read Only, Minimum Access (nothing).
+- **Sharing** (Sharing Settings → organization-wide defaults, seeded open): *Private* = people see only records they own; *Public Read Only* = everyone reads, only owners edit; *Public Read/Write* = open. Admins and owners always see everything.
+- Not modelled yet: role-hierarchy visibility (managers seeing their reports' records), sharing rules, field-level security, record types.
+
 ## Not done / next
 Still stored-only or recorded-only (exact list in `setup-status.md`). These are separate subsystems, not gaps in the engine above:
 - **SAML / SSO, Login Flows, Delegated Administration, Certificates, Platform Encryption, CORS / CSP lists, Named Credentials** — each needs an identity-provider integration, key management or an outbound proxy.

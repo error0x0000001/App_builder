@@ -1,6 +1,6 @@
 import { getCollection } from '@app/shared/setup-registry';
 import { objectRecordSchema, toObjectField } from '@app/shared';
-import { NotFoundError } from '../../shared/errors.js';
+import { ForbiddenError, NotFoundError } from '../../shared/errors.js';
 
 const coll = (key) => `obj:${key}`;
 const NS = (ws, key) => `r:${ws}:${coll(key)}`;
@@ -13,7 +13,7 @@ const flat = (row) => ({ id: row.id, ...row.data, createdAt: row.created_at, upd
  * Storage is the generic partitioned record store under collection `obj:<Object>`.
  */
 export class ObjectsService {
-  constructor({ repos, records, cache, automation }) { Object.assign(this, { repos, records, cache, automation }); }
+  constructor({ repos, records, cache, automation, access }) { Object.assign(this, { repos, records, cache, automation, access }); }
 
   /** { key, plural, nameKey, statusKey, fields } — cached; invalidated when Object Manager records change. */
   definition(ws, key) {
@@ -38,13 +38,23 @@ export class ObjectsService {
     return def;
   }
 
+  /** What the signed-in user may do with this object (drives the UI's buttons; the service enforces it regardless). */
+  async permissions(ctx, key) {
+    const { read, create, edit, delete: del, scope } = await this.access.forObject(ctx, await this.#require(ctx.workspaceId, key));
+    return { read, create, edit, delete: del, scope };
+  }
+
   async list(ctx, key, params) {
     const def = await this.#require(ctx.workspaceId, key);
-    return this.records.list(ctx, { key: coll(key), name: def.plural, columns: [], views: [] }, params);
+    const perms = await this.access.forObject(ctx, def);
+    this.access.assert(perms, 'read');
+    const owner = perms.scope === 'own' && perms.ownerKey ? { key: perms.ownerKey, value: ctx.email } : undefined; // Private records: own only
+    return this.records.list(ctx, { key: coll(key), name: def.plural, columns: [], views: [] }, { ...params, owner });
   }
 
   async create(ctx, key, input) {
     const def = await this.#require(ctx.workspaceId, key);
+    this.access.assert(await this.access.forObject(ctx, def), 'create');
     const parsed = objectRecordSchema(def.fields, 'create').parse(input ?? {});
     const data = this.#defaults(def, parsed, ctx);
     const { data: prepared, warnings } = await this.automation.beforeSave(ctx, def, data, { mode: 'create' });
@@ -58,6 +68,9 @@ export class ObjectsService {
     const def = await this.#require(ctx.workspaceId, key);
     const existing = await this.repos.setupRecords.get(ctx.workspaceId, coll(key), id);
     if (!existing) throw new NotFoundError('Record not found');
+    const perms = await this.access.forObject(ctx, def);
+    this.access.assert(perms, 'edit');
+    if (!this.access.mayChange(perms, ctx, existing.data)) throw new ForbiddenError('Only the record owner can change this record');
     const changes = objectRecordSchema(def.fields, 'update').parse(input ?? {});
     const merged = { ...existing.data, ...changes };
     const { data: prepared, warnings } = await this.automation.beforeSave(ctx, def, merged, { mode: 'update', id });
@@ -69,7 +82,15 @@ export class ObjectsService {
   }
 
   async remove(ctx, key, ids) {
-    await this.#require(ctx.workspaceId, key);
+    const def = await this.#require(ctx.workspaceId, key);
+    const perms = await this.access.forObject(ctx, def);
+    this.access.assert(perms, 'delete');
+    if (perms.scope !== 'all') {
+      for (const id of ids) {
+        const row = await this.repos.setupRecords.get(ctx.workspaceId, coll(key), id);
+        if (row && !this.access.mayChange(perms, ctx, row.data)) throw new ForbiddenError('Only the record owner can delete this record');
+      }
+    }
     const removed = await this.repos.setupRecords.remove(ctx.workspaceId, coll(key), ids);
     await this.cache.bump(NS(ctx.workspaceId, key));
     return removed;

@@ -26,6 +26,8 @@ import { createSetupAdapters } from '../../modules/setup/adapters.js';
 import { HealthService } from '../../modules/setup/health.service.js';
 import { MetricsService } from '../../modules/setup/metrics.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
+import { getCollection } from '@app/shared/setup-registry';
+import { AccessService } from '../../modules/access/access.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { SettingsService } from '../../modules/setup/settings.service.js';
 import { AutomationService } from '../../modules/automation/automation.service.js';
@@ -75,10 +77,11 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos }) });
+  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
   const health = new HealthService({ settings: setupSettings });
   const automation = new AutomationService({ repos, cache, mail, logger });
-  const objects = new ObjectsService({ repos, records: setupRecords, cache, automation });
+  const access = new AccessService({ automation, cache, seed: (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key)) });
+  const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
@@ -87,5 +90,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

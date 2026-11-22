@@ -30,6 +30,12 @@ describe('tiered cache', () => {
     await sleep(50);
     assert.equal(await a.rememberValue(n, 'k', { ttlMs: 60_000 }, async () => 'new'), 'new');
   });
+  it('an entry read back from Redis exposes its parsed value like a fresh one', { skip: !a.redis }, async () => {
+    const n = ns();
+    await a.remember(n, 'k', { ttlMs: 60_000 }, async () => ({ answer: 42 }));
+    const fromRedis = await b.remember(n, 'k', { ttlMs: 60_000 }, async () => ({ answer: 0 })); // b has no L1 entry: served from Redis
+    assert.equal(fromRedis.value.answer, 42);
+  });
   it('serves stale data while one background refresh runs', async () => {
     const n = ns(); let loads = 0;
     const load = async () => ({ n: ++loads });

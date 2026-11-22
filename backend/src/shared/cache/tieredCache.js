@@ -113,9 +113,15 @@ export class TieredCache {
     return (entry.value ??= JSON.parse(entry.body));
   }
 
+  /** `value` is parsed lazily from `body`, so entries read back from Redis behave exactly like freshly computed ones. */
   #entry(body, etag, ttlMs, staleMs, value) {
     const now = Date.now();
-    return { body, etag, value, fresh: now + Math.min(ttlMs, 5_000), until: now + ttlMs + staleMs }; // L1 re-checks Redis every <=5s
+    let parsed = value;
+    return {
+      body, etag, fresh: now + Math.min(ttlMs, 5_000), until: now + ttlMs + staleMs, // L1 re-checks Redis every <=5s
+      get value() { return (parsed ??= JSON.parse(body)); },
+      set value(v) { parsed = v; },
+    };
   }
 
   #load(key, ttlMs, staleMs, loader) {

@@ -63,9 +63,9 @@ export class RecordsService {
     return this.adapters[collection.key];
   }
 
-  async #list(ws, collection, { limit, after, q, view, total: wantTotal, status, parent }) {
+  async #list(ws, collection, { limit, after, q, view, total: wantTotal, status, parent, owner }) {
     const filter = resolveView(collection, view) ?? {};
-    const params = { q: q || undefined, status: status ?? filter.status, dataFilter: filter.dataFilter, parentId: parent };
+    const params = { q: q || undefined, status: status ?? filter.status, dataFilter: owner ? { ...filter.dataFilter, [owner.key]: owner.value } : filter.dataFilter, parentId: parent };
     const cursor = decodeCursor(after)?.id;
     const rows = await this.repos.setupRecords.list(ws, collection.key, { ...params, after: cursor }, limit + 1);
     const items = rows.slice(0, limit).map(flatten);
@@ -182,6 +182,6 @@ export class RecordsService {
   }
 
   #hash(params, limit) {
-    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.status, params.parent, params.total ? 1 : 0, limit])).digest('base64url').slice(0, 14);
+    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.status, params.parent, params.owner, params.total ? 1 : 0, limit])).digest('base64url').slice(0, 14);
   }
 }

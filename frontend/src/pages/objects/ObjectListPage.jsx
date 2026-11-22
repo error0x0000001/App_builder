@@ -44,11 +44,10 @@ function ApprovalBar({ object, record, onDecided }) {
   );
 }
 
-function ObjectBody({ object, definition }) {
+function ObjectBody({ object, definition, permissions }) {
   const queryClient = useQueryClient();
   const { activeWorkspace } = useAuth();
-  const canWrite = hasRole(activeWorkspace.role, 'member');
-  const canDelete = hasRole(activeWorkspace.role, 'admin');
+  const { create: canCreate, edit: canEdit, delete: canDelete } = permissions; // per-object, from Profiles / Permission Sets / Sharing
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(() => new Set());
   const [dialog, setDialog] = useState(null); // { mode, record? }
@@ -88,7 +87,7 @@ function ObjectBody({ object, definition }) {
       <PageHeaderTitle icon="users">{definition.plural}</PageHeaderTitle>
       <PageHeaderActions>
         {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral">Customize</Button>}
-        {canWrite && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
+        {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
       </PageHeaderActions>
 
       {notice.map((n) => <Alert key={n} tone="warning">{n}</Alert>)}
@@ -115,11 +114,11 @@ function ObjectBody({ object, definition }) {
           fields={formFields}
           schema={objectRecordFormSchema(definition.fields, dialog.mode)}
           values={dialog.record}
-          onSubmit={canWrite ? save(dialog.mode, dialog.record) : async () => {}}
+          onSubmit={dialog.mode === 'create' ? save('create') : canEdit ? save('edit', dialog.record) : async () => {}}
           onClose={() => setDialog(null)}
         >
           {dialog.record?.approval_status === 'Pending' && <ApprovalBar object={object} record={dialog.record} onDecided={async () => { await refresh(); setDialog(null); }} />}
-          {!canWrite && <Alert tone="info">You have read-only access.</Alert>}
+          {dialog.mode === 'edit' && !canEdit && <Alert tone="info">You have read-only access to these records.</Alert>}
         </RecordDialog>
       )}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={remove} danger confirmLabel="Delete" title={`Delete ${selected.size} selected?`} description="This cannot be undone." />
@@ -131,5 +130,5 @@ function ObjectBody({ object, definition }) {
 export default function ObjectListPage() {
   const { object } = useParams();
   const definition = useQuery(objectDefinitionQuery(object));
-  return <QueryState query={definition}>{({ definition: def }) => <ObjectBody key={object} object={object} definition={def} />}</QueryState>;
+  return <QueryState query={definition}>{({ definition: def, permissions }) => <ObjectBody key={object} object={object} definition={def} permissions={permissions} />}</QueryState>;
 }

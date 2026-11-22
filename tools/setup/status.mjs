@@ -19,10 +19,17 @@ const ENFORCED = {
 const ENFORCED_RECORDS = new Set(['network-access']); // every row is an allowed IP range at sign-in and on session refresh
 const NOT_ACTIVE = new Set(['readiness-assessor', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
 
+const ACCESS = {
+  profiles: 'Names a permission container. Its object permissions are the Object Settings rows with the same name; assigned to people on the Users page.',
+  'object-settings': 'The grants: per object, per profile or permission set, Yes/No for read / create / edit / delete (object "All" = every object). Enforced on every object request.',
+  'manage-assignments': 'Assigns a permission set to a person (by email). Their effective permissions are the union of their profile and assigned sets.',
+  'sharing-defaults': 'Organization-wide defaults per object: Private (own records only), Public Read Only, Public Read/Write.',
+};
 const INTAKE = { 'web-to-lead': 'web_to_lead_enabled', 'web-to-case': 'enable_web_to_case', 'email-to-case': 'enable_email_to_case' };
 const ENGINE_OUTPUT = { 'duplicate-error-logs': 'Written by Duplicate Rules when they block or flag a record.', 'case-escalations': 'Written by the 15-minute Escalation job.' };
 
 const classify = (p) => {
+  if (ACCESS[p.key]) return ['Access control (enforced)', ACCESS[p.key]];
   if (RULE_COLLECTIONS[p.key]) return ['Rule engine (runs on records)', `Kind: ${RULE_COLLECTIONS[p.key].kind}. An Active rule with its criteria + action fields filled in acts on matching ${RULE_COLLECTIONS[p.key].object ?? 'object'} records; rules without them are inert.`];
   if (ENGINE_OUTPUT[p.key]) return ['Rule engine (runs on records)', ENGINE_OUTPUT[p.key]];
   if (INTAKE[p.key]) return ['Public intake endpoint', `Switch "${INTAKE[p.key]}" gates a public endpoint that creates real ${p.key === 'web-to-lead' ? 'Leads' : 'Cases'} (see setup-engine.md).`];

@@ -1,4 +1,4 @@
-import { index, pgEnum, pgTable, primaryKey, uuid } from 'drizzle-orm/pg-core';
+import { index, pgEnum, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
 import { ROLES } from '@app/shared';
 import { createdAt } from '../helpers.js';
 import { users } from './users.js';
@@ -12,6 +12,7 @@ export const memberships = pgTable(
     workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: workspaceRole('role').notNull().default('member'),
+    profile: text('profile'), // Setup profile name (grants come from Object Settings rows of that name); null = role defaults
     createdAt: createdAt(),
   },
   (t) => [

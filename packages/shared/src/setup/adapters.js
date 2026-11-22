@@ -13,7 +13,10 @@ export const ADAPTER_META = Object.freeze({
       { key: 'email', label: 'Email', type: 'text', required: true },
       { key: 'role', label: 'Role', type: 'select', options: ROLE_OPTIONS, default: 'Member' },
     ],
-    editFields: [{ key: 'role', label: 'Role', type: 'select', options: [...ROLE_OPTIONS, ROLE_LABELS.owner] }],
+    editFields: [
+      { key: 'role', label: 'Role', type: 'select', options: [...ROLE_OPTIONS, ROLE_LABELS.owner] },
+      { key: 'profile', label: 'Profile (name of a Setup profile; blank = role defaults)', type: 'text' },
+    ],
   },
   'login-history': { searchable: false, readOnly: true, columnTypes: { login_time: 'datetime' } },
   'session-management': { searchable: false, canDelete: true, deleteLabel: 'End session', columnTypes: { login_time: 'datetime', last_activity: 'datetime' } },

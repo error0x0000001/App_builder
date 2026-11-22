@@ -58,6 +58,15 @@ export class WorkspaceService {
     return updated;
   }
 
+  /** Assigns a Setup profile (or clears it with null); takes effect immediately on every worker. */
+  async setProfile({ actor, workspaceId, targetUserId, profile }) {
+    const target = await this.#requireMember(workspaceId, targetUserId);
+    assertCanManageMember({ actorRole: actor.role, targetRole: target.role, newRole: target.role });
+    const updated = await this.repos.memberships.setProfile(workspaceId, targetUserId, profile);
+    await this.membershipLookup.invalidate(workspaceId);
+    return updated;
+  }
+
   async removeMember({ actor, workspaceId, targetUserId }) {
     const target = await this.#requireMember(workspaceId, targetUserId);
     assertCanManageMember({ actorRole: actor.role, targetRole: target.role });
