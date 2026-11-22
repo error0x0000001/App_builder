@@ -38,7 +38,7 @@ export function SidebarProvider({ defaultVariant = 'inset', children }) {
 
   return (
     <SidebarContext.Provider value={value}>
-      <div data-variant={variant} className={`flex min-h-screen w-full ${variant === 'inset' ? 'bg-sidebar' : 'bg-bg'}`}>{children}</div>
+      <div data-variant={variant} className={`flex h-svh w-full overflow-hidden ${variant === 'inset' ? 'bg-sidebar' : 'bg-bg'}`}>{children}</div>
     </SidebarContext.Provider>
   );
 }

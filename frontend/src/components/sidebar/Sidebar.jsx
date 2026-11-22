@@ -27,7 +27,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('sticky top-0 h-screen shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-64')}>
+    <aside aria-label={label} data-collapsed={iconOnly} className={cn('h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-64')}>
       <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>
@@ -39,9 +39,9 @@ export function Sidebar({ label = 'Sidebar', children }) {
   );
 }
 
-/** The main content area: a bordered floating card in every variant (floating mode additionally floats the sidebar). */
+/** The main content area: a fixed-height bordered floating card in every variant — its content scrolls inside, it never grows. */
 export function SidebarInset({ children }) {
-  return <div className="m-2 flex min-w-0 flex-1 flex-col rounded-xl border border-line bg-inset md:ml-0 md:min-h-[calc(100svh-1rem)]">{children}</div>;
+  return <div className="m-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset md:ml-0">{children}</div>;
 }
 
 export function SidebarTrigger() {

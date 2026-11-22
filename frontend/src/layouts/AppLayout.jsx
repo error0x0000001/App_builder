@@ -28,7 +28,9 @@ export function AppLayout() {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 sm:p-6"><Outlet /></main>
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6"><Outlet /></div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
