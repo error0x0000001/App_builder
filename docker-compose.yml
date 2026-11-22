@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_builder
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  # Each backend service is its own process/container, so they scale independently:
+  #   docker compose up --scale worker=3
+  api:
+    build: ./backend
+    command: node src/services/api/index.js
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app_builder
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["full"]
+
+  worker:
+    build: ./backend
+    command: node src/services/worker/index.js
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app_builder
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["full"]
+
+volumes:
+  pgdata:
