@@ -72,7 +72,11 @@
 html, body, #root { min-height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 /* In the base layer so utilities (outline-none on inputs that draw their own ring) can override it. */
-@layer base { :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; } }
+@layer base {
+  :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  /* The app shell is exactly one viewport: the page itself never scrolls sideways (wide tables scroll inside their own card). */
+  html, body { overflow-x: clip; }
+}
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
 /* Auth hero panel: layered soft gradients + a glossy orb (decorative). */
