@@ -4,8 +4,8 @@ import { Icon } from '../ui/Icon.jsx';
 import { useSidebar } from './SidebarContext.jsx';
 
 /**
- * Desktop: sticky column (expanded 16rem / icon-only 4rem) with a toggle rail on its edge. Floating draws it as a
- * raised card; inset leaves it flush with the page so the main area (SidebarInset) becomes the raised card.
+ * Desktop: sticky column (expanded 16rem / icon-only 4rem) with a toggle rail on its edge. Inset leaves it flush with the
+ * page; floating draws it as a bordered card. Dark navy in both themes.
  * Mobile: off-canvas drawer with a backdrop.
  */
 export function Sidebar({ label = 'Sidebar', children }) {
@@ -18,7 +18,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
         <aside
           aria-label={label}
           inert={mobileOpen ? undefined : ''}
-          className={cn('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-line bg-surface transition-[transform,visibility] duration-200', mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full')}
+          className={cn('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-sidebar-line bg-sidebar text-sidebar-ink transition-[transform,visibility] duration-200', mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full')}
         >
           {children}
         </aside>
@@ -28,7 +28,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
 
   return (
     <aside aria-label={label} data-collapsed={iconOnly} className={cn('sticky top-0 h-screen shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-64')}>
-      <div className={cn('relative flex h-full flex-col rounded-xl', variant === 'floating' && 'border border-line bg-surface')}>
+      <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>
       {/* Rail: a thin hit area on the edge that toggles the sidebar (mouse only; the header trigger is the accessible control). */}
@@ -39,14 +39,9 @@ export function Sidebar({ label = 'Sidebar', children }) {
   );
 }
 
-/** The main content area. Under the inset variant it is a rounded, raised card. */
+/** The main content area: a bordered floating card in every variant (floating mode additionally floats the sidebar). */
 export function SidebarInset({ children }) {
-  const { variant } = useSidebar();
-  return (
-    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'inset' ? 'm-2 rounded-xl border border-line bg-inset md:ml-0 md:min-h-[calc(100svh-1rem)]' : 'min-h-screen bg-bg')}>
-      {children}
-    </div>
-  );
+  return <div className="m-2 flex min-w-0 flex-1 flex-col rounded-xl border border-line bg-inset md:ml-0 md:min-h-[calc(100svh-1rem)]">{children}</div>;
 }
 
 export function SidebarTrigger() {

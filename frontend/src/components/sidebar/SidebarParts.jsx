@@ -13,7 +13,7 @@ export const SidebarGroup = ({ children }) => <div className="flex w-full min-w-
 export function SidebarGroupLabel({ children }) {
   const { iconOnly } = useSidebar();
   if (iconOnly) return null;
-  return <div className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-muted">{children}</div>;
+  return <div className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-muted">{children}</div>;
 }
 
 export const SidebarMenu = ({ children }) => <ul className="flex w-full min-w-0 flex-col gap-1">{children}</ul>;
@@ -26,7 +26,7 @@ export const SidebarMenuItem = ({ children }) => <li className="relative">{child
 export const SidebarMenuButton = forwardRef(function SidebarMenuButton({ to, end, size = 'default', isActive = false, tooltip, className, children, ...rest }, ref) {
   const { iconOnly } = useSidebar();
   const base = cn(
-    'flex w-full items-center gap-2 overflow-hidden rounded-md text-left text-sm text-ink outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-link data-[open=true]:bg-sidebar-accent',
+    'flex w-full items-center gap-2 overflow-hidden rounded-md text-left text-sm text-sidebar-ink outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent',
     size === 'lg' ? 'h-12' : 'h-8',
     iconOnly ? (size === 'lg' ? 'size-8 p-0' : 'size-8 p-2') : 'p-2',
     className,
@@ -66,16 +66,16 @@ export function SidebarCollapsibleItem({ icon, label, active, children }) {
       <SidebarMenuButton tooltip={label} aria-expanded={expanded} onClick={onClick}>
         <Icon name={icon} className="size-4 shrink-0" />
         <span className="flex-1 truncate">{label}</span>
-        <Icon name="chevron-right" className={cn('size-4 shrink-0 text-muted transition-transform', expanded && 'rotate-90')} />
+        <Icon name="chevron-right" className={cn('size-4 shrink-0 opacity-60 transition-transform', expanded && 'rotate-90')} />
       </SidebarMenuButton>
-      {expanded && <ul className="mx-3.5 mt-1 flex min-w-0 flex-col gap-1 border-l border-line px-2.5 py-0.5">{children}</ul>}
+      {expanded && <ul className="mx-3.5 mt-1 flex min-w-0 flex-col gap-1 border-l border-sidebar-line px-2.5 py-0.5">{children}</ul>}
     </SidebarMenuItem>
   );
 }
 
 export const SidebarSubItem = ({ to, label }) => (
   <li>
-    <NavLink to={to} className={({ isActive }) => cn('flex h-7 min-w-0 items-center rounded-md px-2 text-sm text-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-link', isActive && 'bg-sidebar-accent font-medium')}>
+    <NavLink to={to} className={({ isActive }) => cn('flex h-7 min-w-0 items-center rounded-md px-2 text-sm text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary', isActive && 'bg-sidebar-accent font-medium')}>
       <span className="truncate">{label}</span>
     </NavLink>
   </li>
