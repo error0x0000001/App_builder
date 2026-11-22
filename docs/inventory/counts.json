@@ -1,4 +1,13 @@
 {
+  "setupClasses": {
+    "Monitoring dashboard": 8,
+    "Read-only view / monitor": 51,
+    "Config records (create/edit)": 89,
+    "Bespoke builder / viewer": 10,
+    "Settings (stored flags/fields)": 83,
+    "Tool / one-shot action": 25
+  },
+  "setupNeedingEngine": 63,
   "setup": 266,
   "objects": 34,
   "mainApps": 7,

@@ -13,6 +13,17 @@ if (!html) { console.error('usage: build-inventory.cjs <mockup.html>'); process.
 const OUT = path.join(__dirname, '..', '..', 'docs', 'inventory');
 
 const KIND = { list: 'List', form: 'Settings form', info: 'Info / call-to-action page', dash: 'Dashboard page', detail: 'Detail page', tree: 'Hierarchy tree', objmgr: 'Object Manager (builder)', schema: 'Schema Builder (builder)', themes: 'Themes & Branding (builder)', debuglogs: 'Debug-log viewer', sysoverview: 'System overview', health: 'Health check', sharing: 'Sharing settings' };
+/** What kind of work a Setup page is, derived from its definition (not guessed). */
+const classify = (spec) => {
+  if (!spec) return 'Unknown';
+  if (spec.t === 'form') return 'Settings (stored flags/fields)';
+  if (spec.t === 'list') return spec.action ? 'Config records (create/edit)' : 'Read-only view / monitor';
+  if (spec.t === 'info') return 'Tool / one-shot action';
+  if (spec.t === 'dash') return 'Monitoring dashboard';
+  return 'Bespoke builder / viewer';
+};
+/** Heuristic (by name): pages whose settings/records only take effect when an engine reads them. */
+const ENGINE = /rule|process|trigger|workflow|flow\b|flows\b|approval|assignment|escalat|auto-response|matching|duplicate|entitlement|macro|territor|forecast|email-to|web-to|snapshot|platform event|scheduled|sharing|encryption|session|password|single sign|login (flows|access)|transaction security|delegated|import|export|mass |loader|translat|expire|deliverab/i;
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const list = (a, n = 8) => a.slice(0, n).join(', ') + (a.length > n ? `, … (+${a.length - n})` : '');
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '---').join(' | ')} |`, ...rows.map((r) => `| ${r.map(esc).join(' | ')} |`)].join('\n');
@@ -59,14 +70,16 @@ const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '-
   // ---- setup pages
   const groups = new Map();
   for (const p of data.setup) { const g = p.path.slice(0, 2).join(' › '); (groups.get(g) ?? groups.set(g, []).get(g)).push(p); }
-  let md = `# Setup / Administration pages (${data.setup.length})\n\nGenerated from the mock-up. Tick a row when the page is built **and** passes its acceptance check (see README).\n\nKinds: ${Object.entries(kinds).map(([k, v]) => `${KIND[k] ?? k} ×${v}`).join(' · ')}\n`;
+  const classes = {}; let engineCount = 0;
+  data.setup.forEach((p) => { p.cls = classify(p.spec); p.engine = ENGINE.test(p.name); classes[p.cls] = (classes[p.cls] || 0) + 1; if (p.engine) engineCount++; });
+  let md = `# Setup / Administration pages (${data.setup.length})\n\nGenerated from the mock-up. Tick a row when the page is built **and** passes its acceptance check (see README).\n\nKinds: ${Object.entries(kinds).map(([k, v]) => `${KIND[k] ?? k} ×${v}`).join(' · ')}\n\n**What kind of work each page is** (derived from the mock-up definitions):\n\n${Object.entries(classes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: **${v}**`).join('\n')}\n\n“Engine?” = the page’s settings/records only take effect when a behaviour engine reads them (name heuristic; review per page): **${engineCount}** pages.\n`;
   for (const [g, pages] of groups) {
-    md += `\n## ${g} (${pages.length})\n\n` + table(['', 'Page', 'Sub-section', 'Kind', 'Contents'], pages.map((p) => {
+    md += `\n## ${g} (${pages.length})\n\n` + table(['', 'Page', 'Sub-section', 'Kind', 'Class', 'Engine?', 'Contents'], pages.map((p) => {
       const s = p.spec; let c = '';
       if (s?.t === 'list') c = `${s.cols.length} columns: ${list(s.cols)}${s.views ? ` · views: ${list(s.views, 4)}` : ''}${s.action ? ` · action “${s.action}”` : ''}`;
       else if (s?.t === 'form') { const n = s.sections.reduce((a, x) => a + x.fields.length, 0); c = `${n} fields in ${s.sections.length} section(s): ${list(s.sections.flatMap((x) => x.fields), 6)}`; }
       else c = [s?.title, s?.desc, s?.cta && `CTA “${s.cta}”`].filter(Boolean).join(' — ');
-      return ['☐', p.name, p.path.slice(2).join(' › '), KIND[s?.t] ?? s?.t ?? '', c];
+      return ['☐', p.name, p.path.slice(2).join(' › '), KIND[s?.t] ?? s?.t ?? '', p.cls, p.engine ? 'yes' : '', c];
     }));
     md += '\n';
   }
@@ -95,7 +108,7 @@ const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '-
   md += `\n\n## Models (${erp.length})\n\n` + table(['', 'Model', 'Label', 'Fields'], erp.map((m) => ['☐', m.key, m.label, m.fields.join('; ')])) + '\n';
   fs.writeFileSync(path.join(OUT, 'erp.md'), md);
 
-  const total = { setup: data.setup.length, objects: data.objs.length, mainApps: mainApps.length, extraApps: data.extra.length, specialPages: routes.length, reports: data.reports.length, dashboards: data.dash.length, agents: data.agents.length, erpApps: data.odooApps.length, erpModels: erp.length, kinds };
+  const total = { setupClasses: classes, setupNeedingEngine: engineCount, setup: data.setup.length, objects: data.objs.length, mainApps: mainApps.length, extraApps: data.extra.length, specialPages: routes.length, reports: data.reports.length, dashboards: data.dash.length, agents: data.agents.length, erpApps: data.odooApps.length, erpModels: erp.length, kinds };
   fs.writeFileSync(path.join(OUT, 'counts.json'), JSON.stringify(total, null, 2) + '\n');
   console.log(JSON.stringify(total));
 })().catch((e) => { console.error('FAILED', e.message.slice(0, 400)); process.exit(1); });

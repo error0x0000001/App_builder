@@ -23,6 +23,8 @@ The mock-up itself is almost entirely configuration:
 | 34 CRM objects + 29 ERP models + custom objects | **one** metadata-driven object framework (list view, record page, form, related lists, kanban, import/export) |
 | Reports / dashboards / agents | report engine, dashboard grid + chart components, agent runtime |
 
+**Setup is mostly configuration (verified from the mock-up definitions):** 83 settings forms (255 fields, 194 of them on/off toggles), 89 lists of config records you create/edit, 51 read-only views/monitors, 25 one-shot tools (import wizard, mass transfer, expire passwords…), 8 monitoring dashboards and 10 bespoke builders/viewers. Storing and editing these is generic; ~63 of the pages only *take effect* when a behaviour engine reads them (assignment/escalation rules, workflows, duplicate/matching rules, sharing, import/export, translation…).
+
 So the work is: **build the kernel and ~12 templates once, then add pages as configuration.**
 
 ## 3. Architecture (scale-first)
