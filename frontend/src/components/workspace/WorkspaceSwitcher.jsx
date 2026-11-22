@@ -31,7 +31,7 @@ function WorkspaceMenuContent({ side, align, className }) {
   );
 }
 
-/** Top bar: workspace tile + name, same menu. */
+/** Top bar: workspace pill (tile + name), same menu. */
 export function WorkspaceSwitcherCompact() {
   const { activeWorkspace } = useAuth();
   const name = activeWorkspace?.name ?? 'No workspace';
@@ -39,14 +39,14 @@ export function WorkspaceSwitcherCompact() {
     <DropdownMenu>
       <DropdownMenuTrigger>
         {(props) => (
-          <button type="button" aria-label={`Workspace: ${name}`} className="flex h-9 max-w-56 items-center gap-2 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
+          <button type="button" aria-label={`Workspace: ${name}`} className="flex h-9 max-w-56 items-center gap-2 rounded-lg border border-sidebar-line px-2 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
             <Avatar name={name} size="size-7" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
             <span className="truncate text-sm font-semibold">{name}</span>
             <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
           </button>
         )}
       </DropdownMenuTrigger>
-      <WorkspaceMenuContent side="bottom" align="start" className="w-64" />
+      <WorkspaceMenuContent side="bottom" align="end" className="w-64" />
     </DropdownMenu>
   );
 }

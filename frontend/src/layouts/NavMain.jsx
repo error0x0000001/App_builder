@@ -4,9 +4,10 @@ import { SidebarCollapsibleGroup, SidebarGroup, SidebarMenu, SidebarNavItem } fr
 import { NAV } from './navigation.js';
 
 /** Items a role may not see are hidden here (the API enforces the same rule). */
+export const isVisibleTo = (item, workspace) => !item.minRole || Boolean(workspace && hasRole(workspace.role, item.minRole));
 export const useVisibleItems = (items) => {
   const { activeWorkspace } = useAuth();
-  return items.filter((item) => !item.minRole || (activeWorkspace && hasRole(activeWorkspace.role, item.minRole)));
+  return items.filter((item) => isVisibleTo(item, activeWorkspace));
 };
 
 const NavItems = ({ items }) => useVisibleItems(items).map(({ minRole, bleed, ...item }) => <SidebarNavItem key={item.to} {...item} />);
