@@ -1,27 +1,57 @@
 import { useNavigate } from 'react-router-dom';
+import { ROLE_LABELS } from '@app/shared';
 import { useAuth } from '../../auth/AuthProvider.jsx';
+import { useSidebar } from '../sidebar/SidebarContext.jsx';
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../sidebar/SidebarParts.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
-import { Select } from '../ui/Select.jsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu.jsx';
+import { Icon } from '../ui/Icon.jsx';
 
-const NEW_WORKSPACE = '__new__';
-
-export function WorkspaceSwitcher({ iconOnly = false }) {
+/** Sidebar header: shows the active workspace and opens a menu to switch or add one. */
+export function WorkspaceSwitcher() {
   const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+  const { iconOnly } = useSidebar();
   const navigate = useNavigate();
-  if (iconOnly) return <span title={activeWorkspace?.name} className="mx-auto"><Avatar name={activeWorkspace?.name ?? '?'} size="size-9" /></span>;
+  const name = activeWorkspace?.name ?? 'No workspace';
 
-  const onChange = async (event) => {
-    if (event.target.value === NEW_WORKSPACE) return navigate('/app/workspaces/new');
-    await switchWorkspace(event.target.value);
+  const select = async (id) => {
+    await switchWorkspace(id);
     navigate('/app');
   };
+
   return (
-    <Select
-      aria-label="Workspace"
-      value={activeWorkspace?.id ?? ''}
-      onChange={onChange}
-      options={[...workspaces.map((w) => ({ value: w.id, label: w.name })), { value: NEW_WORKSPACE, label: '+ New workspace' }]}
-      placeholder={activeWorkspace ? undefined : 'No workspace'}
-    />
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            {(props) => (
+              <SidebarMenuButton size="lg" aria-label={`Workspace: ${name}`} {...props}>
+                <Avatar name={name} size="size-8" shape="square" />
+                <span className="grid min-w-0 flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-semibold">{name}</span>
+                  <span className="truncate text-xs text-muted">{activeWorkspace ? ROLE_LABELS[activeWorkspace.role] : 'Create a workspace'}</span>
+                </span>
+                <Icon name="chevrons-up-down" className="ml-auto size-4 shrink-0 text-muted" />
+              </SidebarMenuButton>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side={iconOnly ? 'right' : 'bottom'} className={iconOnly ? undefined : 'w-full'}>
+            <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+            {workspaces.map((w) => (
+              <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
+                <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
+                <span className="flex-1 truncate">{w.name}</span>
+                {w.id === activeWorkspace?.id && <Icon name="check" className="size-4 text-muted" />}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => navigate('/app/workspaces/new')} className="gap-2 p-2">
+              <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>
+              <span className="font-medium text-muted">Add workspace</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }

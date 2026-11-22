@@ -32,8 +32,8 @@ export function SidebarProvider({ defaultVariant = 'inset', children }) {
   }, [toggle]);
 
   const value = useMemo(
-    () => ({ variant, setVariant, isMobile, iconOnly: collapsed && !isMobile, collapsed, mobileOpen, setMobileOpen, toggle }),
-    [variant, setVariant, isMobile, collapsed, mobileOpen, toggle],
+    () => ({ variant, setVariant, isMobile, iconOnly: collapsed && !isMobile, collapsed, expand: () => setCollapsed(false), mobileOpen, setMobileOpen, toggle }),
+    [variant, setVariant, isMobile, collapsed, setCollapsed, mobileOpen, toggle],
   );
 
   return (

@@ -18,6 +18,9 @@ const PATHS = {
   users: 'M17 20v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1m14-9a3 3 0 100-6M21 20v-1a4 4 0 00-3-3.9M10 11a4 4 0 100-8 4 4 0 000 8z',
   user: 'M20 21v-1a5 5 0 00-5-5H9a5 5 0 00-5 5v1m8-10a4 4 0 100-8 4 4 0 000 8z',
   'panel-left': 'M4 5h16v14H4V5zm5 0v14',
+  'chevrons-up-down': 'M7 15l5 5 5-5M7 9l5-5 5 5',
+  'chevron-right': 'M9 6l6 6-6 6',
+  sliders: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
 };
 

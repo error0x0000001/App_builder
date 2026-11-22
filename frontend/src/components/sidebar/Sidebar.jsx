@@ -4,12 +4,12 @@ import { Icon } from '../ui/Icon.jsx';
 import { useSidebar } from './SidebarContext.jsx';
 
 /**
- * Desktop: sticky column (expanded 16rem / icon-only 4.5rem). Floating draws it as a raised card; inset leaves
- * it flush with the page so the main area (SidebarInset) becomes the raised card.
+ * Desktop: sticky column (expanded 16rem / icon-only 4rem) with a toggle rail on its edge. Floating draws it as a
+ * raised card; inset leaves it flush with the page so the main area (SidebarInset) becomes the raised card.
  * Mobile: off-canvas drawer with a backdrop.
  */
 export function Sidebar({ label = 'Sidebar', children }) {
-  const { variant, iconOnly, isMobile, mobileOpen, setMobileOpen } = useSidebar();
+  const { variant, iconOnly, isMobile, mobileOpen, setMobileOpen, toggle } = useSidebar();
 
   if (isMobile) {
     return (
@@ -27,8 +27,14 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('sticky top-0 h-screen shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-[4.5rem]' : 'w-64')}>
-      <div className={cn('flex h-full flex-col rounded-2xl', variant === 'floating' && 'border border-line bg-surface shadow-lg')}>{children}</div>
+    <aside aria-label={label} data-collapsed={iconOnly} className={cn('sticky top-0 h-screen shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-64')}>
+      <div className={cn('relative flex h-full flex-col rounded-xl', variant === 'floating' && 'border border-line bg-surface shadow-sm')}>
+        {children}
+      </div>
+      {/* Rail: a thin hit area on the edge that toggles the sidebar (mouse only; the header trigger is the accessible control). */}
+      <button type="button" aria-hidden="true" tabIndex={-1} title="Toggle sidebar" onClick={toggle} className="group absolute inset-y-0 right-0 z-20 w-3 translate-x-1/2 cursor-w-resize">
+        <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors group-hover:bg-line" />
+      </button>
     </aside>
   );
 }
@@ -37,7 +43,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
 export function SidebarInset({ children }) {
   const { variant } = useSidebar();
   return (
-    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'inset' ? 'm-2 rounded-2xl border border-line bg-inset shadow-sm md:ml-0 md:min-h-[calc(100svh-1rem)]' : 'min-h-screen bg-bg')}>
+    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'inset' ? 'm-2 rounded-xl border border-line bg-inset shadow-sm md:ml-0 md:min-h-[calc(100svh-1rem)]' : 'min-h-screen bg-bg')}>
       {children}
     </div>
   );
@@ -46,8 +52,8 @@ export function SidebarInset({ children }) {
 export function SidebarTrigger() {
   const { toggle, isMobile, mobileOpen, collapsed } = useSidebar();
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className="text-muted hover:text-ink">
-      <Icon name="panel-left" className="size-4.5" />
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className="size-8 text-ink! hover:bg-sidebar-accent!">
+      <Icon name="panel-left" />
     </Button>
   );
 }
