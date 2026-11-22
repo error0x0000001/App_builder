@@ -41,7 +41,8 @@ export function Sidebar({ label = 'Sidebar', children }) {
 
 /** The main content area: a fixed-height bordered floating card in every variant — its content scrolls inside, it never grows. */
 export function SidebarInset({ children }) {
-  return <div className="m-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset md:ml-0">{children}</div>;
+  const { layout } = useSidebar();
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset', layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0')}>{children}</div>;
 }
 
 const TRIGGER_TONES = {

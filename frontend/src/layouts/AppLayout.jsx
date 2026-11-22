@@ -3,14 +3,30 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '../lib/cn.js';
 import { pageFor } from './navigation.js';
 import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
-import { SidebarProvider } from '../components/sidebar/SidebarContext.jsx';
+import { SidebarProvider, useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
 import { CommandPalette } from './CommandPalette.jsx';
 import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
+import { TopBar } from './TopBar.jsx';
+
+/** Sidebar or top bar (the person's choice; phones always get the drawer), then the content card. */
+function Shell({ onSearch, bleed }) {
+  const { layout } = useSidebar();
+  const content = (
+    <SidebarInset>
+      <ImpersonationBanner />
+      <PageHeader />
+      <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
+        {bleed ? <Outlet /> : <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>}
+      </main>
+    </SidebarInset>
+  );
+  return layout === 'topbar' ? <><TopBar onSearch={onSearch} />{content}</> : <><AppSidebar onSearch={onSearch} />{content}</>;
+}
 
 /**
- * Signed-in shell: sidebar (inset by default, floating optional) + one-viewport-tall content card.
+ * Signed-in shell: sidebar or top bar (inset by default, floating optional) + one-viewport-tall content card.
  * The card's header is pinned; only the content below it scrolls.
  */
 export function AppLayout() {
@@ -28,14 +44,7 @@ export function AppLayout() {
   return (
     <SidebarProvider defaultVariant="inset">
       <PageHeaderProvider>
-        <AppSidebar onSearch={() => setSearchOpen(true)} />
-        <SidebarInset>
-          <ImpersonationBanner />
-          <PageHeader />
-          <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
-            {bleed ? <Outlet /> : <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>}
-          </main>
-        </SidebarInset>
+        <Shell onSearch={() => setSearchOpen(true)} bleed={bleed} />
         <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       </PageHeaderProvider>
     </SidebarProvider>

@@ -7,17 +7,55 @@ import { Avatar } from '../ui/Avatar.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu.jsx';
 import { Icon } from '../ui/Icon.jsx';
 
+/** The workspace list + "Add workspace" — shared by the sidebar header and the top bar. */
+function WorkspaceMenuContent({ side, align, className }) {
+  const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+  const navigate = useNavigate();
+  const select = async (id) => { await switchWorkspace(id); navigate('/app'); };
+  return (
+    <DropdownMenuContent side={side} align={align} className={className}>
+      <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+      {workspaces.map((w) => (
+        <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
+          <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
+          <span className="flex-1 truncate">{w.name}</span>
+          {w.id === activeWorkspace?.id && <Icon name="check" className="size-4 text-muted" />}
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => navigate('/app/workspaces/new')} className="gap-2 p-2">
+        <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>
+        <span className="font-medium text-muted">Add workspace</span>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  );
+}
+
+/** Top bar: workspace tile + name, same menu. */
+export function WorkspaceSwitcherCompact() {
+  const { activeWorkspace } = useAuth();
+  const name = activeWorkspace?.name ?? 'No workspace';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        {(props) => (
+          <button type="button" aria-label={`Workspace: ${name}`} className="flex h-9 max-w-56 items-center gap-2 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
+            <Avatar name={name} size="size-7" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+            <span className="truncate text-sm font-semibold">{name}</span>
+            <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <WorkspaceMenuContent side="bottom" align="start" className="w-64" />
+    </DropdownMenu>
+  );
+}
+
 /** Sidebar header: the active workspace (tile, name, role) — opens a menu to switch or add one. */
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+  const { activeWorkspace } = useAuth();
   const { iconOnly } = useSidebar();
-  const navigate = useNavigate();
   const name = activeWorkspace?.name ?? 'No workspace';
-
-  const select = async (id) => {
-    await switchWorkspace(id);
-    navigate('/app');
-  };
 
   return (
     <SidebarMenu>
@@ -40,21 +78,7 @@ export function WorkspaceSwitcher() {
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
-          <DropdownMenuContent side={iconOnly ? 'right' : 'bottom'} className={iconOnly ? undefined : 'w-full'}>
-            <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-            {workspaces.map((w) => (
-              <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
-                <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
-                <span className="flex-1 truncate">{w.name}</span>
-                {w.id === activeWorkspace?.id && <Icon name="check" className="size-4 text-muted" />}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => navigate('/app/workspaces/new')} className="gap-2 p-2">
-              <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>
-              <span className="font-medium text-muted">Add workspace</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+          <WorkspaceMenuContent side={iconOnly ? 'right' : 'bottom'} className={iconOnly ? undefined : 'w-full'} />
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
