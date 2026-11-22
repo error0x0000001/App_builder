@@ -1,11 +1,11 @@
-import { ROLES, ROLE_LABELS, SETUP_LIST, parseUserAgent } from '@app/shared';
+import { ROLES, ROLE_LABELS, parseUserAgent } from '@app/shared';
 import { sql } from 'drizzle-orm';
+import { pgArray } from '../../shared/db/helpers.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 
 const roleFromLabel = (label) => ROLES.find((r) => ROLE_LABELS[r] === label);
 const PROFILE = { owner: 'System Administrator', admin: 'System Administrator', member: 'Standard User', viewer: 'Read Only' };
-const page = (rows, limit, cursorOf) => ({ items: rows.slice(0, limit), nextCursor: rows.length > limit ? encodeCursor(cursorOf(rows[limit - 1])) : null });
 
 /**
  * Adapters expose real platform tables through the same list contract as record-backed pages:
@@ -46,13 +46,13 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
       const { rows } = await db.execute(sql`
         select e.id, e.type, e.ip, e.user_agent, e.created_at, u.email
         from auth_events e left join users u on u.id = e.user_id
-        where e.workspace_id = ${ctx.workspaceId} and e.type in ('login_success', 'oauth_login', 'login_failed', 'mfa_failed') ${cursor ? sql`and e.id < ${cursor}::uuid` : sql``}
+        where e.workspace_id = ${ctx.workspaceId} and e.type = 'login_success' ${cursor ? sql`and e.id < ${cursor}::uuid` : sql``}
         order by e.id desc limit ${limit + 1}`);
-      return page(rows, limit, (r) => ({ id: r.id })) && {
+      return {
         nextCursor: rows.length > limit ? encodeCursor({ id: rows[limit - 1].id }) : null,
         items: rows.slice(0, limit).map((r) => {
           const ua = parseUserAgent(r.user_agent ?? '');
-          return { id: r.id, username: r.email ?? '—', login_time: r.created_at, source_ip: r.ip ?? '—', location: '—', login_type: r.type === 'oauth_login' ? 'OAuth 2.0' : 'Application', status: r.type === 'login_failed' ? 'Invalid Password' : r.type === 'mfa_failed' ? 'Invalid MFA code' : 'Success', browser: ua.browser, platform: ua.os, application: 'Browser' };
+          return { id: r.id, username: r.email ?? '—', login_time: r.created_at, source_ip: r.ip ?? '—', location: '—', login_type: 'Application', status: 'Success', browser: ua.browser, platform: ua.os, application: 'Browser' };
         }),
       };
     },
@@ -72,7 +72,7 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
       };
     },
     async remove(ctx, ids) {
-      const { rowCount } = await db.execute(sql`update sessions set revoked_at = now(), revoked_reason = 'admin_revoked' where workspace_id = ${ctx.workspaceId} and id = any(${ids}::uuid[]) and revoked_at is null`);
+      const { rowCount } = await db.execute(sql`update sessions set revoked_at = now(), revoked_reason = 'admin_revoked' where workspace_id = ${ctx.workspaceId} and id = any(${pgArray(ids, 'uuid')}) and revoked_at is null`);
       if (!rowCount) throw new NotFoundError('Session not found');
       return rowCount;
     },
@@ -89,6 +89,5 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
     },
   };
 
-  void SETUP_LIST;
   return { users, 'login-history': loginHistory, 'session-management': sessionManagement, 'view-setup-audit-trail': auditTrail };
 }

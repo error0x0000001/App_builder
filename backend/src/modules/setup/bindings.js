@@ -1,4 +1,4 @@
-import { ROLE_LABELS } from '@app/shared';
+import fixtures from '../../../seed/setup-fixtures.generated.json' with { type: 'json' };
 
 /**
  * A "binding" connects a settings page to the real platform data it describes, so the page is not a copy of it:
@@ -17,7 +17,7 @@ export class SettingsBindings {
   }
 
   /** Rows of a read-only table section (e.g. Licenses). */
-  async table(ws, pageKey, title) { return this.map[pageKey]?.tables?.[title]?.(ws) ?? []; }
+  async table(ws, pageKey, title) { return this.map[pageKey]?.tables?.[title]?.(ws) ?? fixtures.details[pageKey]?.[title] ?? []; }
 
   #build() {
     const workspace = (ws) => this.repos.workspaces.findById(ws);
@@ -49,4 +49,3 @@ export class SettingsBindings {
     };
   }
 }
-export const roleLabel = (role) => ROLE_LABELS[role] ?? role;

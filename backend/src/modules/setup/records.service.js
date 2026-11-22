@@ -1,7 +1,9 @@
 import { SETUP_LIST, labelKey, recordSchemas, statusKey } from '@app/shared';
 import { createHash } from 'node:crypto';
-import { NotFoundError, ValidationError } from '../../shared/errors.js';
-import { decodeCursor } from '../../shared/pagination.js';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { getAdapterMeta, getCollection } from '@app/shared';
+import { hasSeed, roleNodes, seedFlat, seedGroup, seedMembers } from './seeding.js';
 
 const NS = (ws, collection) => `r:${ws}:${collection}`;
 const LIST_TTL_MS = 30_000;
@@ -22,14 +24,24 @@ const flatten = (row) => ({ id: row.id, ...row.data, parentId: row.parent_id ?? 
 
 /** Generic list/CRUD engine for every record-backed Setup page. Adapter-backed pages are dispatched to their adapter. */
 export class RecordsService {
-  constructor({ repos, cache, adapters }) { Object.assign(this, { repos, cache, adapters }); }
+  constructor({ repos, uow, cache, adapters }) { Object.assign(this, { repos, uow, cache, adapters }); this.seeded = new Set(); }
 
   async list(ctx, collection, params) {
     const limit = Math.min(params.limit ?? SETUP_LIST.defaultLimit, SETUP_LIST.maxLimit);
     const adapter = this.adapters[collection.key];
-    const compute = async () => (adapter ? adapter.list(ctx, { ...params, limit }) : this.#list(ctx.workspaceId, collection, { ...params, limit }));
+    const compute = async () => {
+      if (adapter) return adapter.list(ctx, { ...params, limit });
+      await this.#ensureSeeded(ctx.workspaceId, collection);
+      return this.#list(ctx.workspaceId, collection, { ...params, limit });
+    };
     // Adapter data changes outside this service (sessions, logins), so it gets a short TTL; generic data is invalidated by version.
     return this.cache.remember(NS(ctx.workspaceId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
+  }
+
+  /** Adapter pages declare what they allow; anything else is refused up front instead of failing inside the adapter. */
+  #adapter(collection, capability) {
+    if (!getAdapterMeta(collection.key)?.[capability]) throw new ForbiddenError('This page does not allow that action');
+    return this.adapters[collection.key];
   }
 
   async #list(ws, collection, { limit, after, q, view, withTotal, status }) {
@@ -38,7 +50,7 @@ export class RecordsService {
     const cursor = decodeCursor(after)?.id;
     const rows = await this.repos.setupRecords.list(ws, collection.key, { ...params, after: cursor }, limit + 1);
     const items = rows.slice(0, limit).map(flatten);
-    const body = { items, nextCursor: rows.length > limit ? Buffer.from(JSON.stringify({ id: rows[limit - 1].id })).toString('base64url') : null };
+    const body = { items, nextCursor: rows.length > limit ? encodeCursor({ id: rows[limit - 1].id }) : null };
     // Odoo rule (web_search_read): count only on the first page and only when the page came back full.
     if (!after && rows.length <= limit) Object.assign(body, { total: items.length, totalCapped: false });
     else if (withTotal && !after) {
@@ -49,15 +61,16 @@ export class RecordsService {
   }
 
   async create(ctx, collection, input) {
-    if (this.adapters[collection.key]) return this.adapters[collection.key].create(ctx, input);
+    if (this.adapters[collection.key]) return this.#adapter(collection, 'canCreate').create(ctx, input);
     const data = recordSchemas(collection).create.parse(input);
+    await this.#ensureSeeded(ctx.workspaceId, collection);
     const row = await this.repos.setupRecords.insert(ctx.workspaceId, collection.key, this.#parts(collection, data, ctx.userId, input));
-    await this.#changed(ctx, collection, 'create', `Created ${collection.name}: ${row.label}`);
+    await this.changed(ctx, collection, 'create', `Created ${collection.name}: ${row.label}`);
     return flatten(row);
   }
 
   async update(ctx, collection, id, input) {
-    if (this.adapters[collection.key]) return this.adapters[collection.key].update(ctx, id, input);
+    if (this.adapters[collection.key]) return this.#adapter(collection, 'canEdit').update(ctx, id, input);
     const data = recordSchemas(collection).update.parse(input);
     const { parentId, ...rest } = input;
     const parts = { data };
@@ -67,21 +80,22 @@ export class RecordsService {
     if (parentId !== undefined) parts.parentId = parentId;
     const row = await this.repos.setupRecords.update(ctx.workspaceId, collection.key, id, parts);
     if (!row) throw new NotFoundError('Record not found');
-    await this.#changed(ctx, collection, 'update', `Changed ${collection.name}: ${row.label}`);
+    await this.changed(ctx, collection, 'update', `Changed ${collection.name}: ${row.label}`);
     return flatten(row);
   }
 
   async remove(ctx, collection, ids) {
     if (ids.length > SETUP_LIST.bulkMax) throw new ValidationError(undefined, `At most ${SETUP_LIST.bulkMax} records at a time`);
-    if (this.adapters[collection.key]) return this.adapters[collection.key].remove(ctx, ids);
+    if (this.adapters[collection.key]) return this.#adapter(collection, 'canDelete').remove(ctx, ids);
     const n = await this.repos.setupRecords.remove(ctx.workspaceId, collection.key, ids);
-    if (n) await this.#changed(ctx, collection, 'delete', `Deleted ${n} ${collection.name} record(s)`);
+    if (n) await this.changed(ctx, collection, 'delete', `Deleted ${n} ${collection.name} record(s)`);
     return n;
   }
 
   /** Nested tree for hierarchy pages (roles). Capped; built in one pass. */
   tree(ctx, collection) {
     return this.cache.remember(NS(ctx.workspaceId, collection.key), 'tree', { ttlMs: LIST_TTL_MS }, async () => {
+      await this.#ensureSeeded(ctx.workspaceId, collection);
       const rows = await this.repos.setupRecords.listAll(ctx.workspaceId, collection.key);
       const nodes = new Map(rows.map((r) => [r.id, { id: r.id, name: r.label, assignedTo: r.data.assigned_to ?? '', children: [] }]));
       const roots = [];
@@ -90,12 +104,42 @@ export class RecordsService {
     });
   }
 
+  /**
+   * First touch of a collection in a workspace loads its initial content (from the design fixtures) exactly once:
+   * a unique marker row is claimed inside the same transaction as the inserts, so concurrent first requests wait
+   * for the commit instead of seeing a half-seeded list.
+   */
+  async #ensureSeeded(ws, collection) {
+    const group = seedGroup(collection.key);
+    const memo = `${ws}:${group}`;
+    if (this.seeded.has(memo) || !hasSeed(collection.key) && collection.key !== 'roles') { this.seeded.add(memo); return; }
+    const created = await this.uow.run(async (repos) => {
+      if (!(await repos.setupSettings.claim(ws, `seed:${group}`))) return false;
+      for (const key of group === 'roles' ? ['roles'] : seedMembers(group).length ? seedMembers(group) : [group]) {
+        const target = key === 'roles' ? collection : getCollection(key);
+        if (key === 'roles') await this.#seedRoles(repos, ws);
+        else await repos.setupRecords.insertMany(ws, key, seedFlat(target));
+      }
+      return true;
+    });
+    this.seeded.add(memo);
+    if (created) await this.cache.bump(NS(ws, collection.key));
+  }
+
+  async #seedRoles(repos, ws) {
+    const ids = [];
+    for (const node of roleNodes()) {
+      const row = await repos.setupRecords.insert(ws, 'roles', { label: node.label, data: node.data, parentId: node.parent === null ? null : ids[node.parent] });
+      ids.push(row.id);
+    }
+  }
+
   #parts(collection, data, createdBy, input) {
     const status = statusKey(collection);
     return { label: data[labelKey(collection)], status: status ? data[status] ?? null : null, data, createdBy, parentId: input.parentId ?? null };
   }
 
-  async #changed(ctx, collection, action, summary) {
+  async changed(ctx, collection, action, summary) {
     await this.cache.bump(NS(ctx.workspaceId, collection.key));
     await this.repos.setupAudit.record(ctx.workspaceId, ctx.userId, collection.key, action, summary);
   }

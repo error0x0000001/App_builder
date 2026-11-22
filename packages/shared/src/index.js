@@ -7,3 +7,4 @@ export * from './schemas/workspace.js';
 export * from './setup/index.js';
 export * from './userAgent.js';
 export * from './setup/adapters.js';
+export * from './setup/tools.js';

@@ -11,7 +11,7 @@ export class SessionService {
   }
 
   async start({ user, workspaceId, ctx, persistent = true }) {
-    const activeWorkspaceId = workspaceId ?? (await this.#defaultWorkspaceId(user));
+    const activeWorkspaceId = workspaceId ?? (await this.defaultWorkspaceId(user));
     const secret = randomToken();
     const session = await this.repos.sessions.create({
       userId: user.id, workspaceId: activeWorkspaceId ?? null, refreshHash: sha256(secret), persistent,
@@ -60,7 +60,7 @@ export class SessionService {
   revoke(sessionId, userId, reason = 'revoked') { return this.repos.sessions.revoke(sessionId, userId, reason); }
   revokeAll(userId, reason, exceptSessionId) { return this.repos.sessions.revokeAllForUser(userId, reason, exceptSessionId); }
 
-  async #defaultWorkspaceId(user) {
+  async defaultWorkspaceId(user) {
     if (user.lastWorkspaceId && (await this.repos.memberships.find(user.lastWorkspaceId, user.id))) return user.lastWorkspaceId;
     const [first] = await this.repos.memberships.listWorkspacesForUser(user.id);
     return first?.id ?? null;

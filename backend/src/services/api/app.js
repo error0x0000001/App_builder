@@ -12,6 +12,7 @@ import { requestContext } from './middleware/requestContext.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { invitationRoutes } from './routes/invitations.routes.js';
 import { meRoutes } from './routes/me.routes.js';
+import { setupRoutes } from './routes/setup.routes.js';
 import { workspaceRoutes } from './routes/workspaces.routes.js';
 
 export function createApp(container) {
@@ -39,6 +40,7 @@ export function createApp(container) {
   app.use('/api/v1/me', meRoutes(container));
   app.use('/api/v1/workspaces', workspaceRoutes(container));
   app.use('/api/v1/invitations', invitationRoutes(container));
+  app.use('/api/v1/setup', setupRoutes(container));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

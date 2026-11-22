@@ -109,8 +109,9 @@ export class AuthService {
 
   async #completeLogin(user, workspaceId, ctx, persistent = true) {
     await this.repos.users.recordSuccessfulLogin(user.id);
-    const session = await this.sessions.start({ user, workspaceId, ctx, persistent });
-    await this.audit.record(AUDIT_EVENTS.LOGIN_SUCCESS, { userId: user.id, workspaceId, ctx });
+    const activeWorkspaceId = workspaceId ?? (await this.sessions.defaultWorkspaceId(user));
+    const session = await this.sessions.start({ user, workspaceId: activeWorkspaceId, ctx, persistent });
+    await this.audit.record(AUDIT_EVENTS.LOGIN_SUCCESS, { userId: user.id, workspaceId: activeWorkspaceId, ctx }); // tagged so workspace-wide login history stays index-only
     return session;
   }
 

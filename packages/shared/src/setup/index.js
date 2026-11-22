@@ -89,3 +89,15 @@ export const settingsDefaults = (page) =>
 
 /** Flatten the tree to [{ key, name, path }] (used by search / quick find). */
 export const SETUP_INDEX = Object.values(SETUP_PAGES).map(({ key, name, path, kind }) => ({ key, name, path, kind }));
+
+/* ---------- request shapes shared by API + UI ---------- */
+const bool = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
+export const setupListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(SETUP_LIST.maxLimit).optional(),
+  after: z.string().max(512).optional(),
+  q: z.string().trim().max(100).optional(),
+  view: z.string().max(100).optional(),
+  total: bool.optional(),
+});
+export const setupIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(SETUP_LIST.bulkMax) });
+export const setupSettingsBodySchema = z.object({ version: z.number().int().min(0), values: z.record(z.string(), z.unknown()) });

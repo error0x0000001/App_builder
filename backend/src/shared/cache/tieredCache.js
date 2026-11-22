@@ -117,6 +117,22 @@ export class TieredCache {
     return null;
   }
 
+  /** Fixed-window counter shared by all workers (Redis INCR); per-process when Redis is absent. */
+  async hit(key, windowSeconds) {
+    if (this.redis) {
+      const k = `rl:${key}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+      const count = await this.redis.incr(k);
+      if (count === 1) this.redis.expire(k, windowSeconds + 1).catch(() => {});
+      return count;
+    }
+    const k = `${key}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+    this.localHits ??= new Map();
+    if (this.localHits.size > 50_000) this.localHits.clear();
+    const count = (this.localHits.get(k) ?? 0) + 1;
+    this.localHits.set(k, count);
+    return count;
+  }
+
   snapshot() {
     return { ...this.stats, l1Entries: this.l1.size, mode: this.redis ? 'redis+memory' : 'memory' };
   }

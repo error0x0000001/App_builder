@@ -1,5 +1,5 @@
 import { config, googleEnabled } from '../../shared/config.js';
-import { db } from '../../shared/db/index.js';
+import { db, readDb } from '../../shared/db/index.js';
 import { logger } from '../../shared/logger.js';
 import { PasswordHasher } from '../../shared/security/passwordHasher.js';
 import { SecretBox } from '../../shared/security/crypto.js';
@@ -18,6 +18,16 @@ import { UserService } from '../../modules/users/user.service.js';
 import { WorkspaceService } from '../../modules/workspaces/workspace.service.js';
 import { UnitOfWork, createRepositories } from '../../modules/repositories.js';
 import { createRateLimiters } from './middleware/rateLimit.js';
+import { createCache } from '../../shared/cache/redis.js';
+import { UsageMeter } from '../../shared/cache/usageMeter.js';
+import { MembershipLookup } from '../../modules/workspaces/membership.lookup.js';
+import { SettingsBindings } from '../../modules/setup/bindings.js';
+import { createSetupAdapters } from '../../modules/setup/adapters.js';
+import { HealthService } from '../../modules/setup/health.service.js';
+import { MetricsService } from '../../modules/setup/metrics.service.js';
+import { RecordsService } from '../../modules/setup/records.service.js';
+import { SettingsService } from '../../modules/setup/settings.service.js';
+import { ToolsService } from '../../modules/setup/tools.service.js';
 
 const MINUTE_MS = 60_000;
 
@@ -35,7 +45,10 @@ export function createContainer({ boss }) {
   const sessions = new SessionService({
     repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
   });
-  const workspaces = new WorkspaceService({ repos, uow, sessions });
+  const cache = createCache();
+  const usage = new UsageMeter({ redis: cache.redis });
+  const membershipLookup = new MembershipLookup({ repos, cache });
+  const workspaces = new WorkspaceService({ repos, uow, sessions, membershipLookup });
   const mfa = new MfaService({ repos, uow, totp, secretBox, hasher, sessions, audit, mail, pepper: config.JWT_SECRET });
   const auth = new AuthService({
     repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces,
@@ -55,5 +68,15 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  return { repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, appHost: new URL(config.APP_URL).host }) });
+  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos }) });
+  const health = new HealthService({ settings: setupSettings });
+  const setup = {
+    settings: setupSettings, records: setupRecords, health,
+    metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
+    tools: new ToolsService({ repos, records: setupRecords, mail, boss }),
+  };
+  const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
+
+  return { cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

@@ -13,7 +13,9 @@ export class SettingsService {
     return this.cache.remember(NS(ws, page.key), 'v', { ttlMs: SETTINGS_TTL_MS }, async () => {
       const row = await this.repos.setupSettings.get(ws, page.key);
       const values = { ...settingsDefaults(page), ...(row?.values ?? {}), ...(await this.bindings.read(ws, page.key)) };
-      return { version: row?.version ?? 0, values };
+      const tables = {};
+      for (const section of page.sections) if (section.table) tables[section.title] = await this.bindings.table(ws, page.key, section.title);
+      return { version: row?.version ?? 0, values, tables };
     });
   }
 

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
+import { pgArray } from '../../shared/db/helpers.js';
 
 const escapeLike = (s) => s.replace(/[\\%_]/g, '\\$&');
 const json = (o) => JSON.stringify(o ?? {});
@@ -13,6 +14,12 @@ export class SettingsRepository {
     return rows[0] ?? null;
   }
 
+  /** Claims a one-time marker (e.g. initial seed). True only for the single caller that inserted it. */
+  async claim(ws, pageKey) {
+    const { rowCount } = await this.db.execute(sql`insert into setup_settings (workspace_id, page_key, values, version) values (${ws}, ${pageKey}, '{}'::jsonb, 1) on conflict do nothing`);
+    return rowCount === 1;
+  }
+
   /** Merge-patch with optional optimistic-concurrency check. Returns null when the expected version is stale. */
   async patch(ws, pageKey, patch, userId, expectedVersion) {
     const { rows } = expectedVersion > 0
@@ -22,8 +29,7 @@ export class SettingsRepository {
       : await this.db.execute(sql`
           insert into setup_settings (workspace_id, page_key, values, version, updated_by, updated_at)
           values (${ws}, ${pageKey}, ${json(patch)}::jsonb, 1, ${userId}, now())
-          on conflict (workspace_id, page_key) do update
-            set values = setup_settings.values || excluded.values, version = setup_settings.version + 1, updated_by = excluded.updated_by, updated_at = now()
+          on conflict (workspace_id, page_key) do nothing
           returning values, version`);
     return rows[0] ?? null;
   }
@@ -90,7 +96,7 @@ export class RecordsRepository {
 
   async remove(ws, collection, ids) {
     if (!ids.length) return 0;
-    const { rowCount } = await this.db.execute(sql`delete from setup_records where workspace_id = ${ws} and collection = ${collection} and id = any(${ids}::uuid[])`);
+    const { rowCount } = await this.db.execute(sql`delete from setup_records where workspace_id = ${ws} and collection = ${collection} and id = any(${pgArray(ids, 'uuid')})`);
     return rowCount;
   }
 
@@ -116,7 +122,7 @@ export class RecordsRepository {
   }
 
   async countsByCollection(ws, collections) {
-    const { rows } = await this.db.execute(sql`select collection, count(*)::int as n from setup_records where workspace_id = ${ws} and collection = any(${collections}::text[]) group by collection`);
+    const { rows } = await this.db.execute(sql`select collection, count(*)::int as n from setup_records where workspace_id = ${ws} and collection = any(${pgArray(collections, 'text')}) group by collection`);
     return Object.fromEntries(rows.map((r) => [r.collection, r.n]));
   }
 
