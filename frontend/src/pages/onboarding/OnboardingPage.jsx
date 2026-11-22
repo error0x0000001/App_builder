@@ -8,7 +8,9 @@ import { SelectField, SubmitButton, TextField } from '../../components/forms/fie
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Button } from '../../components/ui/Button.jsx';
 import { Stepper } from '../../components/ui/Stepper.jsx';
-import { AuthShell } from '../../layouts/AuthShell.jsx';
+import { Card } from '../../components/ui/Card.jsx';
+import { Logo } from '../../components/ui/Logo.jsx';
+import { ThemeToggle } from '../../components/ui/ThemeToggle.jsx';
 import { InviteForm } from '../../components/workspace/InviteForm.jsx';
 import { ProfileForm } from '../app/ProfilePage.jsx';
 
@@ -52,8 +54,13 @@ export default function OnboardingPage() {
 
   if (!activeWorkspace) { launch(); return null; }
   return (
-    <AuthShell>
-      <div className="w-full max-w-2xl space-y-6">
+    <div className="min-h-screen bg-bg">
+      <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-5">
+        <Logo className="[&_span]:text-xl [&_svg]:h-7 [&_svg]:w-10" />
+        <ThemeToggle />
+      </header>
+      <div className="mx-auto max-w-3xl px-4 pb-10">
+      <Card className="space-y-6 sm:p-8">
         <Stepper steps={STEPS} current={step} />
         <header>
           <h1 className="text-3xl font-semibold tracking-tight text-ink">{COPY[step].title(user.firstName)}</h1>
@@ -67,7 +74,8 @@ export default function OnboardingPage() {
             <div className="flex justify-between"><Button variant="neutral" onClick={() => setStep(1)}>Back</Button><Button onClick={launch}>Launch Cloudbase</Button></div>
           </div>
         )}
+      </Card>
       </div>
-    </AuthShell>
+    </div>
   );
 }
