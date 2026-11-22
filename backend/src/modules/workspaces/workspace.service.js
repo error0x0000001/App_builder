@@ -35,6 +35,11 @@ export class WorkspaceService {
     return this.get(workspaceId);
   }
 
+  async updateTheme(workspaceId, theme) {
+    await this.repos.workspaces.update(workspaceId, { theme });
+    return this.get(workspaceId);
+  }
+
   async listMembers(workspaceId, { limit, after }) {
     const page = await paginate(
       (n) => this.repos.memberships.listMembers(workspaceId, { limit: n, after: decodeCursor(after) }),

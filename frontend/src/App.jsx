@@ -22,6 +22,7 @@ const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
 const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
 const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
 const NewWorkspacePage = page(() => import('./pages/app/NewWorkspacePage.jsx'));
+const WorkspaceSettingsPage = page(() => import('./pages/app/WorkspaceSettingsPage.jsx'));
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="members" element={<MembersPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="security" element={<SecurityPage />} />
+              <Route path="workspace" element={<WorkspaceSettingsPage />} />
               <Route path="workspaces/new" element={<NewWorkspacePage />} />
             </Route>
           </Route>

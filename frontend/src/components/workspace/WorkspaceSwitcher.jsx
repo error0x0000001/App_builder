@@ -7,7 +7,7 @@ import { Avatar } from '../ui/Avatar.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu.jsx';
 import { Icon } from '../ui/Icon.jsx';
 
-/** Sidebar header: shows the active workspace and opens a menu to switch or add one. */
+/** Sidebar header: the active workspace (tile, name, role) — opens a menu to switch or add one. */
 export function WorkspaceSwitcher() {
   const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
   const { iconOnly } = useSidebar();
@@ -26,12 +26,14 @@ export function WorkspaceSwitcher() {
           <DropdownMenuTrigger>
             {(props) => (
               <SidebarMenuButton size="lg" aria-label={`Workspace: ${name}`} {...props}>
-                <Avatar name={name} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+                <Avatar name={name} size="size-9" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
                 <span className="grid min-w-0 flex-1 text-left leading-tight">
-                  <span className="truncate text-sm font-semibold">{name}</span>
+                  <span className="flex items-center gap-1 text-sm font-semibold">
+                    <span className="truncate">{name}</span>
+                    <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
+                  </span>
                   <span className="truncate text-xs opacity-70">{activeWorkspace ? ROLE_LABELS[activeWorkspace.role] : 'Create a workspace'}</span>
                 </span>
-                <Icon name="chevrons-up-down" className="ml-auto size-4 shrink-0 opacity-60" />
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>

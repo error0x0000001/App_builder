@@ -31,6 +31,7 @@ export const workspacesApi = {
   lookup: (workspace) => get(`/workspaces/lookup${qs({ workspace })}`),
   create: (body) => post('/workspaces', body),
   switch: (id) => post(`/workspaces/${id}/switch`),
+  updateTheme: (id, theme) => patch(`/workspaces/${id}/theme`, { theme }),
   completeOnboarding: (id, body) => patch(`/workspaces/${id}/onboarding`, body),
   members: (id, { after } = {}) => get(`/workspaces/${id}/members${qs({ limit: 20, after })}`),
   changeRole: (id, userId, role) => patch(`/workspaces/${id}/members/${userId}`, { role }),

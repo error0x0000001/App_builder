@@ -8,6 +8,13 @@
       "when": 1795332243071,
       "tag": "0000_messy_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795335524017,
+      "tag": "0001_aspiring_zuras",
+      "breakpoints": true
     }
   ]
 }

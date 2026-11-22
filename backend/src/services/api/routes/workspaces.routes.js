@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, uuidField, workspaceLookupSchema } from '@app/shared';
+import { bulkInviteSchema, changeRoleSchema, createWorkspaceSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uuidField, workspaceLookupSchema } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -31,6 +31,10 @@ export function workspaceRoutes({ workspaces, invitations, sessions, tokens, rep
 
   router.patch('/:workspaceId/onboarding', ...member('admin'), validate({ body: onboardingSchema }), async (req, res) => {
     res.json({ workspace: await workspaces.completeOnboarding(req.params.workspaceId, req.valid.body) });
+  });
+
+  router.patch('/:workspaceId/theme', ...member('admin'), validate({ body: tenantThemeSchema }), async (req, res) => {
+    res.json({ workspace: await workspaces.updateTheme(req.params.workspaceId, req.valid.body.theme) });
   });
 
   router.get('/:workspaceId/members', ...member('viewer'), validate({ query: pageQuerySchema }), async (req, res) => {

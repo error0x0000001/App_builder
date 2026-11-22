@@ -11,8 +11,11 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 ## Rules from the owner
 - Everything reusable (even button/checkbox/switch/input); SOLID; **zero code duplication**; remove deprecated code completely.
 - Must scale to millions of users: indexed queries, keyset pagination, stateless services.
-- Visual style: **no shadows anywhere** — separate surfaces with borders only (clear, premium look). Dark theme = pitch-black page + slate surfaces.
+- Visual style: **no shadows anywhere** — separate surfaces with borders only (clear, premium look). Dark mode = pitch-black page + slate surfaces. The sidebar is light by default; dark navy (#00072D) exists only as the selectable `midnight` tenant theme.
 - App shell is exactly one viewport tall: sidebar + content card are fixed, **content scrolls inside the card** (header pinned); the card never grows with content.
+- **Layout contract (reference: light inset sidebar, Linear/Attio-style):** sidebar = workspace switcher + collapse button, search (⌘K/Ctrl K command palette), rows (`icon + label + optional badge`), collapsible titled groups (optional "+" action), bottom links, user row with "…" menu. Content card = pinned header (page icon + title on the left, page actions slot on the right) over a scrolling body.
+  Add a page by (1) adding its route in `App.jsx` and (2) one entry in `frontend/src/layouts/navigation.js` — sidebar, search and header pick it up automatically. Page header buttons: render `<PageHeaderActions>…</PageHeaderActions>` from the page. All icons come from `components/ui/Icon.jsx` (one set, `size-4` in rows).
+- **Tenant theming:** each workspace has a `theme` (graphite default, indigo, emerald, rose, midnight) set by admins (`PATCH /workspaces/:id/theme`) and applied to all members via `html[data-tenant-theme]`. Light/dark is separate and personal (`html[data-theme]`). Add a theme = entry in `TENANT_THEMES` (shared) + two token blocks in `frontend/src/index.css`.
 - Git: work on `dev`, merge to `main` via PR. Commits authored as the owner (error0x0000001), no AI attribution lines.
 
 ## Status

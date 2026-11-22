@@ -44,6 +44,13 @@ export function AuthProvider({ children }) {
     return loadMe();
   }, [loadMe, queryClient]);
 
+  const activeTheme = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.theme;
+  useEffect(() => {
+    // Tenant theme only applies inside the app; sign-in screens always use the default.
+    if (status === 'authenticated' && activeTheme) document.documentElement.dataset.tenantTheme = activeTheme;
+    else delete document.documentElement.dataset.tenantTheme;
+  }, [status, activeTheme]);
+
   const value = useMemo(() => {
     const activeWorkspace = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
     return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace };

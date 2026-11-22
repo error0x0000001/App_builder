@@ -1,31 +1,57 @@
 @import "tailwindcss";
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-/* Design tokens from the Cloudbase theme (navy / slate, light + dark). */
+/* ---------------------------------------------------------------------------------------------
+   Tokens. Two independent axes:
+   - mode   (html[data-theme="light|dark"])        -> neutrals; a personal preference
+   - tenant (html[data-tenant-theme="<id>"])       -> brand accent + sidebar tone; chosen per workspace by admins
+   Default tenant theme = graphite. A tenant theme only overrides what differs; add one by adding two blocks below
+   and an entry in TENANT_THEMES (packages/shared/src/constants.js).
+   --------------------------------------------------------------------------------------------- */
 :root {
-  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f5f9; --line: #dde2ea;
+  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f5f9; --line: #dde2ea; --inset: #ffffff;
   --ink: #1c2535; --muted: #667085;
-  --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff;
-  --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22);
   --danger: #c62828; --success: #1b7f4b; --warning: #b7791f;
-  --inset: #ffffff;
-  /* sidebar is dark navy in both themes, with its own foreground set */
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
   --hero-1: #9db8ff; --hero-2: #c9bcff; --hero-3: #dce8ff; --orb-a: #7fa6ff; --orb-b: #1b3a6b;
   color-scheme: light;
 }
 [data-theme="dark"] {
   /* pitch-black page + slate surfaces */
-  --bg: #000000; --surface: #0e1116; --surface-2: #171b22; --line: #262c36;
+  --bg: #000000; --surface: #0e1116; --surface-2: #171b22; --line: #262c36; --inset: #000000;
   --ink: #e8ebf0; --muted: #8d97a8;
-  --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120;
-  --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.3);
   --danger: #ff7b72; --success: #4cc38a; --warning: #e3b341;
-  --inset: #000000;
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
   --hero-1: #1a2a4d; --hero-2: #2a2552; --hero-3: #0c1019; --orb-a: #6b9bff; --orb-b: #16264d;
   color-scheme: dark;
 }
+
+/* graphite (default): near-black accent, light neutral sidebar */
+:root {
+  --accent: #18181b; --accent-hover: #3f3f46; --accent-soft: #ececf0; --accent-ink: #ffffff;
+  --link: #1f56c4; --ring: rgba(24, 24, 27, 0.16);
+  --sidebar: #eef1f5; --sidebar-ink: #1c2535; --sidebar-muted: #667085; --sidebar-line: #dde2ea; --sidebar-accent: #e1e6ee;
+  --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
+}
+[data-theme="dark"] {
+  --accent: #f4f4f5; --accent-hover: #e4e4e7; --accent-soft: #1c1c20; --accent-ink: #0a0a0b;
+  --link: #8ab4ff; --ring: rgba(244, 244, 245, 0.25);
+  --sidebar: #0e1116; --sidebar-ink: #e6e8ec; --sidebar-muted: #8d97a8; --sidebar-line: #262c36; --sidebar-accent: #1b212b;
+}
+
+:root[data-tenant-theme="indigo"] { --accent: #4f46e5; --accent-hover: #4338ca; --accent-soft: #eef2ff; --accent-ink: #ffffff; --link: #4f46e5; --ring: rgba(79, 70, 229, 0.22); }
+:root[data-theme="dark"][data-tenant-theme="indigo"] { --accent: #818cf8; --accent-hover: #6366f1; --accent-soft: #1a1c3d; --accent-ink: #0b0b2a; --link: #a5b4fc; --ring: rgba(129, 140, 248, 0.3); }
+
+:root[data-tenant-theme="emerald"] { --accent: #059669; --accent-hover: #047857; --accent-soft: #ecfdf5; --accent-ink: #ffffff; --link: #047857; --ring: rgba(5, 150, 105, 0.22); }
+:root[data-theme="dark"][data-tenant-theme="emerald"] { --accent: #34d399; --accent-hover: #10b981; --accent-soft: #0d2a22; --accent-ink: #04241a; --link: #6ee7b7; --ring: rgba(52, 211, 153, 0.28); }
+
+:root[data-tenant-theme="rose"] { --accent: #e11d48; --accent-hover: #be123c; --accent-soft: #fff1f2; --accent-ink: #ffffff; --link: #be123c; --ring: rgba(225, 29, 72, 0.2); }
+:root[data-theme="dark"][data-tenant-theme="rose"] { --accent: #fb7185; --accent-hover: #f43f5e; --accent-soft: #2b1219; --accent-ink: #2b0a12; --link: #fda4af; --ring: rgba(251, 113, 133, 0.3); }
+
+/* midnight: navy accent + dark navy sidebar in both modes */
+:root[data-tenant-theme="midnight"], :root[data-theme="dark"][data-tenant-theme="midnight"] {
+  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+}
+:root[data-tenant-theme="midnight"] { --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22); }
+:root[data-theme="dark"][data-tenant-theme="midnight"] { --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120; --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28); }
 
 @theme inline {
   --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line);
@@ -40,7 +66,8 @@
 
 html, body, #root { min-height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+/* In the base layer so utilities (outline-none on inputs that draw their own ring) can override it. */
+@layer base { :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
 /* Auth hero panel: layered soft gradients + a glossy orb (decorative). */

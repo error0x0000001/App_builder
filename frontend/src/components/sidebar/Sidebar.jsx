@@ -44,10 +44,16 @@ export function SidebarInset({ children }) {
   return <div className="m-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset md:ml-0">{children}</div>;
 }
 
-export function SidebarTrigger() {
+const TRIGGER_TONES = {
+  content: 'text-muted! hover:bg-surface-2! hover:text-ink!',
+  sidebar: 'text-sidebar-muted! hover:bg-sidebar-accent! hover:text-sidebar-ink!',
+};
+
+/** tone="sidebar" when rendered on the sidebar surface, "content" in the page header. */
+export function SidebarTrigger({ tone = 'content' }) {
   const { toggle, isMobile, mobileOpen, collapsed } = useSidebar();
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className="size-8 text-ink! hover:bg-sidebar-accent!">
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className={`size-8 ${TRIGGER_TONES[tone]}`}>
       <Icon name="panel-left" />
     </Button>
   );

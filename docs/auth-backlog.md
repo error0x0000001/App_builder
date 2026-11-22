@@ -47,5 +47,15 @@ Status: **Todo** unless noted. Items marked ◇ were only seen as menu entries /
 | C8 | Production hardening: CSP tuned for the SPA, `COOKIE_SECURE`, secrets manager, CSRF double-submit if API is ever cross-origin, PgBouncer, monthly partitioning of `auth_events` |
 | C9 | Remove committed `.env.test` (dummy values) in favour of a generated one |
 
+## D. UI building blocks to add when the first page needs them (deliberately not built yet — no demo screens)
+
+| # | Item |
+|---|---|
+| D1 | Header meta text next to the title (e.g. "• 156 companies") — slot exists for actions only |
+| D2 | Stat/KPI cards row, view tabs (Table / Board / List), toolbar + filter chips, data table (sortable, selectable) — styled like the reference layout |
+| D3 | Sidebar extras already supported by config but unused: `badge` on items, collapsible groups with a "+" `action` |
+| D4 | Per-tenant custom brand colour / logo upload on top of the preset themes |
+| D5 | Persist the user's sidebar style (inset/floating) and light/dark choice server-side instead of per-browser |
+
 ## Suggested order
 1. B1 + B2 + B12 (policy engine per workspace) → 2. B8 + B9 (admin visibility) → 3. B5 + B6 (SSO) → 4. A5 / C2 / C3 (account model) → 5. rest.

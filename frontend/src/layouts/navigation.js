@@ -1,18 +1,31 @@
-/** Single source for the sidebar tree and header breadcrumbs. Items with `children` render as collapsible sections. */
-export const NAV_GROUPS = [
-  { label: 'Workspace', items: [
+/**
+ * The single source of truth for the app's navigation. Add a page by adding an entry here — the sidebar,
+ * the command palette (search) and the page header (title + icon) all pick it up with the same look.
+ *
+ *   main    – top-level rows
+ *   groups  – collapsible titled sections: { label, defaultOpen?, action?: { to, label, icon? }, items }
+ *   bottom  – rows pinned above the user menu
+ * Item: { to, icon, label, end?, badge? }
+ */
+export const NAV = {
+  main: [
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
-  ] },
-  { label: 'Account', items: [
-    { icon: 'sliders', label: 'Settings', children: [
-      { to: '/app/profile', label: 'Profile' },
-      { to: '/app/security', label: 'Security' },
+  ],
+  groups: [
+    { label: 'Account', defaultOpen: true, items: [
+      { to: '/app/profile', icon: 'user', label: 'Profile' },
+      { to: '/app/security', icon: 'shield', label: 'Security' },
     ] },
-  ] },
-];
+  ],
+  bottom: [
+    { to: '/app/workspace', icon: 'sliders', label: 'Workspace settings' },
+  ],
+};
 
-const EXTRA_TITLES = { '/app/workspaces/new': 'New workspace' };
-const leaves = NAV_GROUPS.flatMap((g) => g.items).flatMap((item) => item.children ?? [item]);
+/** Routes that exist but aren't nav rows. */
+const HIDDEN_PAGES = [{ to: '/app/workspaces/new', icon: 'plus', label: 'New workspace' }];
 
-export const titleFor = (pathname) => EXTRA_TITLES[pathname] ?? leaves.find((l) => l.to === pathname)?.label ?? 'Cloudbase';
+export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
+
+export const pageFor = (pathname) => [...NAV_ITEMS, ...HIDDEN_PAGES].find((item) => item.to === pathname) ?? { icon: 'home', label: 'Cloudbase' };

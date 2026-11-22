@@ -279,3 +279,25 @@ describe('audit trail', () => {
     assert.ok(types.includes('login_success') && types.includes('signup'));
   });
 });
+
+describe('tenant theme', () => {
+  it('lets admins pick a workspace theme that every member sees; members and bad values are rejected', async () => {
+    const { client: owner } = await registerUser(server);
+    const ws = (await owner.get('/me')).body.activeWorkspaceId;
+    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'graphite');
+
+    const bad = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'neon' });
+    assert.equal(bad.status, 400);
+    const ok = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'midnight' });
+    assert.equal(ok.status, 200);
+    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'midnight');
+
+    const memberEmail = uniqueEmail();
+    await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email: memberEmail, role: 'member' }] });
+    const token = new URL(server.mailTo(memberEmail, 'invitation').data.url).searchParams.get('token');
+    const member = new Client(server.base);
+    await member.post('/invitations/accept', { token, firstName: 'Mem', lastName: 'Ber', password: PASSWORD, acceptTerms: true });
+    assert.equal((await member.get('/me')).body.workspaces[0].theme, 'midnight');
+    assert.equal((await member.patch(`/workspaces/${ws}/theme`, { theme: 'rose' })).status, 403);
+  });
+});

@@ -21,6 +21,9 @@ const PATHS = {
   'chevrons-up-down': 'M7 15l5 5 5-5M7 9l5-5 5 5',
   'chevron-right': 'M9 6l6 6-6 6',
   sliders: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6',
+  search: 'M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
+  'more-horizontal': 'M5 12h.01M12 12h.01M19 12h.01',
+  'chevron-down': 'M6 9l6 6 6-6',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
 };
 
