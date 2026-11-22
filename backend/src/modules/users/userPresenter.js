@@ -9,5 +9,6 @@ export const toPublicUser = (u) => ({
   emailVerified: Boolean(u.emailVerifiedAt),
   mfaEnabled: u.mfaEnabled,
   hasPassword: Boolean(u.passwordHash),
+  preferences: u.preferences ?? {},
   createdAt: u.createdAt,
 });

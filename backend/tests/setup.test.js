@@ -265,3 +265,43 @@ describe('security settings are enforced by the auth code', () => {
     assert.ok(server.mailTo(email, 'password_reset'));
   });
 });
+
+describe('UI customization and preferences', () => {
+  it('only the owner customizes the workspace UI; it is saved in the database and returned to everyone', async () => {
+    const { client: owner } = await registerUser(server);
+    const ws = (await owner.get('/me')).body.activeWorkspaceId;
+    const before = (await owner.get('/me')).body.workspaces[0];
+    assert.deepEqual(before.uiSettings, {}, 'new workspaces store nothing (defaults apply)');
+
+    const saved = await owner.patch(`/workspaces/${ws}/ui`, { layout: 'topbar', navColor: 'navy' });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body.workspace.uiSettings, { layout: 'topbar', navColor: 'navy' });
+    const merged = await owner.patch(`/workspaces/${ws}/ui`, { variant: 'floating' });
+    assert.deepEqual(merged.body.workspace.uiSettings, { layout: 'topbar', navColor: 'navy', variant: 'floating' }, 'patches merge');
+    assert.equal((await owner.get('/me')).body.workspaces[0].uiSettings.navColor, 'navy');
+
+    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { layout: 'diagonal' })).status, 400, 'values are validated');
+    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { favouriteColour: 'red' })).status, 400, 'unknown options are refused');
+    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, {})).status, 400);
+
+    // an admin is not the owner; a member sees the owner's choice
+    const email = uniqueEmail();
+    await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
+    const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
+    const admin = new Client(server.base);
+    await admin.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
+    await admin.post(`/workspaces/${ws}/switch`);
+    assert.equal((await admin.patch(`/workspaces/${ws}/ui`, { layout: 'sidebar' })).status, 403, 'admins cannot');
+    assert.equal((await admin.get('/me')).body.workspaces.find((w) => w.id === ws).uiSettings.layout, 'topbar', 'everyone sees the owner\'s layout');
+  });
+
+  it('theme mode is a personal preference saved on the account', async () => {
+    const { client } = await registerUser(server);
+    assert.deepEqual((await client.get('/me')).body.user.preferences, {});
+    const res = await client.patch('/me/preferences', { themeMode: 'system' });
+    assert.equal(res.status, 200);
+    assert.equal((await client.get('/me')).body.user.preferences.themeMode, 'system');
+    assert.equal((await client.patch('/me/preferences', { themeMode: 'neon' })).status, 400);
+    assert.equal((await client.patch('/me/preferences', { other: 1 })).status, 400);
+  });
+});

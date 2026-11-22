@@ -18,6 +18,7 @@ export const authApi = {
 export const meApi = {
   get: () => get('/me'),
   updateProfile: (body) => patch('/me', body),
+  updatePreferences: (body) => patch('/me/preferences', body),
   changePassword: (body) => post('/me/password', body),
   sessions: () => get('/me/sessions'),
   revokeSession: (id) => del(`/me/sessions/${id}`),
@@ -34,6 +35,7 @@ export const workspacesApi = {
   create: (body) => post('/workspaces', body),
   switch: (id) => post(`/workspaces/${id}/switch`),
   updateTheme: (id, theme) => patch(`/workspaces/${id}/theme`, { theme }),
+  updateUi: (id, body) => patch(`/workspaces/${id}/ui`, body),
   completeOnboarding: (id, body) => patch(`/workspaces/${id}/onboarding`, body),
   members: (id, { after } = {}) => get(`/workspaces/${id}/members${qs({ limit: 20, after })}`),
   changeRole: (id, userId, role) => patch(`/workspaces/${id}/members/${userId}`, { role }),

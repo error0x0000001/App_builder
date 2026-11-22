@@ -16,7 +16,7 @@ const THEME_OPTIONS = TENANT_THEMES.map(({ id, label, colors }) => ({
 }));
 
 /** Workspace colour theme chooser: admins pick, everyone in the workspace sees it. Light/dark stays personal. */
-export function ThemePicker() {
+export function ThemePicker({ columns }) {
   const { activeWorkspace, refresh } = useAuth();
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(null); // optimistic selection while saving
@@ -39,7 +39,7 @@ export function ThemePicker() {
   return (
     <div className="space-y-4">
       {error && <Alert tone="error">{error}</Alert>}
-      <RadioCardGroup name="tenant-theme" label="Workspace theme" value={pending ?? activeWorkspace.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} />
+      <RadioCardGroup name="tenant-theme" label="Workspace theme" value={pending ?? activeWorkspace.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} columns={columns} />
       {!canEdit && <p className="text-sm text-muted">Only admins and owners can change the workspace theme.</p>}
     </div>
   );

@@ -15,6 +15,13 @@ export class UserService {
     return { user: toPublicUser(user), workspaces, activeWorkspaceId: activeWorkspaceId ?? null, impersonatedBy };
   }
 
+  /** Personal UI preferences (theme mode): merged into the stored object so unrelated preferences are kept. */
+  async updatePreferences(userId, patch) {
+    const user = await this.repos.users.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    return toPublicUser(await this.repos.users.update(userId, { preferences: { ...(user.preferences ?? {}), ...patch } }));
+  }
+
   async updateProfile(userId, input) {
     return toPublicUser(await this.repos.users.update(userId, input));
   }

@@ -1,0 +1,75 @@
+import { UI_DEFAULTS, UI_OPTIONS } from '@app/shared';
+import { useEffect, useState } from 'react';
+import { useAuth } from '../auth/AuthProvider.jsx';
+import { Alert } from '../components/ui/Alert.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { RadioCardGroup } from '../components/ui/RadioCardGroup.jsx';
+import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
+import { Sheet } from '../components/ui/Sheet.jsx';
+import { ThemePicker } from '../components/workspace/ThemePicker.jsx';
+import { useCustomize } from './CustomizeContext.jsx';
+
+const swatch = (colors) => (
+  <span className="flex shrink-0 overflow-hidden rounded-md border border-line" aria-hidden="true">
+    {colors.map((color) => <span key={color} className="size-6" style={{ background: color }} />)}
+  </span>
+);
+
+/** One registry option → its control. Add a `type` here when a new kind of option is needed. */
+function OptionControl({ option, value, onChange }) {
+  if (option.type === 'swatch') {
+    return <RadioCardGroup columns="grid-cols-2" name={`ui-${option.key}`} label={option.label} value={value} onChange={onChange} options={option.options.map((o) => ({ value: o.value, label: o.label, preview: swatch(o.colors) }))} />;
+  }
+  return <SegmentedControl label={option.label} value={value} onChange={onChange} options={option.options} />;
+}
+
+/**
+ * The workspace owner's "Customize" sheet. Everything here is generated from the shared UI_OPTIONS registry (plus the
+ * workspace colour theme), applied live, and saved to the workspace in the database for every member. Only owners see it.
+ */
+export function CustomizeSheet() {
+  const { open, close } = useCustomize();
+  const { ui, updateUi } = useAuth();
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { if (!saved) return undefined; const t = setTimeout(() => setSaved(false), 2000); return () => clearTimeout(t); }, [saved]);
+
+  const change = async (patch) => {
+    setError(null);
+    try { await updateUi(patch); setSaved(true); } catch (e) { setError(e.message); }
+  };
+
+  const groups = Map.groupBy(UI_OPTIONS, (o) => o.group);
+  return (
+    <Sheet
+      open={open} onClose={close} title="Customize" description="Changes apply to everyone in this workspace and are saved automatically."
+      footer={(
+        <div className="flex items-center justify-between gap-3">
+          <span role="status" className="text-xs text-muted">{saved ? 'Saved' : ''}</span>
+          <Button size="sm" variant="neutral" onClick={() => change(UI_DEFAULTS)}>Reset to defaults</Button>
+        </div>
+      )}
+    >
+      {error && <Alert tone="error">{error}</Alert>}
+      {[...groups].map(([group, options]) => (
+        <section key={group} className="space-y-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group}</h3>
+          {options.map((option) => (
+            <div key={option.key} className="space-y-1.5">
+              <p className="text-sm font-medium text-ink">{option.label}</p>
+              <OptionControl option={option} value={ui[option.key]} onChange={(value) => change({ [option.key]: value })} />
+              {option.description && <p className="text-xs text-muted">{option.description}</p>}
+            </div>
+          ))}
+          {group === 'Colors' && (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-ink">Accent colour</p>
+              <ThemePicker columns="grid-cols-2" />
+            </div>
+          )}
+        </section>
+      ))}
+    </Sheet>
+  );
+}

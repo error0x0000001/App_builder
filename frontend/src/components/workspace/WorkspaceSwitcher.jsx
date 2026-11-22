@@ -41,7 +41,7 @@ export function WorkspaceSwitcherLogo() {
       <DropdownMenuTrigger>
         {(props) => (
           <button type="button" aria-label={`Workspace: ${name}. Switch workspace`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
-            <Logo size="sm" className="text-sidebar-ink" />
+            <Logo size="sm" tone="sidebar" />
             <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
           </button>
         )}

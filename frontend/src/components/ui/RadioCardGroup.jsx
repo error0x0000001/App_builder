@@ -1,9 +1,9 @@
 import { cn } from '../../lib/cn.js';
 
 /** Single choice shown as selectable cards. options: [{ value, label, preview? }]. */
-export function RadioCardGroup({ name, value, onChange, options, disabled = false, label }) {
+export function RadioCardGroup({ name, value, onChange, options, disabled = false, label, columns = 'sm:grid-cols-2 lg:grid-cols-3' }) {
   return (
-    <div role="radiogroup" aria-label={label} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div role="radiogroup" aria-label={label} className={cn('grid gap-3', columns)}>
       {options.map((option) => {
         const selected = option.value === value;
         return (

@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { authApi, workspacesApi } from '../api/endpoints.js';
+import { resolveUiSettings } from '@app/shared';
+import { authApi, meApi, workspacesApi } from '../api/endpoints.js';
+import { applyThemeMode } from '../lib/themeMode.js';
 import { onSessionExpired, refreshSession, tokenStore } from '../api/http.js';
 import { meQuery } from '../api/queries.js';
 
@@ -15,6 +17,7 @@ export function AuthProvider({ children }) {
   const loadMe = useCallback(async () => {
     const data = await queryClient.fetchQuery({ ...meQuery, staleTime: 0 });
     setMe(data);
+    if (data.user.preferences?.themeMode) applyThemeMode(data.user.preferences.themeMode); // the saved choice follows the person across devices
     setSignedOut(false);
     setStatus('authenticated');
     return data;
@@ -58,6 +61,27 @@ export function AuthProvider({ children }) {
     return loadMe();
   }, [loadMe, queryClient]);
 
+  /** Owner's UI customization: applied at once, saved to the workspace, rolled back if the server refuses it. */
+  const updateUi = useCallback(async (patch) => {
+    const workspaceId = me?.activeWorkspaceId;
+    const apply = (settings) => setMe((prev) => prev && ({ ...prev, workspaces: prev.workspaces.map((w) => (w.id === workspaceId ? { ...w, uiSettings: settings } : w)) }));
+    const previous = me?.workspaces.find((w) => w.id === workspaceId)?.uiSettings ?? {};
+    apply({ ...previous, ...patch });
+    try {
+      const { workspace } = await workspacesApi.updateUi(workspaceId, patch);
+      apply(workspace.uiSettings);
+    } catch (error) {
+      apply(previous);
+      throw error;
+    }
+  }, [me]);
+
+  /** Personal theme mode: applied at once, then saved on the account (best effort — it is also kept locally). */
+  const setThemeMode = useCallback((mode) => {
+    applyThemeMode(mode);
+    meApi.updatePreferences({ themeMode: mode }).catch(() => {});
+  }, []);
+
   const activeTheme = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.theme;
   useEffect(() => {
     // Tenant theme only applies inside the app; sign-in screens always use the default.
@@ -65,10 +89,17 @@ export function AuthProvider({ children }) {
     else delete document.documentElement.dataset.tenantTheme;
   }, [status, activeTheme]);
 
+  const navColor = resolveUiSettings(me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.uiSettings).navColor;
+  useEffect(() => {
+    if (status === 'authenticated' && navColor !== 'default') document.documentElement.dataset.navColor = navColor;
+    else delete document.documentElement.dataset.navColor;
+  }, [status, navColor]);
+
   const value = useMemo(() => {
     const activeWorkspace = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
-    return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation };
-  }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace, startImpersonation, stopImpersonation]);
+    const ui = resolveUiSettings(activeWorkspace?.uiSettings);
+    return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
+  }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace, startImpersonation, stopImpersonation, updateUi, setThemeMode]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

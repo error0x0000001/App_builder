@@ -16,7 +16,7 @@ export class MembershipRepository {
 
   listWorkspacesForUser(userId) {
     return this.db.select({
-      id: workspaces.id, name: workspaces.name, slug: workspaces.slug, theme: workspaces.theme, role: memberships.role,
+      id: workspaces.id, name: workspaces.name, slug: workspaces.slug, theme: workspaces.theme, uiSettings: workspaces.uiSettings, role: memberships.role,
       onboarded: sql`${workspaces.onboardedAt} is not null`.mapWith(Boolean), joinedAt: memberships.createdAt,
     }).from(memberships).innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, userId)).orderBy(asc(memberships.createdAt)).limit(100);

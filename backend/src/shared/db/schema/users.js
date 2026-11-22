@@ -1,4 +1,4 @@
-import { boolean, integer, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, tz } from '../helpers.js';
 
 export const userStatus = pgEnum('user_status', ['active', 'disabled']);
@@ -24,6 +24,7 @@ export const users = pgTable(
     mfaSecretEnc: text('mfa_secret_enc'),
     mfaLastStep: integer('mfa_last_step').notNull().default(0),
     lastWorkspaceId: uuid('last_workspace_id'),
+    preferences: jsonb('preferences').notNull().default({}), // personal UI preferences (theme mode), follows the person across devices
     createdAt: createdAt(),
     updatedAt: tz('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
   },

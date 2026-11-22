@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { changePasswordSchema, mfaCodeSchema, mfaDisableSchema, pageQuerySchema, updateProfileSchema, uuidField } from '@app/shared';
+import { changePasswordSchema, mfaCodeSchema, mfaDisableSchema, pageQuerySchema, updateProfileSchema, userPreferencesSchema, uuidField } from '@app/shared';
 import { NotFoundError } from '../../../shared/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { loadUser } from '../middleware/loadUser.js';
@@ -17,6 +17,8 @@ export function meRoutes({ users, password, sessions, audit, mfa, tokens, repos,
 
   router.get('/', async (req, res) => res.json(await users.me(req.auth.userId, req.auth.workspaceId, req.auth.impersonatedBy)));
   router.patch('/', validate({ body: updateProfileSchema }), async (req, res) => res.json({ user: await users.updateProfile(req.auth.userId, req.valid.body) }));
+
+  router.patch('/preferences', validate({ body: userPreferencesSchema }), async (req, res) => res.json({ user: await users.updatePreferences(req.auth.userId, req.valid.body) }));
 
   router.post('/password', rateLimit.ip('change-password', 10, 15 * MIN), validate({ body: changePasswordSchema }), loadUser(repos.users), async (req, res) => {
     await password.change({ user: req.user, sessionId: req.auth.sessionId }, req.valid.body, req.ctx);
