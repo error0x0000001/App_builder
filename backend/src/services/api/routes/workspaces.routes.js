@@ -51,6 +51,10 @@ export function workspaceRoutes({ workspaces, invitations, sessions, tokens, rep
     res.status(204).end();
   });
 
+  router.post('/:workspaceId/members/:userId/login-as', rateLimit.ip('login-as', 30, 3600), validate({ params: memberParams }), requireWorkspaceRole(repos.memberships, 'admin'), async (req, res) => {
+    res.json(await sessions.impersonate({ actor: req.membership, sessionId: req.auth.sessionId, workspaceId: req.params.workspaceId, targetUserId: req.params.userId, ctx: req.ctx }));
+  });
+
   router.post('/:workspaceId/leave', ...member('viewer'), async (req, res) => {
     await workspaces.leave({ userId: req.auth.userId, workspaceId: req.params.workspaceId });
     res.status(204).end();

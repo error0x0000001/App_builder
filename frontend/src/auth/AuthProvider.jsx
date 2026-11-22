@@ -44,6 +44,20 @@ export function AuthProvider({ children }) {
     return loadMe();
   }, [loadMe, queryClient]);
 
+  /** Admin "log in as": the response carries a short-lived token (no cookie); drop cached data and reload as that person. */
+  const startImpersonation = useCallback(async (workspaceId, userId) => {
+    await workspacesApi.loginAs(workspaceId, userId);
+    queryClient.clear();
+    return loadMe();
+  }, [loadMe, queryClient]);
+
+  /** Back to the admin's own session (the refresh cookie still belongs to them). */
+  const stopImpersonation = useCallback(async () => {
+    await refreshSession();
+    queryClient.clear();
+    return loadMe();
+  }, [loadMe, queryClient]);
+
   const activeTheme = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.theme;
   useEffect(() => {
     // Tenant theme only applies inside the app; sign-in screens always use the default.
@@ -53,8 +67,8 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => {
     const activeWorkspace = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
-    return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace };
-  }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace]);
+    return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation };
+  }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace, startImpersonation, stopImpersonation]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

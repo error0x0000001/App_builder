@@ -81,7 +81,7 @@ export class RecordsRepository {
 
   /** Records of a collection older than `hours`, not in a closed state, that are candidates for escalation (bounded batch). */
   async listOlderThan(ws, collection, hours, limit) {
-    const { rows } = await this.db.execute(sql`select id, label, status, data from setup_records where workspace_id = ${ws} and collection = ${collection} and created_at < now() - (${hours}::numeric * interval '1 hour') and coalesce(lower(data->>'status'), '') not in ('closed', 'resolved') order by id limit ${limit}`);
+    const { rows } = await this.db.execute(sql`select id, label, status, data, created_at from setup_records where workspace_id = ${ws} and collection = ${collection} and created_at < now() - (${hours}::numeric * interval '1 hour') and coalesce(lower(data->>'status'), '') not in ('closed', 'resolved') order by id limit ${limit}`);
     return rows;
   }
 
@@ -143,6 +143,24 @@ export class RecordsRepository {
   /** Deletes the child records of the given parents (e.g. an object's fields). */
   async removeChildren(ws, collection, parentIds) {
     const { rowCount } = await this.db.execute(sql`delete from setup_records where workspace_id = ${ws} and collection = ${collection} and parent_id = any(${pgArray(parentIds, 'uuid')})`);
+    return rowCount;
+  }
+
+  /** Retention: deletes a collection's records older than `days` in a bounded batch; returns how many. */
+  async deleteOlderThan(collection, days, batch) {
+    const { rowCount } = await this.db.execute(sql`delete from setup_records where (workspace_id, id) in (select workspace_id, id from setup_records where collection = ${collection} and created_at < now() - (${days}::int * interval '1 day') limit ${batch})`);
+    return rowCount;
+  }
+
+  /** Moves every pending approval of one approver to another, across all object collections. */
+  async reassignApprover(ws, from, to) {
+    const { rowCount } = await this.db.execute(sql`update setup_records set data = data || ${json({ approver: to })}::jsonb, updated_at = now() where workspace_id = ${ws} and collection like 'obj:%' and data @> ${json({ approval_status: 'Pending', approver: from })}::jsonb`);
+    return rowCount;
+  }
+
+  /** Sets `data[key]` from one value to another on every record of a collection that has it (bounded by the GIN containment index). */
+  async replaceFieldValue(ws, collection, key, from, to) {
+    const { rowCount } = await this.db.execute(sql`update setup_records set data = jsonb_set(data, ${`{${key}}`}::text[], to_jsonb(${to}::text)), updated_at = now() where workspace_id = ${ws} and collection = ${collection} and data @> ${json({ [key]: from })}::jsonb`);
     return rowCount;
   }
 

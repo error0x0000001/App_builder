@@ -169,7 +169,7 @@ describe('dashboards, health and tools', () => {
     assert.ok(del.body.removed >= 2);
   });
   it('tools without an engine are recorded, not faked', async () => {
-    const res = await owner.post(`${S}/pages/mass-update-addresses/run`, {});
+    const res = await owner.post(`${S}/pages/snap-ins/run`, {});
     assert.equal(res.body.active, false);
   });
   it('expire-all-passwords queues the background job', async () => {

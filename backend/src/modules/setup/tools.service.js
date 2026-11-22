@@ -1,4 +1,5 @@
 import { labelKey, recordSchemas, statusKey } from '@app/shared';
+import { CRM_NAV_OBJECTS } from '@app/shared';
 import { getCollection, getToolMeta, importableObjects, toolInputSchema } from '@app/shared/setup-registry';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { QUEUES } from '../../shared/queue.js';
@@ -10,10 +11,11 @@ const EXPORT_MAX_ROWS = 100_000;
 
 /** Runs the Setup "tool" pages. A tool without a real handler is recorded and reported as not active — never faked. */
 export class ToolsService {
-  constructor({ repos, records, mail, boss, intakeUrl }) {
-    Object.assign(this, { repos, records, mail, boss, intakeUrl });
+  constructor({ repos, records, mail, boss, intakeUrl, emailPolicy, escalation, objects }) {
+    Object.assign(this, { repos, records, mail, boss, intakeUrl, emailPolicy, escalation, objects });
     this.handlers = {
       import: (c, d) => this.#import(c, d), export: (c, d) => this.#export(c, d), massDelete: (c, d) => this.#massDelete(c, d), massTransfer: (c, d) => this.#massTransfer(c, d),
+      emailLog: (c, d) => this.#export(c, d), massTransferApprovals: (c, d) => this.#massTransferApprovals(c, d), massReplace: (c, d) => this.#massReplace(c, d), pendingEscalations: (c) => this.#pendingEscalations(c),
       testEmail: (c, d) => this.#testEmail(c, d), expirePasswords: (c) => this.#expirePasswords(c), webToCase: (c, d) => this.#webToCase(c, d),
     };
   }
@@ -69,6 +71,16 @@ export class ToolsService {
 
   /** Streams CSV in keyset batches: memory stays flat for any table size. */
   async *exportRows(ctx, objectLabel) {
+    if (getToolMeta(ctx.pageKey)?.handler === 'emailLog') {
+      yield toCsv([['Time', 'To', 'Subject', 'Kind', 'Result', 'BCC']]);
+      for (let after; ;) {
+        const rows = await this.repos.setupRecords.list(ctx.workspaceId, 'email-log', { after }, 1000);
+        if (!rows.length) return;
+        yield toCsv(rows.map((r) => [r.created_at.toISOString?.() ?? r.created_at, r.data.to, r.data.subject, r.data.kind, r.data.result, r.data.bcc]));
+        after = rows.at(-1).id;
+        if (rows.length < 1000) return;
+      }
+    }
     const collection = this.#collectionFor(objectLabel);
     yield toCsv([collection.columns.map((c) => c.label)]);
     let after; let sent = 0;
@@ -106,8 +118,35 @@ export class ToolsService {
     return user.id;
   }
 
+  async #massTransferApprovals(ctx, { from, to }) {
+    const [a, b] = [from, to].map((e) => e.toLowerCase());
+    await Promise.all([a, b].map((e) => this.#member(ctx.workspaceId, e)));
+    const moved = await this.repos.setupRecords.reassignApprover(ctx.workspaceId, a, b);
+    await Promise.all(CRM_NAV_OBJECTS.map((o) => this.objects.invalidate(ctx.workspaceId, o.key)));
+    return { ok: true, active: true, moved, message: `Moved ${moved} pending approval request(s) to ${b}.` };
+  }
+
+  /** Replaces one value of a field with another across an object's records (e.g. "USA" → "United States"). Name and status are excluded. */
+  async #massReplace(ctx, { object, field, from, to }) {
+    const def = await this.objects.definition(ctx.workspaceId, object);
+    const key = def?.fields.find((f) => f.label.toLowerCase() === field.toLowerCase() || f.key === field.toLowerCase().replace(/\s+/g, '_'))?.key;
+    if (!key) throw new ValidationError([{ field: 'field', message: `${object} has no field “${field}”` }]);
+    if (key === def.nameKey || key === def.statusKey) throw new ValidationError([{ field: 'field', message: 'The name and status fields cannot be mass updated' }]);
+    const updated = await this.repos.setupRecords.replaceFieldValue(ctx.workspaceId, `obj:${object}`, key, from, to);
+    await this.objects.invalidate(ctx.workspaceId, object);
+    return { ok: true, active: true, updated, message: `Updated ${updated} ${object} record(s).` };
+  }
+
+  async #pendingEscalations(ctx) {
+    const pending = await this.escalation.preview(ctx.workspaceId);
+    const total = pending.reduce((n, p) => n + p.count, 0);
+    return { ok: true, active: true, message: total ? `${total} case(s) will escalate on the next run: ${pending.map((p) => `${p.rule}: ${p.count}`).join('; ')}.` : 'Nothing is waiting to escalate.', errors: pending.flatMap((p) => p.cases.map((c) => `${p.rule}: ${c}`)) };
+  }
+
   async #testEmail(ctx, { email }) {
-    await this.mail.send('test_email', email.toLowerCase(), { workspace: ctx.workspaceName ?? 'your workspace' });
+    const reason = this.emailPolicy.blockedReason(await this.emailPolicy.forWorkspace(ctx.workspaceId), 'user');
+    if (reason) return { ok: false, active: true, message: `Not sent: ${reason}.` }; // the real deliverability result, not a fake success
+    await this.mail.send('test_email', email.toLowerCase(), { workspace: ctx.workspaceName ?? 'your workspace' }, { workspaceId: ctx.workspaceId, kind: 'user' });
     return { ok: true, active: true, message: `A test email was queued for ${email}.` };
   }
 

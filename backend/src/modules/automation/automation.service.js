@@ -11,7 +11,7 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
  * acts when it is Active, matches the object, passes its criteria AND has its action configured — otherwise it is inert.
  */
 export class AutomationService {
-  constructor({ repos, cache, mail, logger }) { Object.assign(this, { repos, cache, mail, logger }); }
+  constructor({ repos, cache, mail, logger, settings }) { Object.assign(this, { repos, cache, mail, logger, settings }); }
 
   rules(ws, collection) {
     return this.cache.rememberValue(`r:${ws}:${collection}`, 'rules', { ttlMs: 30_000 }, async () =>
@@ -30,6 +30,9 @@ export class AutomationService {
   /** Before the record is written: owner assignment (create) and duplicate detection. Returns { data, warnings }. */
   async beforeSave(ctx, def, data, { mode, id }) {
     const out = { ...data }; const warnings = [];
+    if (def.key === 'Opportunity' && out.close_date && (await this.settings.values(ctx.workspaceId, 'opportunity-settings')).require_close_date_in_the_future === true && out.close_date < new Date().toISOString().slice(0, 10)) {
+      throw new ValidationError([{ field: 'close_date', message: 'Close date must be in the future (Opportunity Settings)' }], 'Close date must be in the future');
+    }
     if (mode === 'create') {
       const owner = ownerKey(def);
       const rule = owner && (await this.applicable(ctx.workspaceId, 'assignment', def.key)).find((r) => r.data.assign_to && matchesCriteria(r, out));
@@ -69,7 +72,7 @@ export class AutomationService {
       if ((mode === 'update' && !everyEdit) || !matchesCriteria(rule, { ...current.data, ...patch })) continue;
       const { action_type: type, action_field: field, action_value: value } = rule.data;
       if (type === 'Field update' && field) patch[fieldKey(field)] = value ?? '';
-      else if (type === 'Email alert') await this.#email(field?.includes('@') ? field : current.data[fieldKey(field ?? '')], rule.name, value);
+      else if (type === 'Email alert') await this.#email(ws, field?.includes('@') ? field : current.data[fieldKey(field ?? '')], rule.name, value);
       else if (type === 'Create task' && value) {
         await this.repos.setupRecords.insert(ws, objectColl('Task'), { label: value, status: 'Open', data: { subject: value, status: 'Open', related_to: current.label, created_by_rule: rule.name }, createdBy: ctx.userId });
         await this.cache.bump(`r:${ws}:${objectColl('Task')}`);
@@ -78,14 +81,16 @@ export class AutomationService {
 
     if (mode === 'create') {
       const response = (await this.applicable(ws, 'autoResponse', def.key)).find((r) => r.data.email_subject && matchesCriteria(r, current.data));
-      if (response) await this.#email(current.data.email ?? current.data.web_email, response.data.email_subject, response.data.email_body);
+      if (response) await this.#email(ws, current.data.email ?? current.data.web_email, response.data.email_subject, response.data.email_body);
     }
+
+    await this.#settingsNotifications(ctx, def, current, mode);
 
     if (!current.data.approval_status) {
       const process = (await this.applicable(ws, 'approval', def.key)).find((r) => r.data.approver && matchesCriteria(r, { ...current.data, ...patch }));
       if (process) {
         Object.assign(patch, { approval_status: APPROVAL_STATUS.PENDING, approval_process: process.name, approver: process.data.approver });
-        await this.#email(process.data.approver, `Approval needed: ${current.label}`, `${process.name} requires your decision on ${def.key} “${current.label}”.`);
+        await this.#email(ws, process.data.approver, `Approval needed: ${current.label}`, `${process.name} requires your decision on ${def.key} “${current.label}”.`);
       }
     }
 
@@ -93,8 +98,28 @@ export class AutomationService {
     return current;
   }
 
-  async #email(to, subject, body) {
-    if (to && EMAIL.test(String(to))) await this.mail.send('notification', String(to).toLowerCase(), { subject, body });
+  /** Opportunity Settings (big-deal alert), Support Settings (notify case owner), Activity Settings (task notifications). */
+  async #settingsNotifications(ctx, def, row, mode) {
+    const ws = ctx.workspaceId;
+    const owner = row.data[ownerKey(def)];
+    if (def.key === 'Opportunity') {
+      const s = await this.settings.values(ws, 'opportunity-settings');
+      const amount = Number(String(row.data.amount ?? '').replace(/[^0-9.]/g, ''));
+      const threshold = Number(String(s.big_deal_amount ?? '').replace(/[^0-9.]/g, ''));
+      if (s.enable_big_deal_alerts === true && threshold > 0 && amount >= threshold && !row.data.big_deal_alerted) {
+        await this.#email(ws, owner, `Big deal: ${row.label}`, `${row.label} is worth ${row.data.amount}, above the big-deal threshold (${s.big_deal_amount}).`);
+        row.data = { ...row.data, big_deal_alerted: true };
+        await this.repos.setupRecords.update(ws, objectColl(def.key), row.id, { data: { big_deal_alerted: true } });
+      }
+    } else if (def.key === 'Case' && mode === 'create' && (await this.settings.values(ws, 'support-settings')).notify_case_owner === true) {
+      await this.#email(ws, owner, `New case: ${row.label}`, `A case was assigned to you: ${row.label}.`);
+    } else if (def.key === 'Task' && mode === 'create' && (await this.settings.values(ws, 'activity-settings')).enable_task_notifications === true) {
+      await this.#email(ws, owner, `New task: ${row.label}`, `A task was assigned to you: ${row.label}.`);
+    }
+  }
+
+  async #email(ws, to, subject, body) {
+    if (to && EMAIL.test(String(to))) await this.mail.send('notification', String(to).toLowerCase(), { subject, body }, { workspaceId: ws, kind: 'user' });
   }
 
   /** Approve / reject a record waiting for the approver (or any admin). */

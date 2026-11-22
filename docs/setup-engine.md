@@ -107,11 +107,28 @@ Enforced on every `/api/v1/objects` call by `AccessService`, and reflected in th
 - **Sharing** (Sharing Settings → organization-wide defaults, seeded open): *Private* = people see only records they own; *Public Read Only* = everyone reads, only owners edit; *Public Read/Write* = open. Admins and owners always see everything.
 - Not modelled yet: role-hierarchy visibility (managers seeing their reports' records), sharing rules, field-level security, record types.
 
-## Not done / next
-Still stored-only or recorded-only (exact list in `setup-status.md`). These are separate subsystems, not gaps in the engine above:
-- **SAML / SSO, Login Flows, Delegated Administration, Certificates, Platform Encryption, CORS / CSP lists, Named Credentials** — each needs an identity-provider integration, key management or an outbound proxy.
-- **Apex Triggers, Feed Triggers, Time-Based Workflow** — user-written code / scheduled actions on records; the rule engine above is the declarative equivalent.
-- **Sales / Lead / Support Processes, Entitlements, Forecasts, Territories, Macros** — feature switches for modules that do not exist yet.
-- **Remaining security toggles** — HttpOnly (always on), CSRF (not applicable: the API uses bearer tokens), domain lock, secret-question settings (no secret questions).
-- **Tools without an engine** — recorded and labelled "not active" in the UI.
-- Compiled per-role permission cache; cross-process lock for dashboard recomputation.
+## More settings that now change behaviour
+| Page | Effect |
+|---|---|
+| Deliverability (access level) | applied by the mail worker to every workspace email: *No access* blocks all, *System email only* blocks automation mail; Test Deliverability reports the real result |
+| Compliance BCC Email | every automation email is BCC'd (system mail too if enabled) |
+| Email Footers | footer appended to automation email |
+| Email Log Files / Email Snapshots | every send (and every block) is logged per workspace for 30 days; downloadable as CSV |
+| Business Hours + Holidays | Escalation Rules count their threshold in business hours (working days, hours, time zone, holidays); newest default row wins |
+| Time-Based Workflow | previews the cases the next escalation run will move, per rule |
+| Opportunity Settings | close date must be in the future; big-deal alert email to the owner (once per record) |
+| Support Settings / Activity Settings | notify the case / task owner on creation |
+| Login Access Policies | admins can **log in as** a member (30 min, no refresh, audited and visible in the member's activity, account changes blocked, "Exit" banner) |
+| Mass Transfer Approval Requests | moves every pending approval from one approver to another |
+| Mass Update Addresses | replaces one value of a field with another across an object's records (name/status protected) |
+
+## What the UI says
+Every Setup page shows its real status (one shared classifier, `packages/shared/src/setup/status.js`, feeds the API, the banner on the page and `setup-status.md`):
+*Saved, but not used yet* · *Recorded only* · *External product* · *Not enabled* · *Partly enforced* (lists which settings are stored only). Pages with no banner do something.
+
+## Not done — and why
+Counts are in `setup-status.md`. What is left falls into three groups; none is a gap in the engines above.
+1. **Settings for products Cloudbase does not have** (~85 pages, "Stored only"): Chatter, Einstein, Quip, Skype, Office 365, Cisco WebEx, Digital Experiences, Prospector, Field Service, Surveys, Topics, Content/Files, Mobile, Lightning Locker, Translation Workbench, Territories, Forecasts, Entitlements, Macros, Sales/Lead/Support Processes, and similar. Building a behaviour for each would mean inventing the product. They are saved, audited and clearly labelled.
+2. **Connectors to external products** (9 pages, "External product"): AppExchange, Mobile Quick Start, LinkedIn Lead Gen, IoT, Snap-ins, Canvas Previewer, Integrations, Identity Connect, content-preview regeneration.
+3. **Security subsystems that need an outside system to build *and verify***: SAML/SSO and Identity Provider (needs a real identity provider and signed-assertion testing — shipping unverified authentication code would be worse than not shipping it), Login Flows, Delegated Administration, Transaction Security, Platform Encryption, Certificates, CORS/CSP lists, Named Credentials, Apex/Feed/Case-comment/Topics triggers (user-written code).
+Also not modelled: role-hierarchy record visibility, sharing rules, field-level security, picklist value sets, compiled per-role permission cache, cross-process dashboard lock.

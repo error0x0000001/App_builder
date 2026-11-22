@@ -26,7 +26,7 @@ export class SecurityPolicyService {
   async #values(ws, pageKey) { return (await this.settings.get(ws, getSetupPage(pageKey))).value.values; }
 
   async forWorkspace(ws) {
-    const [pw, sess] = await Promise.all([this.#values(ws, 'password-policies'), this.#values(ws, 'session-settings')]);
+    const [pw, sess, access] = await Promise.all([this.#values(ws, 'password-policies'), this.#values(ws, 'session-settings'), this.#values(ws, 'login-access-policies')]);
     const attempts = pw.maximum_invalid_login_attempts;
     return {
       minLength: Math.max(num(pw.minimum_password_length, PASSWORD_MIN), PASSWORD_MIN), // the platform floor always applies, whatever the page says
@@ -40,6 +40,7 @@ export class SecurityPolicyService {
       lockIp: sess.lock_sessions_to_the_ip_address_from_which_they_originated === true,
       clickjack: sess.enable_clickjack_protection_for_setup_pages === true,
       requireHttps: sess.require_secure_connections_https === true,
+      loginAsAnyUser: access.administrators_can_log_in_as_any_user === true,
     };
   }
 

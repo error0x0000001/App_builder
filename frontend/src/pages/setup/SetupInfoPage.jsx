@@ -20,7 +20,7 @@ function ToolResult({ result }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-3">
-      <Alert tone={result.active === false ? 'warning' : 'success'}>{result.message}</Alert>
+      <Alert tone={result.ok === false ? 'error' : result.active === false ? 'warning' : 'success'}>{result.message}</Alert>
       {result.errors?.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted">{result.errors.map((e) => <li key={e}>{e}</li>)}</ul>}
       {result.unmappedColumns?.length > 0 && <p className="text-sm text-muted">Ignored columns: {result.unmappedColumns.join(', ')}</p>}
       {result.output && (

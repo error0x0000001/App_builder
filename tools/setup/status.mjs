@@ -1,61 +1,17 @@
 /**
- * Generates docs/setup-status.md: for every Setup page, what backs it today and whether its setting changes behaviour.
+ * Generates docs/setup-status.md from the SAME classifier the API and the in-page banner use (packages/shared/src/setup/status.js).
  *   node tools/setup/status.mjs
- * Sources of truth are the registry and the code (adapters, bindings, providers, tool handlers) — nothing is hand-maintained.
  */
 import { writeFileSync } from 'node:fs';
-import { RULE_COLLECTIONS } from '../../packages/shared/src/automation.js';
-import { ADAPTER_META } from '../../packages/shared/src/setup/adapters.js';
 import { SETUP_PAGES } from '../../packages/shared/src/setup/definitions.js';
-import { SETUP_TOOLS } from '../../packages/shared/src/setup/tools.js';
+import { setupStatus } from '../../packages/shared/src/setup/status.js';
 
-const BINDINGS = new Set(['company-information', 'my-domain']);
-const PROVIDERS = new Set(['adoption-manager', 'storage-usage', 'platform-cache', 'optimizer', 'readiness-assessor', 'data-integration-metrics', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
-// Settings the auth code reads and enforces (see backend/src/modules/setup/securityPolicy.service.js). Keep in sync with that file.
-const ENFORCED = {
-  'password-policies': ['minimum_password_length', 'password_complexity_requirement', 'user_passwords_expire_in', 'enforce_password_history', 'maximum_invalid_login_attempts', 'lockout_effective_period', 'require_a_minimum_1_day_password_lifetime'],
-  'session-settings': ['timeout_value', 'lock_sessions_to_the_ip_address_from_which_they_originated', 'require_secure_connections_https', 'enable_clickjack_protection_for_setup_pages'],
-};
-const ENFORCED_RECORDS = new Set(['network-access']); // every row is an allowed IP range at sign-in and on session refresh
-const NOT_ACTIVE = new Set(['readiness-assessor', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
-
-const ACCESS = {
-  profiles: 'Names a permission container. Its object permissions are the Object Settings rows with the same name; assigned to people on the Users page.',
-  'object-settings': 'The grants: per object, per profile or permission set, Yes/No for read / create / edit / delete (object "All" = every object). Enforced on every object request.',
-  'manage-assignments': 'Assigns a permission set to a person (by email). Their effective permissions are the union of their profile and assigned sets.',
-  'sharing-defaults': 'Organization-wide defaults per object: Private (own records only), Public Read Only, Public Read/Write.',
-};
-const INTAKE = { 'web-to-lead': 'web_to_lead_enabled', 'web-to-case': 'enable_web_to_case', 'email-to-case': 'enable_email_to_case' };
-const ENGINE_OUTPUT = { 'duplicate-error-logs': 'Written by Duplicate Rules when they block or flag a record.', 'case-escalations': 'Written by the 15-minute Escalation job.' };
-
-const classify = (p) => {
-  if (ACCESS[p.key]) return ['Access control (enforced)', ACCESS[p.key]];
-  if (RULE_COLLECTIONS[p.key]) return ['Rule engine (runs on records)', `Kind: ${RULE_COLLECTIONS[p.key].kind}. An Active rule with its criteria + action fields filled in acts on matching ${RULE_COLLECTIONS[p.key].object ?? 'object'} records; rules without them are inert.`];
-  if (ENGINE_OUTPUT[p.key]) return ['Rule engine (runs on records)', ENGINE_OUTPUT[p.key]];
-  if (INTAKE[p.key]) return ['Public intake endpoint', `Switch "${INTAKE[p.key]}" gates a public endpoint that creates real ${p.key === 'web-to-lead' ? 'Leads' : 'Cases'} (see setup-engine.md).`];
-  if (ADAPTER_META[p.key]) return ['Real platform data', 'The page reads/writes the real table (users, sessions, logins or audit).'];
-  if (BINDINGS.has(p.key)) return ['Real platform data', 'Bound to the workspace record.'];
-  if (p.kind === 'special') return ['Real data + engine', `Dedicated page (${p.special}).`];
-  if (p.kind === 'dashboard') return NOT_ACTIVE.has(p.key) ? ['Reports "not enabled"', 'Honest empty state: the feature does not exist in this product.'] : ['Live metrics', 'Computed from real data, cached 60 s.'];
-  if (p.kind === 'info') return SETUP_TOOLS[p.key] ? ['Working tool', `Handler: ${SETUP_TOOLS[p.key].handler}.`] : ['Recorded only', 'The request is audited; the tool engine is not active, and the UI says so.'];
-  if (ENFORCED_RECORDS.has(p.key)) return ['Enforced by sign-in / sessions', 'Each row is an allowed IP range; sign-in and session refresh outside every range are refused. The first range must contain the admin\'s own IP.'];
-  if (p.kind === 'tree') return ['Records', 'Hierarchy stored as parent-linked records.'];
-  if (ENFORCED[p.key]) {
-    const all = p.sections.flatMap((s) => s.fields ?? []);
-    const live = ENFORCED[p.key]; const dead = all.filter((f) => !live.includes(f.key)).map((f) => f.label);
-    return ['Enforced by sign-in / sessions', `${live.length} of ${all.length} settings change behaviour; not yet: ${dead.join(', ')}.`];
-  }
-  if (p.kind === 'form') return ['Stored only', 'Saved, versioned and audited. No other code reads these values yet.'];
-  return p.engine ? ['Stored only', 'Records are managed here; the behaviour they describe is not built yet.'] : ['Records', 'Managed records (create / edit / delete / search).'];
-};
-
-const rows = Object.values(SETUP_PAGES).map((p) => ({ p, ...Object.fromEntries([['status', classify(p)[0]], ['note', classify(p)[1]]]) }));
+const rows = Object.values(SETUP_PAGES).map((p) => ({ p, ...setupStatus(p) }));
 const by = Object.groupBy(rows, (r) => r.status);
+const order = Object.entries(by).sort((a, b) => b[1].length - a[1].length);
 const out = ['# Setup pages — what is real today', '', '_Generated by `tools/setup/status.mjs`. Do not edit by hand._', '', '| Status | Pages |', '|---|---|',
-  ...Object.entries(by).sort((a, b) => b[1].length - a[1].length).map(([k, v]) => `| ${k} | ${v.length} |`), `| **Total** | **${rows.length}** |`, '',
-  '"Stored only" means the page works as a configuration screen (validated, versioned, audited, cached) but nothing else in the product reads the values yet. `engine: true` in the registry marks pages whose real purpose is behaviour.', ''];
-for (const [status, list] of Object.entries(by).sort((a, b) => b[1].length - a[1].length)) {
-  out.push(`## ${status} (${list.length})`, '', '| Page | Section | Note |', '|---|---|---|', ...list.map((r) => `| ${r.p.name} (\`${r.p.key}\`) | ${r.p.path?.join(' › ') ?? ''} | ${r.note} |`), '');
-}
+  ...order.map(([k, v]) => `| ${k} | ${v.length} |`), `| **Total** | **${rows.length}** |`, '',
+  '"Stored only" = validated, versioned, audited and cached, but nothing in Cloudbase reads the values. "External product" = a connector for a vendor product Cloudbase does not include. The same status is shown as a banner on the page itself.', ''];
+for (const [status, list] of order) out.push(`## ${status} (${list.length})`, '', '| Page | Section | Note |', '|---|---|---|', ...list.map((r) => `| ${r.p.name} (\`${r.p.key}\`) | ${r.p.path?.join(' › ') ?? ''} | ${r.note} |`), '');
 writeFileSync(new URL('../../docs/setup-status.md', import.meta.url), out.join('\n'));
-console.log(Object.fromEntries(Object.entries(by).map(([k, v]) => [k, v.length])));
+console.log(Object.fromEntries(order.map(([k, v]) => [k, v.length])));

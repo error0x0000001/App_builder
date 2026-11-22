@@ -29,6 +29,9 @@ import { RecordsService } from '../../modules/setup/records.service.js';
 import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
+import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
+import { EscalationService } from '../../modules/automation/escalation.service.js';
+import { SettingsReader } from '../../modules/setup/settingsReader.js';
 import { SettingsService } from '../../modules/setup/settings.service.js';
 import { AutomationService } from '../../modules/automation/automation.service.js';
 import { IntakeService } from '../../modules/automation/intake.service.js';
@@ -79,16 +82,19 @@ export function createContainer({ boss }) {
 
   const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
   const health = new HealthService({ settings: setupSettings });
-  const automation = new AutomationService({ repos, cache, mail, logger });
+  const settingsReader = new SettingsReader({ repos, cache });
+  const emailPolicy = new EmailPolicyService({ settings: settingsReader });
+  const automation = new AutomationService({ repos, cache, mail, logger, settings: settingsReader });
+  const escalation = new EscalationService({ repos, automation, cache, logger });
   const access = new AccessService({ automation, cache, seed: (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key)) });
   const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
-    tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl }),
+    tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

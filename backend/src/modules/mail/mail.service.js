@@ -4,7 +4,8 @@ import { QUEUES } from '../../shared/queue.js';
 export class MailService {
   constructor({ boss }) { this.boss = boss; }
 
-  send(template, to, data = {}) {
-    return this.boss.send(QUEUES.SEND_EMAIL, { template, to, data });
+  /** `options.workspaceId` applies that workspace's Email settings; `options.kind`: 'system' (default) or 'user' (automation). */
+  send(template, to, data = {}, { workspaceId, kind = 'system' } = {}) {
+    return this.boss.send(QUEUES.SEND_EMAIL, { template, to, data, workspaceId, kind });
   }
 }

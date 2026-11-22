@@ -111,6 +111,6 @@ export class InvitationService {
     await this.mail.send('invitation', invitation.email, {
       inviterName: inviterName ?? 'A teammate', workspaceName: workspace.name, role: invitation.role,
       url: appLink('/accept-invite', { token }), ttlDays: this.ttlDays,
-    });
+    }, { workspaceId: invitation.workspaceId, kind: 'system' });
   }
 }

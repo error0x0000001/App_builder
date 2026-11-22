@@ -1,3 +1,4 @@
+import { CRM_NAV_OBJECTS } from '../objects.js';
 import { getAdapterMeta } from './adapters.js';
 import { SETUP_PAGES } from './definitions.js';
 import { toolInputSchemaFrom } from './schemas.js';
@@ -13,6 +14,8 @@ const objectLabel = (p, counts) => (counts.get(p.name) > 1 ? `${p.name} — ${p.
 /** label -> page key, so selects show names while the server resolves the collection. */
 export const importableObjects = () => { const c = nameCounts(); return Object.fromEntries(recordPages().map((p) => [objectLabel(p, c), p.key])); };
 const importable = () => Object.keys(importableObjects());
+
+const crmObjects = () => CRM_NAV_OBJECTS.map((o) => o.key);
 
 export const SETUP_TOOLS = Object.freeze({
   'data-import-wizard': { handler: 'import', submit: 'Import', fields: () => [
@@ -33,6 +36,19 @@ export const SETUP_TOOLS = Object.freeze({
   'expire-all-passwords': { handler: 'expirePasswords', submit: 'Expire all passwords', danger: true, fields: () => [
     { key: 'confirm', label: 'Sign everyone else out and ask them to choose a new password', type: 'bool', required: true },
   ] },
+  'email-log-files': { handler: 'emailLog', submit: 'Download', download: true, fields: () => [{ key: 'object', label: 'Period', type: 'select', options: ['Last 30 days'], required: true }] },
+  'email-snapshots': { handler: 'emailLog', submit: 'Download', download: true, fields: () => [{ key: 'object', label: 'Period', type: 'select', options: ['Last 30 days'], required: true }] },
+  'mass-transfer-approval-requests': { handler: 'massTransferApprovals', submit: 'Transfer', fields: () => [
+    { key: 'from', label: 'Current approver (member email)', type: 'text', required: true },
+    { key: 'to', label: 'New approver (member email)', type: 'text', required: true },
+  ] },
+  'mass-update-addresses': { handler: 'massReplace', submit: 'Update', fields: () => [
+    { key: 'object', label: 'Object', type: 'select', options: crmObjects(), required: true },
+    { key: 'field', label: 'Field (e.g. Billing Country)', type: 'text', required: true },
+    { key: 'from', label: 'Current value', type: 'text', required: true },
+    { key: 'to', label: 'New value', type: 'text', required: true },
+  ] },
+  'time-based-workflow': { handler: 'pendingEscalations', submit: 'Show pending', fields: () => [] },
   'web-to-case-html-generator': { handler: 'webToCase', submit: 'Generate', fields: () => [
     { key: 'return_url', label: 'Return URL', type: 'text' },
     { key: 'fields', label: 'Fields', type: 'select', options: ['Name, Email, Subject, Description', 'Email, Subject, Description'] },

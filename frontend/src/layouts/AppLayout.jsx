@@ -6,6 +6,7 @@ import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
 import { SidebarProvider } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
 import { CommandPalette } from './CommandPalette.jsx';
+import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
 
 /**
@@ -29,6 +30,7 @@ export function AppLayout() {
       <PageHeaderProvider>
         <AppSidebar onSearch={() => setSearchOpen(true)} />
         <SidebarInset>
+          <ImpersonationBanner />
           <PageHeader />
           <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
             {bleed ? <Outlet /> : <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>}

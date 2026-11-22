@@ -4,6 +4,7 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { PageHeaderMeta, PageHeaderTitle } from '../../layouts/PageHeader.jsx';
 import { PageIntro } from './PageIntro.jsx';
+import { StatusBanner } from './StatusBanner.jsx';
 import { QueryState } from './QueryState.jsx';
 import { TEMPLATES, templateFor } from './templates.js';
 import { useSetupPage } from './useSetupPage.js';
@@ -14,7 +15,7 @@ export default function SetupPage() {
   const query = useSetupPage(key);
   return (
     <QueryState query={query}>
-      {({ page }) => {
+      {({ page, status }) => {
         const Template = TEMPLATES[templateFor(page)];
         if (!Template) return <Alert tone="warning">This page type is not available yet.</Alert>;
         return (
@@ -22,6 +23,7 @@ export default function SetupPage() {
             <PageHeaderTitle icon="sliders">{page.name}</PageHeaderTitle>
             {page.path && <PageHeaderMeta>{page.path.at(-1)}</PageHeaderMeta>}
             <PageIntro>{page.desc}</PageIntro>
+            <StatusBanner status={status} />
             <Suspense fallback={<div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>}><Template key={key} pageKey={key} /></Suspense>
           </>
         );

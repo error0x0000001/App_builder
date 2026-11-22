@@ -10,20 +10,22 @@ import { MailService } from '../../modules/mail/mail.service.js';
 import { AutomationService } from '../../modules/automation/automation.service.js';
 import { EscalationService } from '../../modules/automation/escalation.service.js';
 import { createCache } from '../../shared/cache/redis.js';
+import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
+import { SettingsReader } from '../../modules/setup/settingsReader.js';
 import { PasswordExpiryService } from '../../modules/setup/passwordExpiry.service.js';
 import { createCleanupJob } from './jobs/cleanup.js';
 import { createSendEmailJob } from './jobs/sendEmail.js';
 
 const boss = await createBoss();
 const repos = createRepositories(db);
-const cleanup = new CleanupService({ repos, logger });
 const cache = createCache();
-const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), logger }) });
+const cleanup = new CleanupService({ repos, logger });
+const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), logger, settings: new SettingsReader({ repos, cache }) }) });
 const passwordExpiry = new PasswordExpiryService({ repos, oneTime: new OneTimeTokenService({ repos, pepper: config.JWT_SECRET }), mail: new MailService({ boss }), logger });
 
 // Register new jobs here: queue name -> handler (one job per call, parallelism via batchSize).
 const handlers = {
-  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer()),
+  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
   [QUEUES.CLEANUP]: createCleanupJob(cleanup),
   [QUEUES.ESCALATE_CASES]: () => escalation.run(),
   [QUEUES.EXPIRE_PASSWORDS]: (job) => passwordExpiry.run(job.data),

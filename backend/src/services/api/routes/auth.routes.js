@@ -3,6 +3,7 @@ import { emailOnlySchema, loginSchema, mfaChallengeSchema, resetPasswordSchema, 
 import { googleEnabled, config } from '../../../shared/config.js';
 import { UnauthorizedError } from '../../../shared/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { blockWhileImpersonating } from '../middleware/blockImpersonation.js';
 import { validate } from '../middleware/validate.js';
 import { REFRESH_COOKIE, clearRefreshCookie, sendSession, setSessionCookie } from '../http/sessionResponse.js';
 
@@ -56,7 +57,7 @@ export function authRoutes({ auth, password, oauth, tokens, rateLimit, sessions 
     res.status(204).end();
   });
 
-  router.post('/logout-all', authenticate(tokens), async (req, res) => {
+  router.post('/logout-all', authenticate(tokens), blockWhileImpersonating, async (req, res) => {
     await auth.logoutAll(req.auth.userId, req.ctx);
     clearRefreshCookie(res);
     res.status(204).end();

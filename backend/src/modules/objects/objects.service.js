@@ -81,6 +81,8 @@ export class ObjectsService {
     return { record: flat(saved), warnings };
   }
 
+  invalidate(ws, key) { return this.cache.bump(NS(ws, key)); }
+
   async remove(ctx, key, ids) {
     const def = await this.#require(ctx.workspaceId, key);
     const perms = await this.access.forObject(ctx, def);

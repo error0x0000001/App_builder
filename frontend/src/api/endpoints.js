@@ -38,6 +38,7 @@ export const workspacesApi = {
   members: (id, { after } = {}) => get(`/workspaces/${id}/members${qs({ limit: 20, after })}`),
   changeRole: (id, userId, role) => patch(`/workspaces/${id}/members/${userId}`, { role }),
   removeMember: (id, userId) => del(`/workspaces/${id}/members/${userId}`),
+  loginAs: (id, userId) => post(`/workspaces/${id}/members/${userId}/login-as`),
   invitations: (id) => get(`/workspaces/${id}/invitations`),
   invite: (id, invitations) => post(`/workspaces/${id}/invitations`, { invitations }),
   resendInvitation: (id, invitationId) => post(`/workspaces/${id}/invitations/${invitationId}/resend`),

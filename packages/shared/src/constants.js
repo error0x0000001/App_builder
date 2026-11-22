@@ -71,6 +71,7 @@ export const AUDIT_EVENTS = Object.freeze({
   ACCOUNT_LOCKED: 'account_locked',
   OAUTH_LOGIN: 'oauth_login',
   INVITATION_ACCEPTED: 'invitation_accepted',
+  IMPERSONATION: 'impersonation',
 });
 
 export const AUDIT_EVENT_LABELS = Object.freeze({
@@ -92,4 +93,5 @@ export const AUDIT_EVENT_LABELS = Object.freeze({
   account_locked: 'Account temporarily locked',
   oauth_login: 'Signed in with Google',
   invitation_accepted: 'Joined a workspace',
+  impersonation: 'An administrator signed in as you',
 });

@@ -9,10 +9,10 @@ export class UserService {
     return this.cache.rememberValue(`user:${userId}`, 'email', { ttlMs: 300_000 }, async () => (await this.repos.users.findById(userId))?.email ?? null);
   }
 
-  async me(userId, activeWorkspaceId) {
+  async me(userId, activeWorkspaceId, impersonatedBy = null) {
     const [user, workspaces] = await Promise.all([this.repos.users.findById(userId), this.repos.memberships.listWorkspacesForUser(userId)]);
     if (!user) throw new NotFoundError('User not found');
-    return { user: toPublicUser(user), workspaces, activeWorkspaceId: activeWorkspaceId ?? null };
+    return { user: toPublicUser(user), workspaces, activeWorkspaceId: activeWorkspaceId ?? null, impersonatedBy };
   }
 
   async updateProfile(userId, input) {

@@ -27,4 +27,9 @@ export const RULE_COLLECTIONS = Object.freeze({
   'escalation-rules': { kind: 'escalation', object: 'Case', active: ACTIVE('active'), fields: [...CRITERIA, f('escalate_after_hours', 'Escalate after (hours open)'), f('assign_to', 'Escalate to (member email)')] },
 });
 
-export const ruleExtraFields = (collectionKey) => RULE_COLLECTIONS[collectionKey]?.fields ?? [];
+/** Non-rule collections that carry extra fields the platform reads. */
+const OTHER_EXTRAS = {
+  'business-hours': [f('start_time', 'Opens (HH:MM, 24 h)'), f('end_time', 'Closes (HH:MM, 24 h)'), f('working_days', 'Working days (e.g. Mon,Tue,Wed,Thu,Fri)')],
+};
+
+export const ruleExtraFields = (collectionKey) => RULE_COLLECTIONS[collectionKey]?.fields ?? OTHER_EXTRAS[collectionKey] ?? [];

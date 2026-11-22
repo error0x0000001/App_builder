@@ -15,6 +15,7 @@ import { PageHeaderActions, PageHeaderMeta } from '../../layouts/PageHeader.jsx'
 import { formatDateTime } from '../../lib/format.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from './QueryState.jsx';
+import { LoginAsButton } from './LoginAsButton.jsx';
 import { SetupRecordDialog } from './SetupRecordDialog.jsx';
 import { invalidateSetupData } from './invalidate.js';
 import { useSetupPage } from './useSetupPage.js';
@@ -116,7 +117,7 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
 
       {dialog && (
         <SetupRecordDialog
-          pageKey={pageKey} collection={page} mode={dialog.mode} record={dialog.record} defaults={createDefaults} parentId={parentId}
+          pageKey={pageKey} collection={page} extra={adapter?.loginAs && dialog.mode === 'edit' ? <LoginAsButton userId={dialog.record.id} /> : null} mode={dialog.mode} record={dialog.record} defaults={createDefaults} parentId={parentId}
           title={dialog.mode === 'create' ? (label ?? `New ${page.name}`) : `Edit ${page.name}`} onClose={() => setDialog(null)}
         />
       )}
