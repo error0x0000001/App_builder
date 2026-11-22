@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { PASSWORD, registerUser, startServer } from './helpers.js';
+import { Client, PASSWORD, registerUser, startServer, uniqueEmail } from './helpers.js';
 
 let server; let owner; let other;
 const S = '/setup';
@@ -186,5 +186,25 @@ describe('guards', () => {
       if (res.status === 429) limited++;
     }
     assert.ok(limited > 0);
+  });
+});
+
+describe('role enforcement and cache invalidation', () => {
+  it('refuses non-admins, and a demotion applies immediately despite the membership cache', async () => {
+    const { client: boss } = await registerUser(server);
+    const ws = (await boss.get('/me')).body.activeWorkspaceId;
+    const email = uniqueEmail();
+    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
+    const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
+    const invitee = new Client(server.base);
+    const accepted = await invitee.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
+    assert.equal(accepted.status, 201);
+    await invitee.post(`/workspaces/${ws}/switch`);
+
+    assert.equal((await invitee.get(`${S}/pages/profiles/records`)).status, 200, 'admins may use Setup');
+    const userId = (await invitee.get('/me')).body.user.id;
+    assert.equal((await boss.patch(`/workspaces/${ws}/members/${userId}`, { role: 'viewer' })).status, 204);
+    assert.equal((await invitee.get(`${S}/pages/profiles/records`)).status, 403, 'demotion is visible at once on this worker');
+    assert.equal((await invitee.patch(`${S}/pages/password-policies/settings`, { version: 0, values: { minimum_password_length: '8' } })).status, 403);
   });
 });

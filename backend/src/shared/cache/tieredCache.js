@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { LRUCache } from 'lru-cache';
 
 const VERSION_TTL_MS = 1000; // safety net if a pub/sub message is missed
-const INVALIDATION_CHANNEL = 'cache:invalidate';
+const INVALIDATION_STREAM = 'cache:invalidations';
+const STREAM_MAXLEN = 10_000;
 const etagOf = (body) => `"${createHash('md5').update(body).digest('base64url').slice(0, 16)}"`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -10,7 +11,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Two-level cache shared by every API process.
  *  L1  per-process LRU (microseconds)        L2  Redis (shared, ~0.2ms)
  * Invalidation is by *namespace version*: a write bumps `v:<ns>` and publishes it, so every cached page of that
- * namespace becomes unreachable at once on all workers (the Odoo `orm_signaling` idea, on Redis). Without Redis it
+ * namespace becomes unreachable at once on all workers (the Odoo registry-signalling idea, over a Redis Stream instead of a per-request DB read). Without Redis it
  * degrades to a single-process cache (tests / dev).
  */
 export class TieredCache {
@@ -22,30 +23,59 @@ export class TieredCache {
     this.localVersions = new Map(); // memory-mode counters
     this.inflight = new Map();
     this.stats = { l1Hits: 0, l2Hits: 0, misses: 0, loads: 0, stale: 0 };
-    if (subscriber) {
-      subscriber.subscribe(INVALIDATION_CHANNEL).catch((e) => logger.error({ err: e }, 'cache subscribe failed'));
-      subscriber.on('message', (channel, ns) => { if (channel === INVALIDATION_CHANNEL) this.versions.delete(ns); });
+    this.subscriber = subscriber;
+    this.closed = false;
+    if (subscriber) this.#tail().catch((e) => logger.error({ err: e }, 'cache invalidation reader stopped'));
+  }
+
+  /**
+   * Reads the invalidation stream (Redis Streams, durable): each worker keeps the id of the last event it handled, so a
+   * brief disconnect replays what it missed instead of losing it. If the reader errors, local versions are dropped and
+   * re-read from Redis (the source of truth), so a stale entry can never outlive the 1s version TTL either way.
+   */
+  async #tail() {
+    let last = '$';
+    while (!this.closed) {
+      try {
+        const res = await this.subscriber.xread('BLOCK', 2000, 'COUNT', 200, 'STREAMS', INVALIDATION_STREAM, last);
+        if (!res) continue;
+        for (const [id, fields] of res[0][1]) { this.versions.delete(fields[1]); last = id; }
+      } catch (error) {
+        if (this.closed) return;
+        this.logger.warn({ err: error.message }, 'cache invalidation reader error');
+        this.versions.clear();
+        await sleep(500);
+      }
+    }
+  }
+
+  stop() { this.closed = true; this.subscriber?.disconnect(); }
+
+  /** Redis call that never throws: on failure (outage/timeout) returns `fallback` so callers degrade to memory/DB. */
+  async #redis(fn, fallback = null) {
+    try { return await fn(this.redis); } catch (error) {
+      if (!this.redisDown) { this.redisDown = true; this.logger.warn({ err: error.message }, 'redis unavailable, serving from memory/database'); }
+      return fallback;
     }
   }
 
   async version(ns) {
     const hit = this.versions.get(ns);
     if (hit && hit.until > Date.now()) return hit.v;
-    const v = this.redis ? Number((await this.redis.get(`v:${ns}`)) ?? 0) : this.localVersions.get(ns) ?? 0;
+    const remote = this.redis ? await this.#redis((r) => r.get(`v:${ns}`), undefined) : undefined;
+    const v = remote === undefined ? this.localVersions.get(ns) ?? 0 : Number(remote ?? 0);
     this.versions.set(ns, { v, until: Date.now() + VERSION_TTL_MS });
     return v;
   }
 
   /** Invalidate everything cached under `ns` (all workers). */
   async bump(ns) {
-    let v;
-    if (this.redis) {
-      v = await this.redis.incr(`v:${ns}`);
-      this.redis.publish(INVALIDATION_CHANNEL, ns).catch(() => {});
-    } else {
-      v = (this.localVersions.get(ns) ?? 0) + 1;
-      this.localVersions.set(ns, v);
-    }
+    const local = (this.localVersions.get(ns) ?? 0) + 1;
+    this.localVersions.set(ns, local);
+    const remote = this.redis
+      ? await this.#redis(async (r) => (await r.multi().incr(`v:${ns}`).xadd(INVALIDATION_STREAM, 'MAXLEN', '~', STREAM_MAXLEN, '*', 'ns', ns).exec())[0][1])
+      : null;
+    const v = remote ?? local;
     this.versions.set(ns, { v, until: Date.now() + VERSION_TTL_MS });
     return v;
   }
@@ -64,7 +94,7 @@ export class TieredCache {
       if (l1.until > now) { this.stats.stale++; this.#load(key, ttlMs, staleMs, loader).catch(() => {}); return l1; }
     }
     if (this.redis) {
-      const raw = await this.redis.get(key);
+      const raw = await this.#redis((r) => r.get(key));
       if (raw !== null) {
         this.stats.l2Hits++;
         const entry = this.#entry(raw.slice(raw.indexOf('\n') + 1), raw.slice(0, raw.indexOf('\n')), ttlMs, staleMs);
@@ -97,7 +127,7 @@ export class TieredCache {
       const etag = etagOf(body);
       const entry = this.#entry(body, etag, ttlMs, staleMs, value);
       this.l1.set(key, entry);
-      if (this.redis) this.redis.set(key, `${etag}\n${body}`, 'PX', ttlMs + staleMs).catch(() => {});
+      if (this.redis) this.#redis((r) => r.set(key, `${etag}\n${body}`, 'PX', ttlMs + staleMs));
       return entry;
     })().finally(() => this.inflight.delete(key));
     this.inflight.set(key, task);
@@ -108,8 +138,8 @@ export class TieredCache {
   async tryLock(name, ttlMs) {
     if (!this.redis) return () => {};
     const token = Math.random().toString(36).slice(2);
-    const ok = await this.redis.set(`lock:${name}`, token, 'PX', ttlMs, 'NX');
-    return ok ? () => this.redis.eval("if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) end", 1, `lock:${name}`, token).catch(() => {}) : null;
+    const ok = await this.#redis((r) => r.set(`lock:${name}`, token, 'PX', ttlMs, 'NX'), 'OK'); // Redis down => proceed unlocked
+    return ok ? () => this.#redis((r) => r.eval("if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) end", 1, `lock:${name}`, token)) : null;
   }
 
   async waitFor(fn, { tries = 40, delayMs = 25 } = {}) {
@@ -121,9 +151,11 @@ export class TieredCache {
   async hit(key, windowSeconds) {
     if (this.redis) {
       const k = `rl:${key}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
-      const count = await this.redis.incr(k);
-      if (count === 1) this.redis.expire(k, windowSeconds + 1).catch(() => {});
-      return count;
+      const count = await this.#redis((r) => r.incr(k));
+      if (count !== null) {
+        if (count === 1) this.#redis((r) => r.expire(k, windowSeconds + 1));
+        return count;
+      }
     }
     const k = `${key}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
     this.localHits ??= new Map();
