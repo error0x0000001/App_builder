@@ -27,7 +27,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-68')}>
+    <aside aria-label={label} data-collapsed={iconOnly} className={cn('h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-66')}>
       <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>
