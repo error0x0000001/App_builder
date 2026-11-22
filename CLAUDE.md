@@ -19,5 +19,8 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 - **Tenant theming:** each workspace has a `theme` (graphite default, indigo, emerald, rose, midnight) set by admins (`PATCH /workspaces/:id/theme`) and applied to all members via `html[data-tenant-theme]`. Light/dark is separate and personal (`html[data-theme]`). Add a theme = entry in `TENANT_THEMES` (shared) + two token blocks in `frontend/src/index.css`.
 - Git: work on `dev`, merge to `main` via PR. Commits authored as the owner (error0x0000001), no AI attribution lines.
 
+## Product scope
+The full product (Setup/Admin, CRM apps, ERP) is inventoried in `docs/inventory/` (generated from the design mock-up; regenerate with `tools/inventory/build-inventory.cjs`) and planned in `docs/product-roadmap.md`. Build pages as configuration on shared templates (ListPage, SettingsForm, object framework) — never one-off screens.
+
 ## Status
 Auth is implemented end to end (see README "Auth features"). Remaining work is tracked in `docs/auth-backlog.md`.
