@@ -6,6 +6,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../sidebar/Side
 import { Avatar } from '../ui/Avatar.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu.jsx';
 import { Icon } from '../ui/Icon.jsx';
+import { Logo } from '../ui/Logo.jsx';
 
 /** The workspace list + "Add workspace" — shared by the sidebar header and the top bar. */
 function WorkspaceMenuContent({ side, align, className }) {
@@ -14,7 +15,7 @@ function WorkspaceMenuContent({ side, align, className }) {
   const select = async (id) => { await switchWorkspace(id); navigate('/app'); };
   return (
     <DropdownMenuContent side={side} align={align} className={className}>
-      <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+      <DropdownMenuLabel>Workspaces — {activeWorkspace?.name ?? 'none selected'}</DropdownMenuLabel>
       {workspaces.map((w) => (
         <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
           <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
@@ -31,22 +32,21 @@ function WorkspaceMenuContent({ side, align, className }) {
   );
 }
 
-/** Top bar: workspace pill (tile + name), same menu. */
-export function WorkspaceSwitcherCompact() {
+/** Top bar: the cloudbase mark IS the workspace switcher — click it to see, switch or add a workspace. */
+export function WorkspaceSwitcherLogo() {
   const { activeWorkspace } = useAuth();
   const name = activeWorkspace?.name ?? 'No workspace';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
         {(props) => (
-          <button type="button" aria-label={`Workspace: ${name}`} className="flex h-9 max-w-56 items-center gap-2 rounded-lg border border-sidebar-line px-2 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
-            <Avatar name={name} size="size-7" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
-            <span className="truncate text-sm font-semibold">{name}</span>
+          <button type="button" aria-label={`Workspace: ${name}. Switch workspace`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
+            <Logo size="sm" className="text-sidebar-ink" />
             <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
           </button>
         )}
       </DropdownMenuTrigger>
-      <WorkspaceMenuContent side="bottom" align="end" className="w-64" />
+      <WorkspaceMenuContent side="bottom" align="start" className="w-64" />
     </DropdownMenu>
   );
 }

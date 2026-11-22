@@ -22,7 +22,7 @@ function Shell({ onSearch, bleed }) {
       </main>
     </SidebarInset>
   );
-  return layout === 'topbar' ? <><TopBar onSearch={onSearch} />{content}</> : <><AppSidebar onSearch={onSearch} />{content}</>;
+  return layout === 'topbar' ? <><TopBar />{content}</> : <><AppSidebar onSearch={onSearch} />{content}</>;
 }
 
 /**
