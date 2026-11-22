@@ -24,9 +24,7 @@ export function NavBottom() {
   if (!NAV.bottom.length) return null;
   return (
     <nav aria-label="Secondary">
-      <SidebarGroup>
-        <SidebarMenu><NavItems items={NAV.bottom} /></SidebarMenu>
-      </SidebarGroup>
+      <SidebarMenu><NavItems items={NAV.bottom} /></SidebarMenu>
     </nav>
   );
 }

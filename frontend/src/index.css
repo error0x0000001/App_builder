@@ -9,8 +9,10 @@
    and an entry in TENANT_THEMES (packages/shared/src/constants.js).
    --------------------------------------------------------------------------------------------- */
 :root {
-  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f5f9; --line: #dde2ea; --inset: #ffffff;
-  --ink: #1c2535; --muted: #667085;
+  --bg: #f4f4f5; --surface: #ffffff; --surface-2: #f4f4f5; --line: #e4e4e7; --inset: #ffffff;
+  --ink: #18181b; --muted: #71717a;
+  /* shape: compact 8px controls in the app; the sign-in screens override these (see .auth-scope) */
+  --radius-btn: 0.5rem; --ctl-h: 2.5rem; --ctl-r: 0.5rem;
   --danger: #c62828; --success: #1b7f4b; --warning: #b7791f;
   --hero-1: #9db8ff; --hero-2: #c9bcff; --hero-3: #dce8ff; --orb-a: #7fa6ff; --orb-b: #1b3a6b;
   color-scheme: light;
@@ -24,11 +26,14 @@
   color-scheme: dark;
 }
 
+/* Sign-in / onboarding surfaces use softer, rounder controls. */
+.auth-scope { --radius-btn: 9999px; --ctl-h: 2.75rem; --ctl-r: 0.75rem; }
+
 /* graphite (default): near-black accent, light neutral sidebar */
 :root {
   --accent: #18181b; --accent-hover: #3f3f46; --accent-soft: #ececf0; --accent-ink: #ffffff;
   --link: #1f56c4; --ring: rgba(24, 24, 27, 0.16);
-  --sidebar: #eef1f5; --sidebar-ink: #1c2535; --sidebar-muted: #667085; --sidebar-line: #dde2ea; --sidebar-accent: #e1e6ee;
+  --sidebar: #fafafa; --sidebar-ink: #18181b; --sidebar-muted: #71717a; --sidebar-line: #e4e4e7; --sidebar-accent: #ececee;
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {

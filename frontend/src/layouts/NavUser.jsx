@@ -18,7 +18,10 @@ export function NavUser() {
     <>
       <Avatar name={fullName} size="size-9" shape="square" className={avatarClassName} />
       <span className="grid min-w-0 flex-1 text-left leading-tight">
-        <span className="truncate text-sm font-medium">{fullName}</span>
+        <span className="flex items-center gap-1 text-sm font-medium">
+          <span className="truncate">{fullName}</span>
+          <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
+        </span>
         <span className="truncate text-xs opacity-70">{user.email}</span>
       </span>
     </>
@@ -32,7 +35,7 @@ export function NavUser() {
             {(props) => (
               <SidebarMenuButton size="lg" aria-label={`Account menu for ${fullName}`} {...props}>
                 {identity('bg-sidebar-primary! text-sidebar-primary-ink!')}
-                <Icon name="more-horizontal" className="ml-auto size-4 shrink-0 opacity-60" />
+                <Icon name="more-horizontal" className="ml-auto size-4 shrink-0 stroke-[3.5] opacity-80" />
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>

@@ -28,7 +28,7 @@ export function AppLayout() {
         <SidebarInset>
           <PageHeader />
           <main className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6"><Outlet /></div>
+            <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>
           </main>
         </SidebarInset>
         <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

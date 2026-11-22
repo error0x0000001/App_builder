@@ -16,15 +16,17 @@ export function AppSidebar({ onSearch }) {
   return (
     <Sidebar label="Application">
       <SidebarHeader>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 border-b border-sidebar-line pb-3">
           <div className="min-w-0 flex-1"><WorkspaceSwitcher /></div>
           {!iconOnly && <SidebarTrigger tone="sidebar" />}
         </div>
-        <SidebarSearch onClick={onSearch} shortcut={searchShortcutLabel()} />
+        <div className="pt-3"><SidebarSearch onClick={onSearch} shortcut={searchShortcutLabel()} /></div>
       </SidebarHeader>
       <SidebarContent><NavMain /></SidebarContent>
-      <NavBottom />
-      <SidebarFooter><NavUser /></SidebarFooter>
+      <SidebarFooter>
+        <NavBottom />
+        <NavUser />
+      </SidebarFooter>
     </Sidebar>
   );
 }

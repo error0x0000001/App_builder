@@ -26,13 +26,16 @@ export function WorkspaceSwitcher() {
           <DropdownMenuTrigger>
             {(props) => (
               <SidebarMenuButton size="lg" aria-label={`Workspace: ${name}`} {...props}>
-                <Avatar name={name} size="size-9" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+                <Avatar name={name} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
                 <span className="grid min-w-0 flex-1 text-left leading-tight">
                   <span className="flex items-center gap-1 text-sm font-semibold">
                     <span className="truncate">{name}</span>
                     <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
                   </span>
-                  <span className="truncate text-xs opacity-70">{activeWorkspace ? ROLE_LABELS[activeWorkspace.role] : 'Create a workspace'}</span>
+                  <span className="flex items-center gap-1 text-xs opacity-70">
+                    <Icon name="user" className="size-3 shrink-0" />
+                    <span className="truncate">{activeWorkspace ? ROLE_LABELS[activeWorkspace.role] : 'Create a workspace'}</span>
+                  </span>
                 </span>
               </SidebarMenuButton>
             )}
