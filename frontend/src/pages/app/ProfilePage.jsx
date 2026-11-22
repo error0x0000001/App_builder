@@ -42,7 +42,7 @@ function AppearanceSection() {
   const { variant, setVariant } = useSidebar();
   return (
     <Section title="Appearance" description="Choose how the sidebar looks. Press Ctrl/Cmd + B to collapse it.">
-      <Select label="Sidebar style" value={variant} onChange={(e) => setVariant(e.target.value)} options={SIDEBAR_VARIANTS} className="max-w-xs" />
+      <Select label="Sidebar style" value={variant} onChange={setVariant} options={SIDEBAR_VARIANTS} className="max-w-xs" />
     </Section>
   );
 }

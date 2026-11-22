@@ -91,8 +91,8 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
       </Actions>
 
       <div className="flex flex-wrap items-center gap-2">
-        {searchable && <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${page.name.toLowerCase()}`} label={`Search ${page.name}`} className="w-full sm:w-72" />}
-        {views?.length > 1 && <Select aria-label="List view" value={view} onChange={(e) => setView(e.target.value)} options={views} className="!h-8 w-auto" />}
+        {searchable && <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${page.name.toLowerCase()}`} label={`Search ${page.name}`} className="w-full sm:w-72" />}
+        {views?.length > 1 && <Select aria-label="List view" value={view} onChange={setView} options={views} size="sm" />}
         {embedded && canCreate === false && total !== undefined && <span className="text-sm text-muted">{total} items</span>}
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />{deleteLabel} ({selected.size})</Button>}
       </div>

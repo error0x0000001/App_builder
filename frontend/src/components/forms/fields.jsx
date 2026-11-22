@@ -1,6 +1,7 @@
-import { Controller, get, useFormContext } from 'react-hook-form';
+import { Controller, get, useController, useFormContext } from 'react-hook-form';
 import { Button } from '../ui/Button.jsx';
 import { Checkbox } from '../ui/Checkbox.jsx';
+import { DatePicker } from '../ui/DatePicker.jsx';
 import { Input } from '../ui/Input.jsx';
 import { OtpInput } from '../ui/OtpInput.jsx';
 import { PasswordInput } from '../ui/PasswordInput.jsx';
@@ -17,7 +18,14 @@ const useField = (name) => {
 
 export const TextField = ({ name, ...rest }) => <Input {...useField(name)} {...rest} />;
 export const PasswordField = ({ name, ...rest }) => <PasswordInput {...useField(name)} {...rest} />;
-export const SelectField = ({ name, ...rest }) => <Select {...useField(name)} {...rest} />;
+/** Controlled by react-hook-form: our Select reports the picked value, not a DOM event. */
+function useControlled(name) {
+  const { control } = useFormContext();
+  const { field, fieldState } = useController({ name, control });
+  return { ref: field.ref, name: field.name, value: field.value ?? '', onChange: field.onChange, onBlur: field.onBlur, error: fieldState.error?.message };
+}
+export const SelectField = ({ name, ...rest }) => <Select {...useControlled(name)} {...rest} />;
+export const DateField = ({ name, ...rest }) => <DatePicker {...useControlled(name)} {...rest} />;
 export const SwitchField = ({ name, ...rest }) => <Switch {...useField(name)} {...rest} />;
 export const TextareaField = ({ name, ...rest }) => <Textarea {...useField(name)} {...rest} />;
 export const CheckboxField = ({ name, ...rest }) => <Checkbox {...useField(name)} {...rest} />;

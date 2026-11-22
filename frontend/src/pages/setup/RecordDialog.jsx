@@ -1,10 +1,10 @@
-import { CheckboxField, SelectField, SubmitButton, TextField, TextareaField } from '../../components/forms/fields.jsx';
+import { CheckboxField, DateField, SelectField, SubmitButton, TextField, TextareaField } from '../../components/forms/fields.jsx';
 import { Form } from '../../components/forms/Form.jsx';
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Button } from '../../components/ui/Button.jsx';
 import { Dialog } from '../../components/ui/Dialog.jsx';
 
-const FIELD = { select: SelectField, check: CheckboxField, textarea: TextareaField, text: TextField };
+const FIELD = { select: SelectField, check: CheckboxField, textarea: TextareaField, date: DateField, text: TextField };
 const blank = (fields, values) => Object.fromEntries(fields.map((f) => [f.key, values?.[f.key] ?? (f.type === 'check' ? false : '')]));
 
 /**
@@ -26,7 +26,7 @@ export function RecordDialog({ title, fields, schema, values, onSubmit, onClose,
         <div className="max-h-[55vh] space-y-4 overflow-y-auto px-px py-px">
           {fields.map((f) => {
             const Field = FIELD[f.type] ?? TextField;
-            const extra = f.type === 'select' ? { options: f.options, placeholder: f.required ? undefined : 'Select…' } : f.type === 'date' || f.type === 'number' ? { type: f.type === 'number' ? 'text' : 'date', inputMode: f.type === 'number' ? 'decimal' : undefined } : {};
+            const extra = f.type === 'select' ? { options: f.options, placeholder: f.required ? undefined : 'Select…' } : f.type === 'number' ? { inputMode: 'decimal' } : {};
             return <Field key={f.key} name={f.key} label={f.label} required={f.required} {...extra} />;
           })}
         </div>

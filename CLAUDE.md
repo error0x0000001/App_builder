@@ -9,6 +9,7 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 - Design reference: `setup-clone_2.html` (Cloudbase theme, navy/slate, light + dark).
 
 ## Rules from the owner
+- **No browser-native form controls, ever.** No `<select>`, `type=date/search/number/color/file`, `alert/confirm/prompt`, or native `<dialog>`: use `Select`, `DatePicker`, `Checkbox`, `Switch`, `SearchInput`, `Dialog`, `ConfirmDialog` from `components/ui` (and `SelectField`/`DateField` from `components/forms`). Need a control that doesn't exist yet? Build it in `components/ui` first, on `Popover` when it floats.
 - Everything reusable (even button/checkbox/switch/input); SOLID; **zero code duplication**; remove deprecated code completely.
 - Must scale to millions of users: indexed queries, keyset pagination, stateless services.
 - Visual style: **no shadows anywhere** — separate surfaces with borders only (clear, premium look). Dark mode = pitch-black page + slate surfaces. The sidebar is light by default; dark navy (#00072D) exists only as the selectable `midnight` tenant theme.

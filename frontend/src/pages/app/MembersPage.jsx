@@ -40,7 +40,7 @@ function MemberList({ workspaceId, actorRole, currentUserId }) {
               subtitle={`${m.email} · joined ${formatDate(m.joinedAt)}`}
               trailing={manageable ? (
                 <>
-                  <Select aria-label={`Role for ${m.email}`} value={m.role} onChange={(e) => changeRole.mutate({ userId: m.userId, role: e.target.value })} options={ROLES.filter((r) => outranks(actorRole, r)).map((r) => ({ value: r, label: ROLE_LABELS[r] }))} className="!h-8 text-xs" />
+                  <Select aria-label={`Role for ${m.email}`} value={m.role} onChange={(role) => changeRole.mutate({ userId: m.userId, role })} options={ROLES.filter((r) => outranks(actorRole, r)).map((r) => ({ value: r, label: ROLE_LABELS[r] }))} className="!h-8 text-xs" />
                   <Button variant="ghost" size="sm" aria-label={`Remove ${m.email}`} onClick={() => remove.mutate(m.userId)}><Icon name="trash" /></Button>
                 </>
               ) : <Badge tone="accent">{ROLE_LABELS[m.role]}</Badge>}
