@@ -14,9 +14,9 @@ export function NavUser() {
   const fullName = `${user.firstName} ${user.lastName}`;
 
   // Colors inherit from the container, so the same block works on the sidebar and inside the menu.
-  const identity = (avatarClassName) => (
+  const identity = (avatarSize, avatarClassName) => (
     <>
-      <Avatar name={fullName} size="size-9" shape="square" className={avatarClassName} />
+      <Avatar name={fullName} size={avatarSize} shape="square" className={avatarClassName} />
       <span className="grid min-w-0 flex-1 text-left leading-tight">
         <span className="flex items-center gap-1 text-sm font-medium">
           <span className="truncate">{fullName}</span>
@@ -34,13 +34,13 @@ export function NavUser() {
           <DropdownMenuTrigger>
             {(props) => (
               <SidebarMenuButton size="lg" aria-label={`Account menu for ${fullName}`} {...props}>
-                {identity('bg-sidebar-primary! text-sidebar-primary-ink!')}
+                {identity(iconOnly ? 'size-8' : 'size-9', 'bg-sidebar-primary! text-sidebar-primary-ink!')}
                 <Icon name="more-horizontal" className="ml-auto size-4 shrink-0 stroke-[3.5] opacity-80" />
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent side={iconOnly ? 'right' : 'top'} align={iconOnly ? 'end' : 'start'} className={iconOnly ? undefined : 'w-full'}>
-            <DropdownMenuLabel className="flex items-center gap-2 p-1.5 text-ink">{identity()}</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex items-center gap-2 p-1.5 text-ink!">{identity('size-9')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem icon="user" onSelect={() => navigate('/app/profile')}>Profile</DropdownMenuItem>
             <DropdownMenuItem icon="shield" onSelect={() => navigate('/app/security')}>Security</DropdownMenuItem>

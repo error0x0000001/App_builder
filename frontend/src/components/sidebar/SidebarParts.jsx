@@ -29,8 +29,7 @@ export const SidebarMenuButton = forwardRef(function SidebarMenuButton({ to, end
   const base = cn(
     'flex w-full items-center gap-2.5 overflow-hidden rounded-lg text-left text-sm text-sidebar-ink outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent',
     size === 'lg' ? 'h-10 gap-2.5' : 'h-8',
-    iconOnly ? 'size-8 p-0' : size === 'lg' ? 'px-0' : 'px-2',
-    iconOnly && size !== 'lg' && 'justify-center',
+    iconOnly ? (size === 'lg' ? 'size-8 p-0' : 'size-8 p-2') : size === 'lg' ? 'px-0' : 'px-2',
     className,
   );
   const element = to ? (
