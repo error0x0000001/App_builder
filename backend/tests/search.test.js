@@ -30,7 +30,7 @@ describe('global search', () => {
     assert.deepEqual(prefix.groups.records.map((r) => r.title).sort(), ['Ada Lovelace', 'Adaptive Systems']);
     const contains = await find(client, 'lovelace');
     assert.deepEqual(contains.groups.records.map((r) => r.title).sort(), ['Ada Lovelace', 'Countess Lovelace'], 'substring matches too');
-    assert.match(contains.groups.records[0].subtitle, /Leads|Contacts/, 'subtitle names the object');
+    assert.match(contains.groups.records[0].tag, /Leads|Contacts/, 'tag names the object');
     assert.match(contains.groups.records[0].to, /^\/app\/o\/(Lead|Contact)\?open=/);
     assert.equal(Object.keys((await find(client, 'a')).groups).length, 0, 'one character is not searched');
     assert.equal((await find(client, 'zzzzqqqq')).groups.records.length, 0);

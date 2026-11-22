@@ -81,7 +81,7 @@ export class SearchService {
       where workspace_id = ${ctx.workspaceId} and (${scope}) and collection not in (${NOISY}) and lower(label) ${op} ${pattern}
       limit ${n}`).then((r) => r.rows);
     const rows = await this.#twoPhase((p, n) => find(p, sql`like`, n), (p, n) => find(p, sql`like`, n), query, limit);
-    return rows.map((r) => ({ id: r.id, kind: 'record', title: r.label, subtitle: [plural.get(r.collection), r.status].filter(Boolean).join(' · '), to: `/app/o/${r.collection.slice(4)}?open=${r.id}` }));
+    return rows.map((r) => ({ id: r.id, kind: 'record', title: r.label, subtitle: r.status ?? '', tag: plural.get(r.collection), to: `/app/o/${r.collection.slice(4)}?open=${r.id}` }));
   }
 
   async #people(ctx, query, limit) {
@@ -89,7 +89,7 @@ export class SearchService {
       select u.id, u.first_name, u.last_name, u.email, m.role from memberships m join users u on u.id = m.user_id
       where m.workspace_id = ${ctx.workspaceId} and lower(u.first_name || ' ' || u.last_name || ' ' || u.email) like ${`%${escapeLike(query.toLowerCase())}%`}
       limit ${limit}`);
-    return rows.map((r) => ({ id: r.id, kind: 'person', title: `${r.first_name} ${r.last_name}`, subtitle: `${r.email} · ${r.role}`, to: '/app/members' }));
+    return rows.map((r) => ({ id: r.id, kind: 'person', title: `${r.first_name} ${r.last_name}`, subtitle: r.email, tag: r.role, to: '/app/members' }));
   }
 
   async #setup(ctx, query, limit) {

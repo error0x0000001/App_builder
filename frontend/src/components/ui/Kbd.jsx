@@ -6,3 +6,5 @@ export const Kbd = ({ className, children }) => (
 
 /** "⌘K" on Apple platforms, "Ctrl K" elsewhere. */
 export const searchShortcutLabel = () => (/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K');
+
+export const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
