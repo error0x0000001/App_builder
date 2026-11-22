@@ -8,7 +8,7 @@ const VARIANTS = {
   ghost: 'bg-transparent text-link border-transparent hover:bg-surface-2',
   danger: 'bg-danger text-white border-transparent hover:opacity-90',
 };
-const SIZES = { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-11 px-5 text-sm' };
+const SIZES = { icon: 'size-9 p-0', sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-11 px-5 text-sm' };
 
 /** The only button in the app. Pass `as={Link}` to render a router link with identical styling. */
 export const Button = forwardRef(function Button(

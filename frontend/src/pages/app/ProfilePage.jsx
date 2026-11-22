@@ -7,6 +7,8 @@ import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Section } from '../../components/ui/Card.jsx';
 import { Input } from '../../components/ui/Input.jsx';
+import { Select } from '../../components/ui/Select.jsx';
+import { SIDEBAR_VARIANTS, useSidebar } from '../../components/sidebar/SidebarContext.jsx';
 
 /** Shared by the profile page and onboarding's "About you" step. */
 export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
@@ -36,10 +38,22 @@ export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
   );
 }
 
+function AppearanceSection() {
+  const { variant, setVariant } = useSidebar();
+  return (
+    <Section title="Appearance" description="Choose how the sidebar looks. Press Ctrl/Cmd + B to collapse it.">
+      <Select label="Sidebar style" value={variant} onChange={(e) => setVariant(e.target.value)} options={SIDEBAR_VARIANTS} className="max-w-xs" />
+    </Section>
+  );
+}
+
 export default function ProfilePage() {
   return (
-    <Section title="Profile" description="How you appear to teammates." className="max-w-2xl">
-      <ProfileForm />
-    </Section>
+    <div className="max-w-2xl space-y-6">
+      <Section title="Profile" description="How you appear to teammates.">
+        <ProfileForm />
+      </Section>
+      <AppearanceSection />
+    </div>
   );
 }

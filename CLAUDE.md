@@ -5,7 +5,7 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 - `packages/shared` — Zod schemas, roles, password rules, error codes. **Single source of truth** for API + UI validation. Never duplicate a rule in backend/frontend.
 - `backend` — Express 5, Drizzle ORM, PostgreSQL, pg-boss. Layering: routes → services → repositories; wiring only in `services/api/container.js`.
   Services: `services/api` (HTTP), `services/worker` (email + cleanup jobs). Tests: `npm test` (integration, real Postgres, `.env.test`).
-- `frontend` — Vite + React + Tailwind v4. Reusable UI kit in `src/components/ui`, bound form fields in `src/components/forms`; every form uses `useAppForm`.
+- `frontend` — Vite + React + Tailwind v4. Reusable UI kit in `src/components/ui`, bound form fields in `src/components/forms`; every form uses `useAppForm`. App shell = own sidebar implementation in `src/components/sidebar` (variants inset [default] | floating, icon-collapse, mobile drawer; no shadcn/Radix).
 - Design reference: `setup-clone_2.html` (Cloudbase theme, navy/slate, light + dark).
 
 ## Rules from the owner
