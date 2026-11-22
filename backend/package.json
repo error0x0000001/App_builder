@@ -1,0 +1,29 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:api": "node --watch --env-file=../.env src/services/api/index.js",
+    "dev:worker": "node --watch --env-file=../.env src/services/worker/index.js",
+    "start:api": "node src/services/api/index.js",
+    "start:worker": "node src/services/worker/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file=../.env src/shared/db/migrate.js",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.38.0",
+    "express": "^4.21.0",
+    "helmet": "^8.0.0",
+    "pg": "^8.13.0",
+    "pg-boss": "^10.1.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0"
+  }
+}
