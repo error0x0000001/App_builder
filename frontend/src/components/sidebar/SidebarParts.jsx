@@ -7,7 +7,7 @@ import { Tooltip } from '../ui/Tooltip.jsx';
 import { useSidebar } from './SidebarContext.jsx';
 
 /* Spacing contract: 12px side gutter, 32px menu rows with no gap, 24px section labels, 12px between sections.
-   Collapsed: 8px gutter, each row a 32px square holding a 20px icon. */
+   Collapsed: 8px gutter, each row a 32px square holding a 24px icon. */
 const useGutter = () => (useSidebar().iconOnly ? 'px-2' : 'px-3');
 
 export const SidebarHeader = ({ className, children }) => <div className={cn('flex flex-col pt-3', useGutter(), className)}>{children}</div>;
@@ -29,7 +29,7 @@ export const SidebarMenuButton = forwardRef(function SidebarMenuButton({ to, end
   const base = cn(
     'flex w-full items-center gap-2.5 overflow-hidden rounded-lg text-left text-sm text-sidebar-ink outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent',
     size === 'lg' ? 'h-10 gap-2.5' : 'h-8',
-    iconOnly ? (size === 'lg' ? 'size-8 p-0' : 'size-8 p-1.5 [&>svg:first-child]:size-5') : size === 'lg' ? 'px-0' : 'px-2',
+    iconOnly ? (size === 'lg' ? 'size-8 p-0' : 'size-8 p-1 [&>svg:first-child]:size-6') : size === 'lg' ? 'px-0' : 'px-2',
     className,
   );
   const element = to ? (

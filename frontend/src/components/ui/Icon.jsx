@@ -23,7 +23,7 @@ const PATHS = {
 };
 
 /**
- * Duotone icons (used by navigation and page headers): a soft filled shape (`fill`, 25% of the current colour)
+ * Duotone icons (used by navigation and page headers): a soft filled shape (`fill`, 32% of the current colour)
  * with a darker detail on top (`line`). Everything else is a plain line icon.
  */
 const DUOTONE = {
@@ -53,8 +53,8 @@ export function Icon({ name, className = 'size-4', ...rest }) {
   const duotone = DUOTONE[name];
   if (duotone) {
     return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true" {...rest}>
-        <path d={duotone.fill} fill="currentColor" fillOpacity="0.25" stroke="none" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true" {...rest}>
+        <path d={duotone.fill} fill="currentColor" fillOpacity="0.32" stroke="none" />
         <path d={duotone.line} />
       </svg>
     );
