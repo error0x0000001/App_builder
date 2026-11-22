@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { SETUP_COUNTS, SETUP_TREE, getAdapterMeta, getCollection, getSetupPage, getToolMeta, setupIdsSchema, setupListQuerySchema, setupSettingsBodySchema, settingsPatchSchema, uuidField } from '@app/shared';
 import { createHash } from 'node:crypto';
+import { config } from '../../../shared/config.js';
 import { NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
 import { supportedViews } from '../../../modules/setup/records.service.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -11,7 +12,6 @@ import { validate } from '../middleware/validate.js';
 const keyParam = z.object({ key: z.string().max(100) });
 const recordParam = keyParam.extend({ id: uuidField });
 const WRITES_PER_MINUTE = 120;
-const REQUESTS_PER_MINUTE = 6000; // per workspace; protects the shared database from one noisy tenant
 
 const etagOf = (body) => `"${createHash('md5').update(body).digest('base64url').slice(0, 16)}"`;
 
@@ -38,7 +38,7 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup }) {
     try {
       const ws = req.auth.workspaceId;
       usage.hit(ws);
-      if ((await cache.hit(`setup:${ws}`, 60)) > REQUESTS_PER_MINUTE) throw new TooManyRequestsError(60);
+      if (!cache.allow(`setup:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`setup-w:${ws}:${req.auth.userId}`, 60)) > WRITES_PER_MINUTE) throw new TooManyRequestsError(60);
       req.setupCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership };
       next();

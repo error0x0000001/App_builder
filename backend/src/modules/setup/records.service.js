@@ -44,16 +44,16 @@ export class RecordsService {
     return this.adapters[collection.key];
   }
 
-  async #list(ws, collection, { limit, after, q, view, withTotal, status }) {
+  async #list(ws, collection, { limit, after, q, view, total: wantTotal, status, parent }) {
     const filter = resolveView(collection, view) ?? {};
-    const params = { q: q || undefined, status: status ?? filter.status, dataFilter: filter.dataFilter };
+    const params = { q: q || undefined, status: status ?? filter.status, dataFilter: filter.dataFilter, parentId: parent };
     const cursor = decodeCursor(after)?.id;
     const rows = await this.repos.setupRecords.list(ws, collection.key, { ...params, after: cursor }, limit + 1);
     const items = rows.slice(0, limit).map(flatten);
     const body = { items, nextCursor: rows.length > limit ? encodeCursor({ id: rows[limit - 1].id }) : null };
     // Odoo rule (web_search_read): count only on the first page and only when the page came back full.
     if (!after && rows.length <= limit) Object.assign(body, { total: items.length, totalCapped: false });
-    else if (withTotal && !after) {
+    else if (wantTotal && !after) {
       const n = await this.repos.setupRecords.countCapped(ws, collection.key, params, SETUP_LIST.countCap);
       Object.assign(body, { total: Math.min(n, SETUP_LIST.countCap), totalCapped: n > SETUP_LIST.countCap });
     }
@@ -118,12 +118,21 @@ export class RecordsService {
       for (const key of group === 'roles' ? ['roles'] : seedMembers(group).length ? seedMembers(group) : [group]) {
         const target = key === 'roles' ? collection : getCollection(key);
         if (key === 'roles') await this.#seedRoles(repos, ws);
-        else await repos.setupRecords.insertMany(ws, key, seedFlat(target));
+        else if (key === 'object-manager-objects') await this.#seedObjects(repos, ws);
+        else if (key !== 'object-manager-fields') await repos.setupRecords.insertMany(ws, key, seedFlat(target));
       }
       return true;
     });
     this.seeded.add(memo);
     if (created) await this.cache.bump(NS(ws, collection.key));
+  }
+
+  /** Standard objects, then their fields linked by parent_id so "fields of object X" is one indexed lookup. */
+  async #seedObjects(repos, ws) {
+    const parents = new Map();
+    for (const row of seedFlat(getCollection('object-manager-objects'))) parents.set(row.label, (await repos.setupRecords.insert(ws, 'object-manager-objects', row)).id);
+    const fields = seedFlat(getCollection('object-manager-fields')).map((f) => ({ ...f, parentId: parents.get(f.data.object) }));
+    await repos.setupRecords.insertMany(ws, 'object-manager-fields', fields);
   }
 
   async #seedRoles(repos, ws) {
@@ -145,6 +154,6 @@ export class RecordsService {
   }
 
   #hash(params, limit) {
-    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.status, params.withTotal ? 1 : 0, limit])).digest('base64url').slice(0, 14);
+    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.status, params.parent, params.total ? 1 : 0, limit])).digest('base64url').slice(0, 14);
   }
 }

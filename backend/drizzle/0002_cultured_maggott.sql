@@ -22,7 +22,8 @@ CREATE INDEX "setup_records_status_idx" ON "setup_records" ("workspace_id","coll
 -- hierarchies (role tree)
 CREATE INDEX "setup_records_parent_idx" ON "setup_records" ("workspace_id","collection","parent_id") WHERE "parent_id" IS NOT NULL;--> statement-breakpoint
 -- "contains" search on the display label
-CREATE INDEX "setup_records_label_trgm_idx" ON "setup_records" USING gin ("label" gin_trgm_ops);--> statement-breakpoint
+-- Tenant-scoped trigram search: workspace + collection are part of the GIN index (btree_gin), so a common term in another tenant never has to be scanned.
+CREATE INDEX "setup_records_label_tenant_idx" ON "setup_records" USING gin ("workspace_id", "collection", "label" gin_trgm_ops);--> statement-breakpoint
 CREATE TABLE "setup_audit" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"workspace_id" uuid NOT NULL,

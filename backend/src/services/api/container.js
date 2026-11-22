@@ -68,7 +68,7 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, appHost: new URL(config.APP_URL).host }) });
+  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host }) });
   const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos }) });
   const health = new HealthService({ settings: setupSettings });
   const setup = {

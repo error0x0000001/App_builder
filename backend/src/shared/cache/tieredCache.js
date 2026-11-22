@@ -21,6 +21,7 @@ export class TieredCache {
     this.l1 = new LRUCache({ max: maxEntries });
     this.versions = new Map(); // ns -> { v, until }
     this.localVersions = new Map(); // memory-mode counters
+    this.windows = new Map(); // allow(): per-key rate windows
     this.inflight = new Map();
     this.stats = { l1Hits: 0, l2Hits: 0, misses: 0, loads: 0, stale: 0 };
     this.subscriber = subscriber;
@@ -163,6 +164,33 @@ export class TieredCache {
     const count = (this.localHits.get(k) ?? 0) + 1;
     this.localHits.set(k, count);
     return count;
+  }
+
+  /**
+   * Hot-path rate check with no await: counts locally and syncs to Redis in the background (every 20 hits or 250ms),
+   * so a request pays no Redis round trip. Other workers' counts lag by at most ~250ms — fine for a noisy-neighbour guard.
+   */
+  allow(key, windowSeconds, limit) {
+    const window = Math.floor(Date.now() / 1000 / windowSeconds);
+    let state = this.windows.get(key);
+    if (state?.window !== window) {
+      if (this.windows.size > 50_000) this.windows.clear();
+      state = { window, global: 0, pending: 0, inflight: 0, lastSync: Date.now() };
+      this.windows.set(key, state);
+    }
+    state.pending++;
+    if (this.redis && !state.inflight && (state.pending >= 20 || Date.now() - state.lastSync > 250)) this.#sync(key, state, windowSeconds);
+    return state.global + state.pending + state.inflight <= limit;
+  }
+
+  async #sync(key, state, windowSeconds) {
+    const n = state.pending;
+    state.pending = 0; state.inflight = n;
+    const k = `rl:${key}:${state.window}`;
+    const total = await this.#redis(async (r) => { const [[, v]] = await r.multi().incrby(k, n).expire(k, windowSeconds + 1).exec(); return v; });
+    state.inflight = 0; state.lastSync = Date.now();
+    if (total === null) state.pending += n; // Redis unavailable: keep counting locally
+    else state.global = total;
   }
 
   snapshot() {

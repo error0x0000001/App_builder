@@ -97,7 +97,30 @@ export const setupListQuerySchema = z.object({
   after: z.string().max(512).optional(),
   q: z.string().trim().max(100).optional(),
   view: z.string().max(100).optional(),
+  parent: z.string().uuid().optional(),
   total: bool.optional(),
 });
 export const setupIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(SETUP_LIST.bulkMax) });
 export const setupSettingsBodySchema = z.object({ version: z.number().int().min(0), values: z.record(z.string(), z.unknown()) });
+
+/* ---------- record form (dialog) definition: one source for UI + validation ---------- */
+const FORM_TYPE = { check: 'check', number: 'text', select: 'select', status: 'select', datetime: 'text', link: 'text', text: 'text' };
+
+/** Fields shown in the create/edit dialog for a collection. Adapter pages declare their own (invite = email + role). */
+export const recordFormFields = (collection, mode) => {
+  const adapter = getAdapterMeta(collection.key);
+  const declared = mode === 'create' ? adapter?.createFields : adapter?.editFields;
+  if (declared) return declared;
+  const label = labelKey(collection);
+  return collection.columns.map((c) => ({
+    key: c.key, label: c.label, type: c.options?.length && (c.type === 'select' || c.type === 'status') ? 'select' : FORM_TYPE[c.type] ?? 'text',
+    options: c.options, required: mode === 'create' && c.key === label,
+  }));
+};
+
+/** Dialog schema = the API schema, but blank optional selects are treated as "not set" instead of invalid. */
+export const recordFormSchema = (collection, mode) => {
+  const blankSelects = recordFormFields(collection, mode).filter((f) => f.type === 'select' && !f.required).map((f) => f.key);
+  const strip = (value) => (value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([k, v]) => !(blankSelects.includes(k) && v === ''))) : value);
+  return z.preprocess(strip, recordSchemas(collection)[mode]);
+};

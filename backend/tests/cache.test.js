@@ -45,6 +45,11 @@ describe('tiered cache', () => {
     await a.hit(key, 60); await b.hit(key, 60);
     assert.equal(await a.hit(key, 60), 3);
   });
+  it('rate checks cost no Redis round trip and still enforce the limit', () => {
+    const key = ns();
+    const results = Array.from({ length: 10 }, () => a.allow(key, 60, 5));
+    assert.deepEqual(results, [true, true, true, true, true, false, false, false, false, false]);
+  });
   it('degrades to memory when Redis is unavailable instead of failing requests', async () => {
     const broken = new Proxy({}, { get: () => () => { throw new Error('ECONNREFUSED'); } });
     const cache = new TieredCache({ redis: broken, logger: { warn() {}, error() {} } });

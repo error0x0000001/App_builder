@@ -11,8 +11,12 @@ const schema = z.object({
   DB_STATEMENT_TIMEOUT_MS: z.coerce.number().default(8000),
   DB_READ_REPLICA_URL: z.string().url().optional(), // optional read replica for read-only setup queries
   REDIS_URL: z.string().url().optional(),
-  API_WORKERS: z.coerce.number().default(1), // prefork worker processes (cluster.js)
+  API_WORKERS: z.coerce.number().int().min(1).default(1), // prefork worker processes (cluster.js)
+  SETUP_REQUESTS_PER_MINUTE: z.coerce.number().int().default(6000), // per-workspace ceiling on Setup API calls (noisy-neighbour guard)
+  API_MAX_REQUESTS: z.coerce.number().int().default(100_000), // a worker retires after this many requests (Odoo limit_request)
+  API_MAX_RSS_MB: z.coerce.number().int().default(1024), // ...or when its memory passes this (Odoo limit_memory_soft)
   LOG_LEVEL: z.string().default('info'),
+  LOG_ACCESS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'), // log every successful request (errors are always logged)
   TRUST_PROXY: z.coerce.number().default(0),
   WORKER_CONCURRENCY: z.coerce.number().default(5),
 

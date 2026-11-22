@@ -1,5 +1,5 @@
 import { settingsDefaults } from '@app/shared';
-import { ConflictError } from '../../shared/errors.js';
+import { ConflictError, ValidationError } from '../../shared/errors.js';
 
 const NS = (ws, key) => `s:${ws}:${key}`;
 const SETTINGS_TTL_MS = 5 * 60_000;
@@ -15,11 +15,13 @@ export class SettingsService {
       const values = { ...settingsDefaults(page), ...(row?.values ?? {}), ...(await this.bindings.read(ws, page.key)) };
       const tables = {};
       for (const section of page.sections) if (section.table) tables[section.title] = await this.bindings.table(ws, page.key, section.title);
-      return { version: row?.version ?? 0, values, tables };
+      return { version: row?.version ?? 0, values, tables, readOnly: this.bindings.readOnly(page.key) };
     });
   }
 
   async update(ws, page, patch, { userId, expectedVersion }) {
+    const locked = Object.keys(patch).filter((k) => this.bindings.readOnly(page.key).includes(k));
+    if (locked.length) throw new ValidationError(locked.map((field) => ({ field, message: 'This value is managed by the platform' })));
     const writable = await this.bindings.write(ws, page.key, patch); // bound keys are applied to their real owner (e.g. workspace name)
     const row = await this.repos.setupSettings.patch(ws, page.key, writable, userId, expectedVersion);
     if (!row) throw new ConflictError('This page was changed by someone else. Reload to see the latest values.');
