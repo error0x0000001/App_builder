@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Alert } from '../../../components/ui/Alert.jsx';
 import { Button } from '../../../components/ui/Button.jsx';
 import { Section } from '../../../components/ui/Card.jsx';
@@ -13,7 +14,7 @@ export default function ObjectManagerPage() {
       {object ? (
         <Section
           title={`${object.label} — fields`}
-          action={<Button size="sm" variant="ghost" onClick={() => setObject(null)}>Close</Button>}
+          action={<div className="flex gap-2"><Button as={Link} to={`/app/o/${object.label}`} size="sm" variant="neutral">Open records</Button><Button size="sm" variant="ghost" onClick={() => setObject(null)}>Close</Button></div>}
         >
           <SetupListPage key={object.id} pageKey="object-manager-fields" embedded parentId={object.id} createDefaults={{ object: object.label }} />
         </Section>

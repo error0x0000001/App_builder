@@ -54,6 +54,9 @@ export class RecordsService {
     if (collection.readOnly) throw new ForbiddenError('This page is read-only');
   }
 
+  /** Loads a collection's initial content once (see #ensureSeeded). */
+  ensureSeeded(ws, collection) { return this.#ensureSeeded(ws, collection); }
+
   /** Adapter pages declare what they allow; anything else is refused up front instead of failing inside the adapter. */
   #adapter(collection, capability) {
     if (!getAdapterMeta(collection.key)?.[capability]) throw new ForbiddenError('This page does not allow that action');

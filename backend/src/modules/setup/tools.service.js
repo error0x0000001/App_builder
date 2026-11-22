@@ -10,8 +10,8 @@ const EXPORT_MAX_ROWS = 100_000;
 
 /** Runs the Setup "tool" pages. A tool without a real handler is recorded and reported as not active — never faked. */
 export class ToolsService {
-  constructor({ repos, records, mail, boss }) {
-    Object.assign(this, { repos, records, mail, boss });
+  constructor({ repos, records, mail, boss, intakeUrl }) {
+    Object.assign(this, { repos, records, mail, boss, intakeUrl });
     this.handlers = {
       import: (c, d) => this.#import(c, d), export: (c, d) => this.#export(c, d), massDelete: (c, d) => this.#massDelete(c, d), massTransfer: (c, d) => this.#massTransfer(c, d),
       testEmail: (c, d) => this.#testEmail(c, d), expirePasswords: (c) => this.#expirePasswords(c), webToCase: (c, d) => this.#webToCase(c, d),
@@ -117,10 +117,10 @@ export class ToolsService {
   }
 
   async #webToCase(ctx, { return_url: returnUrl = '', fields = 'Name, Email, Subject, Description' }) {
-    const rows = { Name: 'name', Email: 'email', Subject: 'subject', Description: 'description' };
+    const rows = { Name: 'name', Email: 'web_email', Subject: 'subject', Description: 'description' };
     const inputs = fields.split(', ').map((f) => `  <label>${f} <${f === 'Description' ? 'textarea' : 'input'} name="${rows[f]}"${f === 'Description' ? '></textarea>' : ' />'}</label>`).join('\n');
     const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    const html = `<form action="${esc(`/api/v1/public/cases/${ctx.workspaceId}`)}" method="POST">\n  <input type="hidden" name="return_url" value="${esc(returnUrl)}" />\n${inputs}\n  <button type="submit">Submit</button>\n</form>`;
-    return { ok: true, active: true, output: html, message: 'HTML generated. The receiving endpoint is not active yet, so submissions will not create cases.' };
+    const html = `<form action="${esc(this.intakeUrl('web-to-case', ctx.workspaceId))}" method="POST">\n  <input type="hidden" name="return_url" value="${esc(returnUrl)}" />\n${inputs}\n  <button type="submit">Submit</button>\n</form>`;
+    return { ok: true, active: true, output: html, message: 'HTML generated. Submissions create Cases when “Enable Web-to-Case” is on (Setup › Web-to-Case).' };
   }
 }

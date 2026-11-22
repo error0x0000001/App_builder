@@ -28,6 +28,9 @@ import { MetricsService } from '../../modules/setup/metrics.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { SettingsService } from '../../modules/setup/settings.service.js';
+import { AutomationService } from '../../modules/automation/automation.service.js';
+import { IntakeService } from '../../modules/automation/intake.service.js';
+import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 
 const MINUTE_MS = 60_000;
@@ -37,9 +40,10 @@ export function createContainer({ boss }) {
   const repos = createRepositories(db);
   const uow = new UnitOfWork(db);
   const cache = createCache();
+  const intakeUrl = (kind, ws) => (kind === 'email-to-case' ? `${new URL(`/api/v1/public/email-to-case/${ws}/${intake.emailToken(ws)}`, config.APP_URL)}` : `${new URL(`/api/v1/public/${kind}/${ws}`, config.APP_URL)}`);
   const usage = new UsageMeter({ redis: cache.redis });
   const membershipLookup = new MembershipLookup({ repos, cache });
-  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host }) });
+  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host, intakeUrl: (kind, ws) => intakeUrl(kind, ws) }) });
   const securityPolicy = new SecurityPolicyService({ repos, settings: setupSettings, cache, defaults: { maxAttempts: config.MAX_FAILED_LOGINS, lockMs: config.LOCKOUT_MINUTES * MINUTE_MS } });
   const hasher = new PasswordHasher();
   const tokens = new TokenService({ secret: config.JWT_SECRET, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS });
@@ -63,7 +67,7 @@ export function createContainer({ boss }) {
     },
   });
   const invitations = new InvitationService({ repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays: config.INVITATION_TTL_DAYS });
-  const users = new UserService({ repos });
+  const users = new UserService({ repos, cache });
   const oauth = googleEnabled
     ? new OAuthService({
       repos, uow, tokens, auth, workspaces, audit, mfaTokens: tokens,
@@ -73,12 +77,15 @@ export function createContainer({ boss }) {
 
   const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos }) });
   const health = new HealthService({ settings: setupSettings });
+  const automation = new AutomationService({ repos, cache, mail, logger });
+  const objects = new ObjectsService({ repos, records: setupRecords, cache, automation });
+  const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
-    tools: new ToolsService({ repos, records: setupRecords, mail, boss }),
+    tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl }),
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

@@ -17,6 +17,7 @@ export const ADAPTER_META = Object.freeze({
   },
   'login-history': { searchable: false, readOnly: true, columnTypes: { login_time: 'datetime' } },
   'session-management': { searchable: false, canDelete: true, deleteLabel: 'End session', columnTypes: { login_time: 'datetime', last_activity: 'datetime' } },
+  'scheduled-jobs': { searchable: false, readOnly: true, columnTypes: { submitted: 'datetime' } },
   'view-setup-audit-trail': { searchable: false, readOnly: true, columnTypes: { date: 'datetime' } },
 });
 

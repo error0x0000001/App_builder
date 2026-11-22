@@ -38,6 +38,8 @@ export class SecurityPolicyService {
       minLifetime: pw.require_a_minimum_1_day_password_lifetime === true,
       sessionTimeoutMs: durationMs(sess.timeout_value),
       lockIp: sess.lock_sessions_to_the_ip_address_from_which_they_originated === true,
+      clickjack: sess.enable_clickjack_protection_for_setup_pages === true,
+      requireHttps: sess.require_secure_connections_https === true,
     };
   }
 

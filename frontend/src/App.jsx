@@ -22,6 +22,7 @@ const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
 const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
 const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
 const NewWorkspacePage = page(() => import('./pages/app/NewWorkspacePage.jsx'));
+const ObjectListPage = page(() => import('./pages/objects/ObjectListPage.jsx'));
 const SetupLayout = page(() => import('./pages/setup/SetupLayout.jsx'));
 const SetupPage = page(() => import('./pages/setup/SetupPage.jsx'));
 const SetupHome = lazy(() => import('./pages/setup/SetupLayout.jsx').then((m) => ({ default: m.SetupHome })));
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="members" element={<MembersPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="security" element={<SecurityPage />} />
+              <Route path="o/:object" element={<ObjectListPage />} />
               <Route path="setup" element={<RequireRole minimumRole="admin" />}>
                 <Route element={<SetupLayout />}>
                   <Route index element={<SetupHome />} />

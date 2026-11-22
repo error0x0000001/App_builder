@@ -8,12 +8,15 @@
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed? }
  *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)
  */
+import { CRM_NAV_OBJECTS } from '@app/shared';
+
 export const NAV = {
   main: [
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
   ],
   groups: [
+    { label: 'Sales & Service', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural }) => ({ to: `/app/o/${key}`, icon: 'users', label: plural })) },
     { label: 'Account', defaultOpen: true, items: [
       { to: '/app/profile', icon: 'user', label: 'Profile' },
       { to: '/app/security', icon: 'shield', label: 'Security' },

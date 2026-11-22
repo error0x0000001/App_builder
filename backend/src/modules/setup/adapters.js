@@ -89,5 +89,13 @@ export function createSetupAdapters({ db, workspaces, invitations, sessions, rep
     },
   };
 
-  return { users, 'login-history': loginHistory, 'session-management': sessionManagement, 'view-setup-audit-trail': auditTrail };
+  /** Real schedules registered with the job queue (cleanup, case escalation). Read-only. */
+  const scheduledJobs = {
+    async list() {
+      const { rows } = await db.execute(sql`select name, cron, timezone, created_on from pgboss.schedule order by name`).catch((e) => (e.cause?.code === '42P01' || e.code === '42P01' ? { rows: [] } : Promise.reject(e))); // queue schema not created yet
+      return { nextCursor: null, items: rows.map((r) => ({ id: r.name, action: '', job_name: r.name, submitted_by: 'System', submitted: r.created_on, started: '—', next_scheduled_run: `cron ${r.cron} (${r.timezone})`, type: 'Scheduled job' })) };
+    },
+  };
+
+  return { 'scheduled-jobs': scheduledJobs, users, 'login-history': loginHistory, 'session-management': sessionManagement, 'view-setup-audit-trail': auditTrail };
 }

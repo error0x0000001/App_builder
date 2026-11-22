@@ -6,7 +6,7 @@ import fixtures from '../../../seed/setup-fixtures.generated.json' with { type: 
  *   write(ws, patch) -> applies bound keys to their real owner and returns the keys that should be stored as settings
  */
 export class SettingsBindings {
-  constructor({ repos, appHost, usage }) { Object.assign(this, { repos, appHost, usage }); this.map = this.#build(); }
+  constructor({ repos, appHost, usage, intakeUrl }) { Object.assign(this, { repos, appHost, usage, intakeUrl }); this.map = this.#build(); }
 
   async read(ws, pageKey) { return this.map[pageKey]?.read ? this.map[pageKey].read(ws) : {}; }
 
@@ -48,6 +48,10 @@ export class SettingsBindings {
             return [{ license: 'User Licenses', type: 'Workspace member', total: 'Unlimited', used: String(members), remaining: '∞' }];
           },
         },
+      },
+      'email-to-case': {
+        readOnly: ['routing_address'],
+        read: async (ws) => ({ routing_address: this.intakeUrl('email-to-case', ws) }),
       },
       'my-domain': {
         readOnly: ['current_my_domain_url', 'domain_type', 'status', 'domain_created'],

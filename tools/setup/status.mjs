@@ -4,6 +4,7 @@
  * Sources of truth are the registry and the code (adapters, bindings, providers, tool handlers) — nothing is hand-maintained.
  */
 import { writeFileSync } from 'node:fs';
+import { RULE_COLLECTIONS } from '../../packages/shared/src/automation.js';
 import { ADAPTER_META } from '../../packages/shared/src/setup/adapters.js';
 import { SETUP_PAGES } from '../../packages/shared/src/setup/definitions.js';
 import { SETUP_TOOLS } from '../../packages/shared/src/setup/tools.js';
@@ -13,12 +14,18 @@ const PROVIDERS = new Set(['adoption-manager', 'storage-usage', 'platform-cache'
 // Settings the auth code reads and enforces (see backend/src/modules/setup/securityPolicy.service.js). Keep in sync with that file.
 const ENFORCED = {
   'password-policies': ['minimum_password_length', 'password_complexity_requirement', 'user_passwords_expire_in', 'enforce_password_history', 'maximum_invalid_login_attempts', 'lockout_effective_period', 'require_a_minimum_1_day_password_lifetime'],
-  'session-settings': ['timeout_value', 'lock_sessions_to_the_ip_address_from_which_they_originated'],
+  'session-settings': ['timeout_value', 'lock_sessions_to_the_ip_address_from_which_they_originated', 'require_secure_connections_https', 'enable_clickjack_protection_for_setup_pages'],
 };
 const ENFORCED_RECORDS = new Set(['network-access']); // every row is an allowed IP range at sign-in and on session refresh
 const NOT_ACTIVE = new Set(['readiness-assessor', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']);
 
+const INTAKE = { 'web-to-lead': 'web_to_lead_enabled', 'web-to-case': 'enable_web_to_case', 'email-to-case': 'enable_email_to_case' };
+const ENGINE_OUTPUT = { 'duplicate-error-logs': 'Written by Duplicate Rules when they block or flag a record.', 'case-escalations': 'Written by the 15-minute Escalation job.' };
+
 const classify = (p) => {
+  if (RULE_COLLECTIONS[p.key]) return ['Rule engine (runs on records)', `Kind: ${RULE_COLLECTIONS[p.key].kind}. An Active rule with its criteria + action fields filled in acts on matching ${RULE_COLLECTIONS[p.key].object ?? 'object'} records; rules without them are inert.`];
+  if (ENGINE_OUTPUT[p.key]) return ['Rule engine (runs on records)', ENGINE_OUTPUT[p.key]];
+  if (INTAKE[p.key]) return ['Public intake endpoint', `Switch "${INTAKE[p.key]}" gates a public endpoint that creates real ${p.key === 'web-to-lead' ? 'Leads' : 'Cases'} (see setup-engine.md).`];
   if (ADAPTER_META[p.key]) return ['Real platform data', 'The page reads/writes the real table (users, sessions, logins or audit).'];
   if (BINDINGS.has(p.key)) return ['Real platform data', 'Bound to the workspace record.'];
   if (p.kind === 'special') return ['Real data + engine', `Dedicated page (${p.special}).`];

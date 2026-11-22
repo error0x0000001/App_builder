@@ -29,6 +29,13 @@
       "when": 1795366443722,
       "tag": "0003_little_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795367238526,
+      "tag": "0004_object_record_indexes",
+      "breakpoints": true
     }
   ]
 }

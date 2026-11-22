@@ -64,3 +64,12 @@ export const setupApi = {
   fixHealth: (key) => post(page(key, '/fix')),
   run: (key, body) => post(page(key, '/run'), body),
 };
+
+export const objectsApi = {
+  definition: (object) => get(`/objects/${object}`),
+  records: (object, { after, q } = {}) => get(`/objects/${object}/records${qs({ limit: 80, after, q })}`),
+  create: (object, body) => post(`/objects/${object}/records`, body),
+  update: (object, id, body) => patch(`/objects/${object}/records/${id}`, body),
+  remove: (object, ids) => post(`/objects/${object}/records/delete`, { ids }),
+  decide: (object, id, body) => post(`/objects/${object}/records/${id}/approval`, body),
+};

@@ -76,11 +76,34 @@ Implemented in `backend/src/modules/setup/securityPolicy.service.js` and covered
 | Lock sessions to originating IP | a refresh from a different IP revokes the session |
 | Network Access (list) | allow-list of IP ranges at sign-in and on every refresh; the first range must contain the admin's own IP so nobody locks themselves out |
 
+## Objects and the rule engine
+Standard objects (Lead, Account, Contact, Opportunity, Case, Campaign, Task, … 34) are real: their fields come from Object Manager, records are stored under collection `obj:<Object>`
+(generic partitioned store, partial GIN index for containment lookups) and are served by `/api/v1/objects/:object/records` (viewers read, members write, admins delete).
+Adding a field in Object Manager changes validation and the UI immediately. The same shared schema validates in the browser and on the server.
+
+Setup rules now execute on those records (`backend/src/modules/automation`). A rule is an ordinary Setup record; it acts only when it is **Active**, applies to the object,
+passes its criteria (field / operator / value; empty = every record) **and** has its action fields filled in — otherwise it is inert.
+
+| Setup page | Runs | Effect |
+|---|---|---|
+| Lead / Case Assignment Rules | before create | first matching active rule sets the owner |
+| Duplicate Rules + Matching Rules | before create/update | same match field → Block (409) or Alert (warning); every hit is logged in Duplicate Error Logs |
+| Workflow Rules, Process Builder, Flows | after create (and edit, per "evaluation criteria") | field update · email alert · create Task |
+| Lead / Case Auto-Response Rules | after create | emails the lead/contact |
+| Approval Processes | after save | record held as Pending; approver (or an admin) approves/rejects in the UI; audited |
+| Escalation Rules + Case Escalations | every 15 min (job) | open cases older than N hours go to the escalation owner, once per rule; logged |
+| Web-to-Lead, Web-to-Case, Email-to-Case | public endpoints | anonymous form / inbound-email webhook creates a Lead or Case when the page's switch is on (per-IP and per-workspace throttled); email-to-case address carries a secret token |
+| Scheduled Jobs | — | lists the real queue schedules |
+| Session Settings (HTTPS, clickjack) | every Setup request | `X-Frame-Options: DENY`; HTTPS required in production |
+
+Limits worth knowing: a rule has **one** criterion and **one** action (several actions = several rules); picklist fields accept any text because Object Manager does not hold picklist values yet;
+rules are cached 30 s per workspace and invalidated on change.
+
 ## Not done / next
-The HTML describes a full Salesforce-style product. What is **not** buildable as "Setup" alone, and is therefore still stored-only or recorded-only (exact list in `setup-status.md`):
-- **Automation and CRM behaviour (~63 pages marked `engine: true`)** — workflow rules, flows, approval processes, assignment/escalation rules, territories, forecasts, duplicate/matching rules, web-to-lead/case, email-to-case, entitlements, macros. They configure behaviour over Accounts, Leads, Cases, Opportunities… which do not exist as data yet (the CRM and ERP apps in `docs/product-roadmap.md`). The engines belong with those objects; building them now would be code with nothing to act on.
-- **Identity infrastructure** — SAML/SSO, login flows, delegated administration, certificates, platform encryption, CORS / CSP lists, named credentials. Each is a separate subsystem (an IdP integration, key management, an outbound proxy) rather than a settings page.
-- **Remaining security settings** — HTTPS-only, HttpOnly, clickjack, CSRF, domain lock and "login as any user" are stored but not yet read by the HTTP layer; secret-question settings don't apply (there are no secret questions).
-- **Tools without an engine** (18) — recorded and labelled "not active" in the UI.
-- **Compiled per-role permission cache** — planned together with Profiles / Permission Sets driving real object access.
-- **Cross-process lock for dashboard recomputation** — today single-flight per process (one compute per worker per minute).
+Still stored-only or recorded-only (exact list in `setup-status.md`). These are separate subsystems, not gaps in the engine above:
+- **SAML / SSO, Login Flows, Delegated Administration, Certificates, Platform Encryption, CORS / CSP lists, Named Credentials** — each needs an identity-provider integration, key management or an outbound proxy.
+- **Apex Triggers, Feed Triggers, Time-Based Workflow** — user-written code / scheduled actions on records; the rule engine above is the declarative equivalent.
+- **Sales / Lead / Support Processes, Entitlements, Forecasts, Territories, Macros** — feature switches for modules that do not exist yet.
+- **Remaining security toggles** — HttpOnly (always on), CSRF (not applicable: the API uses bearer tokens), domain lock, secret-question settings (no secret questions).
+- **Tools without an engine** — recorded and labelled "not active" in the UI.
+- Compiled per-role permission cache; cross-process lock for dashboard recomputation.

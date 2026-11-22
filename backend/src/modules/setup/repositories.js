@@ -67,6 +67,30 @@ export class RecordsRepository {
     return rows[0] ?? null;
   }
 
+  /** The record of a collection whose label matches exactly (e.g. an object by its API name). */
+  async findByLabel(ws, collection, label) {
+    const { rows } = await this.db.execute(sql`select id, label, status, data, parent_id from setup_records where workspace_id = ${ws} and collection = ${collection} and label = ${label} limit 1`);
+    return rows[0] ?? null;
+  }
+
+  /** First record whose data contains `fields` (jsonb containment, served by the partial GIN index for object records). */
+  async findByData(ws, collection, fields, excludeId) {
+    const { rows } = await this.db.execute(sql`select id, label from setup_records where workspace_id = ${ws} and collection = ${collection} and data @> ${json(fields)}::jsonb ${excludeId ? sql`and id <> ${excludeId}::uuid` : sql``} limit 1`);
+    return rows[0] ?? null;
+  }
+
+  /** Records of a collection older than `hours`, not in a closed state, that are candidates for escalation (bounded batch). */
+  async listOlderThan(ws, collection, hours, limit) {
+    const { rows } = await this.db.execute(sql`select id, label, status, data from setup_records where workspace_id = ${ws} and collection = ${collection} and created_at < now() - (${hours}::numeric * interval '1 hour') and coalesce(lower(data->>'status'), '') not in ('closed', 'resolved') order by id limit ${limit}`);
+    return rows;
+  }
+
+  /** Workspaces that have at least one active rule in a collection. */
+  async workspacesWithActive(collection) {
+    const { rows } = await this.db.execute(sql`select distinct workspace_id from setup_records where collection = ${collection} and status = 'Active'`);
+    return rows.map((r) => r.workspace_id);
+  }
+
   async insert(ws, collection, { label, status = null, data, parentId = null, createdBy = null }) {
     const id = uuidv7();
     const { rows } = await this.db.execute(sql`

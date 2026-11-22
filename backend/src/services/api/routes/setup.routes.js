@@ -4,7 +4,7 @@ import { getAdapterMeta, setupIdsSchema, setupListQuerySchema, setupSettingsBody
 import { SETUP_COUNTS, SETUP_TREE, getCollection, getSetupPage, getToolMeta } from '@app/shared/setup-registry';
 import { createHash } from 'node:crypto';
 import { config } from '../../../shared/config.js';
-import { NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
+import { ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
 import { supportedViews } from '../../../modules/setup/records.service.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
@@ -23,7 +23,7 @@ function sendEntry(req, res, { body, etag }, cacheControl = 'private, no-cache')
   return res.type('application/json').send(body);
 }
 
-export function setupRoutes({ tokens, membershipLookup, cache, usage, setup }) {
+export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, securityPolicy }) {
   const router = Router();
   const { settings, records, metrics, health, tools } = setup;
 
@@ -41,6 +41,10 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup }) {
       usage.hit(ws);
       if (!cache.allow(`setup:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`setup-w:${ws}:${req.auth.userId}`, 60)) > WRITES_PER_MINUTE) throw new TooManyRequestsError(60);
+      // Session Settings: "Require secure connections" (production) and "Enable clickjack protection for Setup pages".
+      const policy = await securityPolicy.forWorkspace(ws);
+      if (policy.requireHttps && config.NODE_ENV === 'production' && !req.secure) throw new ForbiddenError('Setup requires a secure (HTTPS) connection', 'HTTPS_REQUIRED');
+      if (policy.clickjack) res.set({ 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'" });
       req.setupCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership, ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
