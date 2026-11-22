@@ -1,43 +1,61 @@
-import { useEffect, useState } from 'react';
-import { api } from './lib/api.js';
+import { lazy, Suspense } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { GuestOnly, RequireAuth, RequireOnboarding } from './auth/guards.jsx';
+import { PageSpinner } from './components/ui/Spinner.jsx';
+import { AppLayout } from './layouts/AppLayout.jsx';
+import { AuthLayout } from './layouts/AuthLayout.jsx';
+
+// Route-level code splitting keeps the first load small.
+const page = (loader) => lazy(loader);
+const LoginPage = page(() => import('./pages/auth/LoginPage.jsx'));
+const WorkspaceLoginPage = page(() => import('./pages/auth/WorkspaceLoginPage.jsx'));
+const MfaChallengePage = page(() => import('./pages/auth/MfaChallengePage.jsx'));
+const SignupPage = page(() => import('./pages/auth/SignupPage.jsx'));
+const VerifyEmailPage = page(() => import('./pages/auth/VerifyEmailPage.jsx'));
+const ForgotPasswordPage = page(() => import('./pages/auth/ForgotPasswordPage.jsx'));
+const ResetPasswordPage = page(() => import('./pages/auth/ResetPasswordPage.jsx'));
+const AcceptInvitePage = page(() => import('./pages/auth/AcceptInvitePage.jsx'));
+const OAuthCallbackPage = page(() => import('./pages/auth/OAuthCallbackPage.jsx'));
+const OnboardingPage = page(() => import('./pages/onboarding/OnboardingPage.jsx'));
+const HomePage = page(() => import('./pages/app/HomePage.jsx'));
+const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
+const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
+const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
+const NewWorkspacePage = page(() => import('./pages/app/NewWorkspacePage.jsx'));
 
 export default function App() {
-  const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({ name: '', email: '' });
-  const [error, setError] = useState('');
-
-  const load = () => api.listUsers().then(setUsers).catch((e) => setError(e.message));
-  useEffect(() => { load(); }, []);
-
-  async function submit(e) {
-    e.preventDefault();
-    setError('');
-    try {
-      await api.createUser(form);
-      setForm({ name: '', email: '' });
-      load();
-    } catch (err) {
-      setError(typeof err.message === 'string' ? err.message : 'Failed to create user');
-    }
-  }
-
   return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-3xl font-bold">App Builder</h1>
-      <form onSubmit={submit} className="mt-6 flex gap-2">
-        <input className="flex-1 rounded border px-3 py-2" placeholder="Name" required
-          value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input className="flex-1 rounded border px-3 py-2" placeholder="Email" type="email" required
-          value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <button className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Add</button>
-      </form>
-      {error && <p className="mt-2 text-red-600">{error}</p>}
-      <ul className="mt-6 divide-y rounded border">
-        {users.map((u) => (
-          <li key={u.id} className="p-3">{u.name} <span className="text-gray-500">({u.email})</span></li>
-        ))}
-        {users.length === 0 && <li className="p-3 text-gray-500">No users yet.</li>}
-      </ul>
-    </main>
+    <Suspense fallback={<PageSpinner />}>
+      <Routes>
+        <Route element={<AuthLayout />}>
+          <Route element={<GuestOnly />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login/workspace" element={<WorkspaceLoginPage />} />
+            <Route path="/login/mfa" element={<MfaChallengePage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          </Route>
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/accept-invite" element={<AcceptInvitePage />} />
+          <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+        </Route>
+
+        <Route element={<RequireAuth />}>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route element={<RequireOnboarding />}>
+            <Route path="/app" element={<AppLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="members" element={<MembersPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="security" element={<SecurityPage />} />
+              <Route path="workspaces/new" element={<NewWorkspacePage />} />
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/app" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

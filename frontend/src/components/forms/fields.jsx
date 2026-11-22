@@ -1,0 +1,46 @@
+import { Controller, get, useFormContext } from 'react-hook-form';
+import { Button } from '../ui/Button.jsx';
+import { Checkbox } from '../ui/Checkbox.jsx';
+import { Input } from '../ui/Input.jsx';
+import { OtpInput } from '../ui/OtpInput.jsx';
+import { PasswordInput } from '../ui/PasswordInput.jsx';
+import { PasswordRules } from '../ui/PasswordRules.jsx';
+import { Select } from '../ui/Select.jsx';
+
+/** Form-bound wrappers: register the control and surface its validation error. Presentation stays in ui/*. */
+const useField = (name) => {
+  const { register, formState: { errors } } = useFormContext();
+  return { ...register(name), error: get(errors, name)?.message };
+};
+
+export const TextField = ({ name, ...rest }) => <Input {...useField(name)} {...rest} />;
+export const PasswordField = ({ name, ...rest }) => <PasswordInput {...useField(name)} {...rest} />;
+export const SelectField = ({ name, ...rest }) => <Select {...useField(name)} {...rest} />;
+export const CheckboxField = ({ name, ...rest }) => <Checkbox {...useField(name)} {...rest} />;
+
+export function OtpField({ name, ...rest }) {
+  const { control } = useFormContext();
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => <OtpInput value={field.value ?? ''} onChange={field.onChange} error={fieldState.error?.message} {...rest} />}
+    />
+  );
+}
+
+/** Password with the live requirements checklist beneath it. */
+export function NewPasswordField({ name = 'password', label = 'Password', ...rest }) {
+  const { watch } = useFormContext();
+  return (
+    <div className="space-y-2">
+      <PasswordField name={name} label={label} autoComplete="new-password" {...rest} />
+      <PasswordRules value={watch(name) ?? ''} />
+    </div>
+  );
+}
+
+export function SubmitButton({ children, ...rest }) {
+  const { formState: { isSubmitting } } = useFormContext();
+  return <Button type="submit" loading={isSubmitting} {...rest}>{children}</Button>;
+}

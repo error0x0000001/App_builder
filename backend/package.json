@@ -10,17 +10,25 @@
     "start:worker": "node src/services/worker/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file=../.env src/shared/db/migrate.js",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test": "node --test --test-concurrency=1 --env-file=../.env.test tests/*.test.js"
   },
   "dependencies": {
+    "@app/shared": "*",
+    "argon2": "^0.41.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.38.0",
-    "express": "^4.21.0",
+    "express": "^5.1.0",
     "helmet": "^8.0.0",
+    "jose": "^5.9.6",
+    "nodemailer": "^6.9.16",
+    "otpauth": "^9.3.6",
     "pg": "^8.13.0",
     "pg-boss": "^10.1.0",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
+    "uuid": "^11.0.3",
     "zod": "^3.24.0"
   },
   "devDependencies": {

@@ -1,0 +1,30 @@
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { hasRole } from '@app/shared';
+import { PageSpinner } from '../components/ui/Spinner.jsx';
+import { useAuth } from './AuthProvider.jsx';
+import { nextPath } from './redirects.js';
+
+/** Signed-in only; remembers where the visitor was heading. */
+export function RequireAuth() {
+  const { status, signedOut } = useAuth();
+  const location = useLocation();
+  if (status === 'loading') return <PageSpinner />;
+  if (status === 'anonymous') return <Navigate to="/login" replace state={signedOut ? undefined : { from: { pathname: location.pathname, search: location.search } }} />;
+  return <Outlet />;
+}
+
+/** Owners/admins of a workspace that hasn't finished setup are routed through onboarding first. */
+export function RequireOnboarding() {
+  const { activeWorkspace } = useAuth();
+  const needsOnboarding = activeWorkspace && !activeWorkspace.onboarded && hasRole(activeWorkspace.role, 'admin');
+  return needsOnboarding ? <Navigate to="/onboarding" replace /> : <Outlet />;
+}
+
+/** Sign-in / sign-up pages: signed-in visitors are sent onward. */
+export function GuestOnly() {
+  const { status } = useAuth();
+  const location = useLocation();
+  if (status === 'loading') return <PageSpinner />;
+  if (status === 'authenticated') return <Navigate to={nextPath(location) ?? '/app'} replace />;
+  return <Outlet />;
+}

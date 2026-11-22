@@ -1,14 +1,15 @@
 {
   "name": "app-builder",
   "private": true,
-  "workspaces": ["backend", "frontend"],
+  "workspaces": ["packages/*", "backend", "frontend"],
   "scripts": {
     "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev:api\" \"npm run dev:worker\" \"npm run dev:web\"",
     "dev:api": "npm run dev:api -w backend",
     "dev:worker": "npm run dev:worker -w backend",
     "dev:web": "npm run dev -w frontend",
     "build": "npm run build -w frontend",
-    "db:up": "docker compose up -d postgres",
+    "test": "npm test -w backend",
+    "db:up": "docker compose up -d postgres mailpit",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend"
   },
