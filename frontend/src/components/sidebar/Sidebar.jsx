@@ -50,10 +50,10 @@ const TRIGGER_TONES = {
 };
 
 /** tone="sidebar" when rendered on the sidebar surface, "content" in the page header. */
-export function SidebarTrigger({ tone = 'content' }) {
+export function SidebarTrigger({ tone = 'content', className = '' }) {
   const { toggle, isMobile, mobileOpen, collapsed } = useSidebar();
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className={`size-8 ${TRIGGER_TONES[tone]}`}>
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle sidebar" aria-expanded={isMobile ? mobileOpen : !collapsed} className={`size-8 ${TRIGGER_TONES[tone]} ${className}`}>
       <Icon name="panel-left" />
     </Button>
   );

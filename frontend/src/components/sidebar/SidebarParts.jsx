@@ -6,11 +6,11 @@ import { Kbd } from '../ui/Kbd.jsx';
 import { Tooltip } from '../ui/Tooltip.jsx';
 import { useSidebar } from './SidebarContext.jsx';
 
-/* Spacing contract (matches the reference): 16px side gutter (8px when collapsed), 32px menu rows with no gap,
+/* Spacing contract: 12px side gutter (8px when collapsed), 32px menu rows with no gap,
    24px section labels, 12px between sections. */
-const useGutter = () => (useSidebar().iconOnly ? 'px-2' : 'px-4');
+const useGutter = () => (useSidebar().iconOnly ? 'px-2' : 'px-3');
 
-export const SidebarHeader = ({ className, children }) => <div className={cn('flex flex-col pt-4', useGutter(), className)}>{children}</div>;
+export const SidebarHeader = ({ className, children }) => <div className={cn('flex flex-col pt-3', useGutter(), className)}>{children}</div>;
 export const SidebarFooter = ({ className, children }) => <div className={cn('flex flex-col gap-3 pb-4 pt-3', useGutter(), className)}>{children}</div>;
 export const SidebarContent = ({ children }) => <nav aria-label="Main" className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden py-3', useGutter())}>{children}</nav>;
 export const SidebarGroup = ({ children }) => <div className="flex w-full min-w-0 flex-col">{children}</div>;
