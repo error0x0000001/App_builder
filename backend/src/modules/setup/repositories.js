@@ -111,6 +111,17 @@ export class RecordsRepository {
     }
   }
 
+  async hasChildren(ws, parentIds) {
+    const { rows } = await this.db.execute(sql`select 1 from setup_records where workspace_id = ${ws} and parent_id = any(${pgArray(parentIds, 'uuid')}) and id <> all(${pgArray(parentIds, 'uuid')}) limit 1`);
+    return rows.length > 0;
+  }
+
+  /** Deletes the child records of the given parents (e.g. an object's fields). */
+  async removeChildren(ws, collection, parentIds) {
+    const { rowCount } = await this.db.execute(sql`delete from setup_records where workspace_id = ${ws} and collection = ${collection} and parent_id = any(${pgArray(parentIds, 'uuid')})`);
+    return rowCount;
+  }
+
   async reassignCreator(ws, collection, from, to) {
     const { rowCount } = await this.db.execute(sql`update setup_records set created_by = ${to}::uuid, updated_at = now() where workspace_id = ${ws} and collection = ${collection} and created_by = ${from}::uuid`);
     return rowCount;

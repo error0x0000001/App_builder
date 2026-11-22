@@ -11,9 +11,17 @@ async function startWorker() {
   const boss = await createBoss();
   const container = createContainer({ boss });
   let server;
+  let stopping = false;
+  /** Graceful stop: leave the cluster (no new connections), let in-flight requests finish, then release resources. */
   async function shutdown() {
+    if (stopping) return;
+    stopping = true;
     logger.info('API shutting down');
-    server.close();
+    const closed = new Promise((resolve) => server.close(resolve)); // also closes idle keep-alive connections
+    const force = setTimeout(() => server.closeAllConnections(), 10_000);
+    force.unref();
+    await closed;
+    clearTimeout(force);
     await container.close();
     await boss.stop();
     await pool.end();

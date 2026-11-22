@@ -20,6 +20,9 @@ const PATHS = {
   'more-horizontal': 'M5 12h.01M12 12h.01M19 12h.01',
   'chevron-down': 'M6 9l6 6 6-6',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  edit: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
+  download: 'M12 4v11m0 0l-4-4m4 4l4-4M5 20h14',
+  refresh: 'M20 11a8 8 0 00-14.9-3M4 4v4h4M4 13a8 8 0 0014.9 3M20 20v-4h-4',
 };
 
 /**

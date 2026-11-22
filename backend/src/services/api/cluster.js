@@ -15,8 +15,15 @@ export function runPrimaryOrWorker(startWorker) {
 
   const fork = () => cluster.fork();
   for (let i = 0; i < config.API_WORKERS; i++) fork();
+  const replaced = new Set(); // workers whose replacement was already started when they announced retirement
+  cluster.on('message', (worker, message) => {
+    if (message?.type !== 'retiring' || shuttingDown) return;
+    replaced.add(worker.id);
+    fork(); // the replacement boots while the old worker drains, so capacity never dips
+  });
   cluster.on('exit', (worker, code, signal) => {
-    logger.info({ pid: worker.process.pid, code, signal }, 'worker exited, respawning');
+    if (replaced.delete(worker.id)) return;
+    logger.info({ pid: worker.process.pid, code, signal }, 'worker exited unexpectedly, respawning');
     if (!shuttingDown) fork();
   });
   let shuttingDown = false;
@@ -24,18 +31,29 @@ export function runPrimaryOrWorker(startWorker) {
   logger.info(`API primary supervising ${config.API_WORKERS} workers`);
 }
 
-/** Express middleware: counts requests and asks the process to retire (gracefully) when over a limit. */
+const DRAIN_MS = 2500;
+
+/**
+ * Express middleware: counts requests and retires the worker (gracefully) when over a limit. Retiring = leave the
+ * cluster so no new connections arrive, tell clients on this worker `Connection: close` for a short drain window (so
+ * keep-alive connections move over instead of being cut mid-reuse), then call `onRetire` to stop.
+ */
 export const workerRecycler = (onRetire) => {
   let served = 0; let retiring = false;
+  const maxRequests = config.API_MAX_REQUESTS * (0.8 + Math.random() * 0.4); // jitter: workers never retire in lockstep
+  const retire = (info) => {
+    retiring = true;
+    logger.info(info, 'worker limit reached, retiring');
+    process.send?.({ type: 'retiring' });
+    // Keep serving (with `Connection: close`) for the drain window; only then leave the cluster and stop.
+    setTimeout(() => { if (cluster.isWorker) cluster.worker.disconnect(); onRetire(); }, DRAIN_MS).unref();
+  };
   return (req, res, next) => {
+    if (retiring) res.set('Connection', 'close');
     res.once('finish', () => {
       if (retiring || ++served % CHECK_EVERY !== 0) return;
       const rssMb = process.memoryUsage.rss() / 1048576;
-      if (served >= config.API_MAX_REQUESTS || rssMb > config.API_MAX_RSS_MB) {
-        retiring = true;
-        logger.info({ served, rssMb: Math.round(rssMb) }, 'worker limit reached, retiring');
-        onRetire();
-      }
+      if (served >= maxRequests || rssMb > config.API_MAX_RSS_MB) retire({ served, rssMb: Math.round(rssMb) });
     });
     next();
   };

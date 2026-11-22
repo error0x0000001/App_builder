@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { SETUP_PAGES } from './index.js';
 import { getAdapterMeta } from './adapters.js';
+import { SETUP_PAGES } from './definitions.js';
+import { toolInputSchemaFrom } from './schemas.js';
 
 /**
  * Tool pages ("info" pages with a call-to-action). `run` = a real handler exists on the server.
@@ -44,14 +44,5 @@ export const getToolMeta = (pageKey) => {
   return t ? { ...t, fields: t.fields() } : null;
 };
 
-export const toolInputSchema = (pageKey) => {
-  const meta = getToolMeta(pageKey);
-  if (!meta) return z.object({}).strict();
-  const shape = Object.fromEntries(meta.fields.map((f) => {
-    let s = f.type === 'bool' ? z.boolean() : f.type === 'select' ? z.enum(f.options) : z.string().max(f.key === 'csv' ? 2_000_000 : 500);
-    if (f.required) s = f.type === 'bool' ? s.refine((v) => v === true, 'Required') : s.refine((v) => v !== '', 'Required');
-    else s = s.optional();
-    return [f.key, s];
-  }));
-  return z.object(shape).strict();
-};
+/** Server-side: validate a tool run against its registered definition. */
+export const toolInputSchema = (pageKey) => toolInputSchemaFrom(getToolMeta(pageKey));

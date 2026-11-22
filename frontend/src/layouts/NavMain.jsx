@@ -1,7 +1,15 @@
+import { hasRole } from '@app/shared';
+import { useAuth } from '../auth/AuthProvider.jsx';
 import { SidebarCollapsibleGroup, SidebarGroup, SidebarMenu, SidebarNavItem } from '../components/sidebar/SidebarParts.jsx';
 import { NAV } from './navigation.js';
 
-const NavItems = ({ items }) => items.map((item) => <SidebarNavItem key={item.to} {...item} />);
+/** Items a role may not see are hidden here (the API enforces the same rule). */
+export const useVisibleItems = (items) => {
+  const { activeWorkspace } = useAuth();
+  return items.filter((item) => !item.minRole || (activeWorkspace && hasRole(activeWorkspace.role, item.minRole)));
+};
+
+const NavItems = ({ items }) => useVisibleItems(items).map(({ minRole, bleed, ...item }) => <SidebarNavItem key={item.to} {...item} />);
 
 /** Renders NAV.main and NAV.groups. */
 export function NavMain() {
@@ -21,7 +29,7 @@ export function NavMain() {
 
 /** Renders NAV.bottom (pinned above the user menu). */
 export function NavBottom() {
-  if (!NAV.bottom.length) return null;
+  if (!useVisibleItems(NAV.bottom).length) return null;
   return (
     <nav aria-label="Secondary">
       <SidebarMenu><NavItems items={NAV.bottom} /></SidebarMenu>

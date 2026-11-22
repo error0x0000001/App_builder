@@ -1,4 +1,5 @@
-import { getSetupPage, settingsDefaults } from '@app/shared';
+import { settingsDefaults } from '@app/shared';
+import { getSetupPage } from '@app/shared/setup-registry';
 
 /**
  * Health Check = real settings compared with a recommended baseline.

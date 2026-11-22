@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { SETUP_COUNTS, SETUP_TREE, getAdapterMeta, getCollection, getSetupPage, getToolMeta, setupIdsSchema, setupListQuerySchema, setupSettingsBodySchema, settingsPatchSchema, uuidField } from '@app/shared';
+import { getAdapterMeta, setupIdsSchema, setupListQuerySchema, setupSettingsBodySchema, settingsPatchSchema, uuidField } from '@app/shared';
+import { SETUP_COUNTS, SETUP_TREE, getCollection, getSetupPage, getToolMeta } from '@app/shared/setup-registry';
 import { createHash } from 'node:crypto';
 import { config } from '../../../shared/config.js';
 import { NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';

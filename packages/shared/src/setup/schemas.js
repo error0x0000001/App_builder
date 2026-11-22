@@ -1,45 +1,8 @@
 import { z } from 'zod';
-import registry from './registry.generated.json' with { type: 'json' };
 import { getAdapterMeta } from './adapters.js';
-
-/** Setup registry: generated from the design mock-up (tools/setup/build-registry.cjs). One definition drives UI + API + validation. */
-export const SETUP_TREE = registry.tree;
-export const SETUP_PAGES = registry.pages;
-export const SETUP_COUNTS = registry.counts;
-export const getSetupPage = (key) => SETUP_PAGES[key] ?? null;
 
 /** Odoo-style list limits: small pages, capped counts. */
 export const SETUP_LIST = Object.freeze({ defaultLimit: 80, maxLimit: 200, countCap: 10_000, bulkMax: 500 });
-
-/** Collections that back special pages (not in the tree). Same shape as a list page. */
-export const INTERNAL_COLLECTIONS = Object.freeze({
-  'debug-trace-flags': { key: 'debug-trace-flags', name: 'User Trace Flags', kind: 'list', newLabel: 'New', columns: [
-    { key: 'monitored_user', label: 'Monitored User', type: 'link' }, { key: 'debug_level', label: 'Debug Level', type: 'select', options: ['SFDC_DevConsole', 'Finest', 'Info', 'Warn'] },
-    { key: 'start_date', label: 'Start Date', type: 'text' }, { key: 'expiration_date', label: 'Expiration Date', type: 'text' }], views: [], bulkActions: [] },
-  'debug-log-entries': { key: 'debug-log-entries', name: 'Debug Logs', kind: 'list', newLabel: null, columns: [
-    { key: 'user', label: 'User', type: 'link' }, { key: 'application', label: 'Application', type: 'text' }, { key: 'operation', label: 'Operation', type: 'text' },
-    { key: 'time', label: 'Time', type: 'text' }, { key: 'status', label: 'Status', type: 'status', options: ['Success', 'Assertion Failed', 'Fatal Error'] }, { key: 'size', label: 'Log Size', type: 'text' }], views: [], bulkActions: [] },
-  'sharing-defaults': { key: 'sharing-defaults', name: 'Organization-Wide Defaults', kind: 'list', newLabel: null, columns: [
-    { key: 'object', label: 'Object', type: 'link' },
-    { key: 'default_internal_access', label: 'Default Internal Access', type: 'select', options: ['Private', 'Public Read Only', 'Public Read/Write', 'Public Read/Write/Transfer', 'Public Full Access', 'Controlled by Parent'] },
-    { key: 'default_external_access', label: 'Default External Access', type: 'select', options: ['Private', 'Public Read Only', 'Controlled by Parent'] },
-    { key: 'grant_access_using_hierarchies', label: 'Grant Access Using Hierarchies', type: 'check' }], views: [], bulkActions: [] },
-  'object-manager-objects': { key: 'object-manager-objects', name: 'Objects', kind: 'list', newLabel: 'Create', columns: [
-    { key: 'label', label: 'Label', type: 'link' }, { key: 'api_name', label: 'API Name', type: 'text' }, { key: 'type', label: 'Type', type: 'status', options: ['Standard', 'Custom'] }, { key: 'description', label: 'Description', type: 'text' }], views: [], bulkActions: [] },
-  'object-manager-fields': { key: 'object-manager-fields', name: 'Fields & Relationships', kind: 'list', newLabel: 'New', columns: [
-    { key: 'field_label', label: 'Field Label', type: 'link' }, { key: 'object', label: 'Object', type: 'text' },
-    { key: 'data_type', label: 'Data Type', type: 'select', options: ['Text', 'Text Area', 'Number', 'Currency', 'Percent', 'Checkbox', 'Date', 'Date/Time', 'Email', 'Phone', 'URL', 'Picklist', 'Lookup', 'Formula'] },
-    { key: 'required', label: 'Required', type: 'check' }], views: [], bulkActions: [] },
-});
-
-/** Everything that stores records: tree list pages + internal collections. */
-export const getCollection = (key) => {
-  const page = SETUP_PAGES[key];
-  if (page?.kind === 'list') return page;
-  if (page?.kind === 'tree') return TREE_COLLECTION(page);
-  return INTERNAL_COLLECTIONS[key] ?? null;
-};
-const TREE_COLLECTION = (page) => ({ key: page.key, name: page.name, kind: 'list', newLabel: 'Add', columns: [{ key: 'name', label: 'Role', type: 'link' }, { key: 'assigned_to', label: 'Assigned To', type: 'text' }], views: [], bulkActions: [] });
 
 export const labelKey = (collection) => (collection.columns.find((c) => c.type === 'link') ?? collection.columns[0]).key;
 export const statusKey = (collection) => collection.columns.find((c) => c.type === 'status')?.key ?? null;
@@ -87,9 +50,6 @@ export const recordSchemas = (collection) => cached(`r:${collection.key}`, () =>
 export const settingsDefaults = (page) =>
   Object.fromEntries(page.sections.flatMap((s) => s.fields ?? []).map((f) => [f.key, f.default]));
 
-/** Flatten the tree to [{ key, name, path }] (used by search / quick find). */
-export const SETUP_INDEX = Object.values(SETUP_PAGES).map(({ key, name, path, kind }) => ({ key, name, path, kind }));
-
 /* ---------- request shapes shared by API + UI ---------- */
 const bool = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
 export const setupListQuerySchema = z.object({
@@ -123,4 +83,16 @@ export const recordFormSchema = (collection, mode) => {
   const blankSelects = recordFormFields(collection, mode).filter((f) => f.type === 'select' && !f.required).map((f) => f.key);
   const strip = (value) => (value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([k, v]) => !(blankSelects.includes(k) && v === ''))) : value);
   return z.preprocess(strip, recordSchemas(collection)[mode]);
+};
+
+/** Validation for a tool dialog, from the tool definition the API returned (so the browser never needs the registry). */
+export const toolInputSchemaFrom = (meta) => {
+  if (!meta) return z.object({}).strict();
+  const shape = Object.fromEntries(meta.fields.map((f) => {
+    let s = f.type === 'bool' ? z.boolean() : f.type === 'select' ? z.enum(f.options) : z.string().max(f.key === 'csv' ? 2_000_000 : 500);
+    if (f.required) s = f.type === 'bool' ? s.refine((v) => v === true, 'Required') : s.refine((v) => v !== '', 'Required');
+    else s = s.optional();
+    return [f.key, s];
+  }));
+  return z.object(shape).strict();
 };

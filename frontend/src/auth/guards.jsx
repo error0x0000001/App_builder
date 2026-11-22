@@ -28,3 +28,10 @@ export function GuestOnly() {
   if (status === 'authenticated') return <Navigate to={nextPath(location) ?? '/app'} replace />;
   return <Outlet />;
 }
+
+/** Routes only admins/owners may open (the API enforces the same rule; this just avoids showing a dead page). */
+export function RequireRole({ minimumRole }) {
+  const { activeWorkspace } = useAuth();
+  if (!activeWorkspace || !hasRole(activeWorkspace.role, minimumRole)) return <Navigate to="/app" replace />;
+  return <Outlet />;
+}

@@ -5,7 +5,8 @@
  *   main    – top-level rows
  *   groups  – collapsible titled sections: { label, defaultOpen?, action?: { to, label, icon? }, items }
  *   bottom  – rows pinned above the user menu
- * Item: { to, icon, label, end?, badge? }
+ * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed? }
+ *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)
  */
 export const NAV = {
   main: [
@@ -19,7 +20,7 @@ export const NAV = {
     ] },
   ],
   bottom: [
-    { to: '/app/workspace', icon: 'sliders', label: 'Workspace settings' },
+    { to: '/app/setup', icon: 'sliders', label: 'Setup', minRole: 'admin', prefix: true, bleed: true },
   ],
 };
 
@@ -28,4 +29,5 @@ const HIDDEN_PAGES = [{ to: '/app/workspaces/new', icon: 'plus', label: 'New wor
 
 export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
 
-export const pageFor = (pathname) => [...NAV_ITEMS, ...HIDDEN_PAGES].find((item) => item.to === pathname) ?? { icon: 'home', label: 'Cloudbase' };
+const matches = (item, pathname) => item.to === pathname || (item.prefix && pathname.startsWith(`${item.to}/`));
+export const pageFor = (pathname) => [...NAV_ITEMS, ...HIDDEN_PAGES].find((item) => matches(item, pathname)) ?? { icon: 'home', label: 'Cloudbase' };

@@ -1,8 +1,10 @@
 import { SETUP_LIST, labelKey, recordSchemas, statusKey } from '@app/shared';
 import { createHash } from 'node:crypto';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
-import { getAdapterMeta, getCollection } from '@app/shared';
+import { getAdapterMeta } from '@app/shared';
+import { getCollection } from '@app/shared/setup-registry';
+import { config } from '../../shared/config.js';
 import { hasSeed, roleNodes, seedFlat, seedGroup, seedMembers } from './seeding.js';
 
 const NS = (ws, collection) => `r:${ws}:${collection}`;
@@ -38,6 +40,10 @@ export class RecordsService {
     return this.cache.remember(NS(ctx.workspaceId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
   }
 
+  #assertWritable(collection) {
+    if (collection.readOnly) throw new ForbiddenError('This page is read-only');
+  }
+
   /** Adapter pages declare what they allow; anything else is refused up front instead of failing inside the adapter. */
   #adapter(collection, capability) {
     if (!getAdapterMeta(collection.key)?.[capability]) throw new ForbiddenError('This page does not allow that action');
@@ -62,17 +68,20 @@ export class RecordsService {
 
   async create(ctx, collection, input) {
     if (this.adapters[collection.key]) return this.#adapter(collection, 'canCreate').create(ctx, input);
-    const data = recordSchemas(collection).create.parse(input);
+    this.#assertWritable(collection);
+    const { parentId, ...fields } = input ?? {};
+    const data = recordSchemas(collection).create.parse(fields);
     await this.#ensureSeeded(ctx.workspaceId, collection);
-    const row = await this.repos.setupRecords.insert(ctx.workspaceId, collection.key, this.#parts(collection, data, ctx.userId, input));
+    const row = await this.repos.setupRecords.insert(ctx.workspaceId, collection.key, this.#parts(collection, data, ctx.userId, { parentId }));
     await this.changed(ctx, collection, 'create', `Created ${collection.name}: ${row.label}`);
     return flatten(row);
   }
 
   async update(ctx, collection, id, input) {
     if (this.adapters[collection.key]) return this.#adapter(collection, 'canEdit').update(ctx, id, input);
-    const data = recordSchemas(collection).update.parse(input);
-    const { parentId, ...rest } = input;
+    this.#assertWritable(collection);
+    const { parentId, ...fields } = input ?? {};
+    const data = recordSchemas(collection).update.parse(fields);
     const parts = { data };
     const label = labelKey(collection); const status = statusKey(collection);
     if (data[label] !== undefined) parts.label = data[label];
@@ -87,6 +96,9 @@ export class RecordsService {
   async remove(ctx, collection, ids) {
     if (ids.length > SETUP_LIST.bulkMax) throw new ValidationError(undefined, `At most ${SETUP_LIST.bulkMax} records at a time`);
     if (this.adapters[collection.key]) return this.#adapter(collection, 'canDelete').remove(ctx, ids);
+    this.#assertWritable(collection);
+    if (collection.key === 'roles' && (await this.repos.setupRecords.hasChildren(ctx.workspaceId, ids))) throw new ConflictError('Remove or move the sub-roles first');
+    if (collection.key === 'object-manager-objects') await this.repos.setupRecords.removeChildren(ctx.workspaceId, 'object-manager-fields', ids);
     const n = await this.repos.setupRecords.remove(ctx.workspaceId, collection.key, ids);
     if (n) await this.changed(ctx, collection, 'delete', `Deleted ${n} ${collection.name} record(s)`);
     return n;
@@ -137,8 +149,10 @@ export class RecordsService {
 
   async #seedRoles(repos, ws) {
     const ids = [];
-    for (const node of roleNodes()) {
-      const row = await repos.setupRecords.insert(ws, 'roles', { label: node.label, data: node.data, parentId: node.parent === null ? null : ids[node.parent] });
+    const workspace = await repos.workspaces.findById(ws);
+    for (const node of config.SETUP_SEED_SAMPLE_DATA ? roleNodes() : roleNodes().slice(0, 1)) {
+      const root = node.parent === null; // the hierarchy's top node is the workspace itself
+      const row = await repos.setupRecords.insert(ws, 'roles', { label: root ? workspace.name : node.label, data: root ? { ...node.data, name: workspace.name } : node.data, parentId: node.parent === null ? null : ids[node.parent] });
       ids.push(row.id);
     }
   }

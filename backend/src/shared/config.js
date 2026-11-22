@@ -16,6 +16,7 @@ const schema = z.object({
   API_MAX_REQUESTS: z.coerce.number().int().default(100_000), // a worker retires after this many requests (Odoo limit_request)
   API_MAX_RSS_MB: z.coerce.number().int().default(1024), // ...or when its memory passes this (Odoo limit_memory_soft)
   LOG_LEVEL: z.string().default('info'),
+  SETUP_SEED_SAMPLE_DATA: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'), // fill empty Setup lists with the design's sample rows on first open
   LOG_ACCESS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'), // log every successful request (errors are always logged)
   TRUST_PROXY: z.coerce.number().default(0),
   WORKER_CONCURRENCY: z.coerce.number().default(5),

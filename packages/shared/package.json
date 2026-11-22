@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.js" },
-  "dependencies": { "zod": "^3.24.0" }
+  "exports": {
+    ".": "./src/index.js",
+    "./setup-registry": "./src/setup/registry.js"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  }
 }

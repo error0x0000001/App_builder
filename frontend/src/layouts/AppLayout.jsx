@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import { cn } from '../lib/cn.js';
+import { pageFor } from './navigation.js';
 import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
 import { SidebarProvider } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
@@ -12,6 +14,7 @@ import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
  */
 export function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
+  const bleed = pageFor(useLocation().pathname).bleed; // pages that lay out their own panes (Setup) get the bare card body
 
   useEffect(() => {
     const onKey = (event) => {
@@ -27,8 +30,8 @@ export function AppLayout() {
         <AppSidebar onSearch={() => setSearchOpen(true)} />
         <SidebarInset>
           <PageHeader />
-          <main className="min-h-0 flex-1 overflow-y-auto">
-            <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>
+          <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
+            {bleed ? <Outlet /> : <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>}
           </main>
         </SidebarInset>
         <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

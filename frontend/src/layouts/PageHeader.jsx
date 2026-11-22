@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { SidebarTrigger } from '../components/sidebar/Sidebar.jsx';
@@ -12,7 +12,8 @@ const HeaderSlots = createContext(null);
 export function PageHeaderProvider({ children }) {
   const [metaEl, setMetaEl] = useState(null);
   const [actionsEl, setActionsEl] = useState(null);
-  return <HeaderSlots.Provider value={{ metaEl, setMetaEl, actionsEl, setActionsEl }}>{children}</HeaderSlots.Provider>;
+  const [title, setTitle] = useState(null);
+  return <HeaderSlots.Provider value={{ metaEl, setMetaEl, actionsEl, setActionsEl, title, setTitle }}>{children}</HeaderSlots.Provider>;
 }
 
 /**
@@ -21,15 +22,15 @@ export function PageHeaderProvider({ children }) {
  */
 export function PageHeader() {
   const { pathname } = useLocation();
-  const { setMetaEl, setActionsEl } = useContext(HeaderSlots);
+  const { setMetaEl, setActionsEl, title } = useContext(HeaderSlots);
   const { iconOnly, isMobile } = useSidebar();
-  const { icon, label } = pageFor(pathname);
+  const { icon, label } = title ?? pageFor(pathname); // pages whose name comes from data (Setup) override the nav lookup
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
       {(isMobile || iconOnly) && <SidebarTrigger />}
       <Icon name={icon} className="size-4 shrink-0 text-muted" />
-      <h1 className="truncate text-sm font-semibold text-ink">{label}</h1>
-      <span ref={setMetaEl} className="flex min-w-0 items-center gap-2 text-sm text-muted empty:hidden" />
+      <h1 className="min-w-0 truncate text-sm font-semibold text-ink">{label}</h1>
+      <span ref={setMetaEl} className="hidden min-w-0 items-center gap-2 text-sm text-muted empty:hidden sm:flex" />
       <div ref={setActionsEl} className="ml-auto flex items-center gap-2" />
       <ThemeToggle />
     </header>
@@ -46,4 +47,14 @@ export function PageHeaderMeta({ children }) {
 export function PageHeaderActions({ children }) {
   const { actionsEl } = useContext(HeaderSlots);
   return actionsEl ? createPortal(children, actionsEl) : null;
+}
+
+/** Overrides the header title/icon for pages whose name is data-driven. Cleared when the page unmounts. */
+export function PageHeaderTitle({ icon, children }) {
+  const { setTitle } = useContext(HeaderSlots);
+  useEffect(() => {
+    setTitle({ icon, label: children });
+    return () => setTitle(null);
+  }, [icon, children, setTitle]);
+  return null;
 }

@@ -24,3 +24,4 @@ The full product (Setup/Admin, CRM apps, ERP) is inventoried in `docs/inventory/
 
 ## Status
 Auth is implemented end to end (see README "Auth features"). Remaining work is tracked in `docs/auth-backlog.md`.
+The Setup area (266 pages) is implemented as a registry + templates + generic API (`/api/v1/setup`); `docs/setup-status.md` says which pages change real behaviour and which only store configuration. Design + scale + measurements: `docs/setup-engine.md`.

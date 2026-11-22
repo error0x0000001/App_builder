@@ -1,4 +1,5 @@
-import { getCollection, getToolMeta, importableObjects, labelKey, recordSchemas, statusKey, toolInputSchema } from '@app/shared';
+import { labelKey, recordSchemas, statusKey } from '@app/shared';
+import { getCollection, getToolMeta, importableObjects, toolInputSchema } from '@app/shared/setup-registry';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { QUEUES } from '../../shared/queue.js';
 import { parseCsv, toCsv } from './csv.js';

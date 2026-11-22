@@ -1,4 +1,5 @@
 import { labelKey, statusKey } from '@app/shared';
+import { config } from '../../shared/config.js';
 import fixtures from '../../../seed/setup-fixtures.generated.json' with { type: 'json' };
 
 const ACCESS = ['Private', 'Public Read Only', 'Public Read/Write'];
@@ -22,7 +23,8 @@ export const seedGroup = (key) => SPECIAL[key]?.group ?? key;
 export const seedMembers = (group) => Object.keys(SPECIAL).filter((k) => SPECIAL[k].group === group);
 
 const flatRows = (collection) => {
-  if (SPECIAL[collection.key]) return SPECIAL[collection.key].rows();
+  if (SPECIAL[collection.key]) return SPECIAL[collection.key].rows(); // structural content (standard objects, sharing defaults) is always seeded
+  if (!config.SETUP_SEED_SAMPLE_DATA) return [];
   const label = labelKey(collection); const status = statusKey(collection);
   return (fixtures.lists[collection.key] ?? []).map((row) => ({ label: String(row[label] ?? ''), status: status ? row[status] ?? null : null, data: row }));
 };
@@ -31,7 +33,7 @@ const flatRows = (collection) => {
 export const roleNodes = () => {
   const out = [];
   const walk = (node, parent) => {
-    const index = out.push({ label: node.n, parent, data: { name: node.n, assigned_to: node.u ?? '' } }) - 1;
+    const index = out.push({ label: node.n, parent, data: { name: node.n, assigned_to: '' } }) - 1;
     for (const kid of node.kids ?? []) walk(kid, index);
   };
   walk(fixtures.trees.roles, null);
