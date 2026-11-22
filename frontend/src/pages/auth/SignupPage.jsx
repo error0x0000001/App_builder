@@ -20,8 +20,7 @@ export default function SignupPage() {
   });
 
   return (
-    <AuthCard title="Start your free 30-day trial" description="No credit card required. Set up in minutes." width="lg" footer={<TextLink to="/login">Already have an account? Log in</TextLink>}>
-      <SocialLogin label="Sign up with Google" />
+    <AuthCard title="Start your free 30-day trial" description="No credit card required. Set up in minutes." width="lg" footer={<>Already have an account? <TextLink to="/login" className="font-semibold text-ink">Log in</TextLink></>}>
       <Form form={form} onSubmit={submit} error={formError}>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField name="firstName" label="First name" autoComplete="given-name" required />
@@ -35,8 +34,9 @@ export default function SignupPage() {
         </div>
         <NewPasswordField />
         <CheckboxField name="acceptTerms" label="I agree to the Main Services Agreement and Privacy Statement." />
-        <SubmitButton fullWidth>Start my free trial</SubmitButton>
+        <SubmitButton size="lg" fullWidth>Start my free trial</SubmitButton>
       </Form>
+      <SocialLogin />
     </AuthCard>
   );
 }

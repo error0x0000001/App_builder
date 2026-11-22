@@ -13,6 +13,7 @@ const PATHS = {
   'check-circle': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
   plus: 'M12 5v14M5 12h14',
   'log-out': 'M15 17l5-5-5-5M20 12H9m4 8H5V4h8',
+  lock: 'M6 11h12v9H6v-9zm2 0V8a4 4 0 118 0v3',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3',
 };
 

@@ -22,7 +22,7 @@ export const Button = forwardRef(function Button(
       {...(isButton ? { type: rest.type ?? 'button', disabled: disabled || loading } : {})}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'inline-flex items-center justify-center gap-2 rounded-full border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
         VARIANTS[variant], SIZES[size], fullWidth && 'w-full', className,
       )}
       {...rest}
