@@ -27,7 +27,7 @@ export default function HomePage() {
           <Button as={Link} to="/app/workspaces/new">Create a workspace</Button>
         </Card>
       )}
-      <p className="text-sm text-muted">You belong to {workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}. Use the workspace switcher in the sidebar to move between them.</p>
+      <p className="text-sm text-muted">You belong to {workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}. Use the workspace switcher to move between them.</p>
     </>
   );
 }
