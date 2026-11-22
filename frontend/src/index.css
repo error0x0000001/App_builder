@@ -1,1 +1,36 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Design tokens from the Cloudbase theme (navy / slate, light + dark). */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f3f5f9; --line: #dde2ea;
+  --ink: #1c2535; --muted: #667085;
+  --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff;
+  --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22);
+  --danger: #c62828; --success: #1b7f4b; --warning: #b7791f;
+  --hero: #dfe7f5;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #1a1d23; --surface: #23272f; --surface-2: #2b303a; --line: #383e4a;
+  --ink: #e6e8ec; --muted: #9aa3b2;
+  --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #2a3347; --accent-ink: #0f1b33;
+  --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28);
+  --danger: #ff7b72; --success: #4cc38a; --warning: #e3b341;
+  --hero: #2a303b;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line);
+  --color-ink: var(--ink); --color-muted: var(--muted);
+  --color-accent: var(--accent); --color-accent-hover: var(--accent-hover); --color-accent-soft: var(--accent-soft); --color-accent-ink: var(--accent-ink);
+  --color-link: var(--link); --color-ring: var(--ring);
+  --color-danger: var(--danger); --color-success: var(--success); --color-warning: var(--warning);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body, #root { min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
