@@ -18,7 +18,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
         <aside
           aria-label={label}
           inert={mobileOpen ? undefined : ''}
-          className={cn('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-line bg-surface shadow-xl transition-[transform,visibility] duration-200', mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full')}
+          className={cn('fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-line bg-surface transition-[transform,visibility] duration-200', mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full')}
         >
           {children}
         </aside>
@@ -28,7 +28,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
 
   return (
     <aside aria-label={label} data-collapsed={iconOnly} className={cn('sticky top-0 h-screen shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-64')}>
-      <div className={cn('relative flex h-full flex-col rounded-xl', variant === 'floating' && 'border border-line bg-surface shadow-sm')}>
+      <div className={cn('relative flex h-full flex-col rounded-xl', variant === 'floating' && 'border border-line bg-surface')}>
         {children}
       </div>
       {/* Rail: a thin hit area on the edge that toggles the sidebar (mouse only; the header trigger is the accessible control). */}
@@ -43,7 +43,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
 export function SidebarInset({ children }) {
   const { variant } = useSidebar();
   return (
-    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'inset' ? 'm-2 rounded-xl border border-line bg-inset shadow-sm md:ml-0 md:min-h-[calc(100svh-1rem)]' : 'min-h-screen bg-bg')}>
+    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'inset' ? 'm-2 rounded-xl border border-line bg-inset md:ml-0 md:min-h-[calc(100svh-1rem)]' : 'min-h-screen bg-bg')}>
       {children}
     </div>
   );

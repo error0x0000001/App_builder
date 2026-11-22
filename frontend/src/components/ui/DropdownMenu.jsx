@@ -63,7 +63,7 @@ export function DropdownMenuContent({ side = 'bottom', align = 'start', classNam
   };
 
   return (
-    <div ref={ref} id={menuId} role="menu" onKeyDown={onKeyDown} className={cn('absolute z-50 min-w-56 rounded-lg border border-line bg-surface p-1 text-ink shadow-lg', POSITIONS[side][align], className)}>
+    <div ref={ref} id={menuId} role="menu" onKeyDown={onKeyDown} className={cn('absolute z-50 min-w-56 rounded-lg border border-line bg-surface p-1 text-ink', POSITIONS[side][align], className)}>
       {children}
     </div>
   );

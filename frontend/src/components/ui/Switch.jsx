@@ -13,7 +13,7 @@ export const Switch = forwardRef(function Switch({ label, description, id: idPro
       <span className="relative inline-flex shrink-0 items-center">
         <input ref={ref} id={id} type="checkbox" role="switch" className="peer sr-only" {...rest} />
         <span className="h-6 w-11 rounded-full bg-line transition-colors peer-checked:bg-accent peer-focus-visible:ring-4 peer-focus-visible:ring-ring peer-disabled:opacity-60" />
-        <span className="pointer-events-none absolute left-0.5 size-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+        <span className="pointer-events-none absolute left-0.5 size-5 rounded-full border border-line bg-white transition-transform peer-checked:translate-x-5" />
       </span>
     </label>
   );

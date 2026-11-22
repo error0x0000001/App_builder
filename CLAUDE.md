@@ -11,6 +11,7 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 ## Rules from the owner
 - Everything reusable (even button/checkbox/switch/input); SOLID; **zero code duplication**; remove deprecated code completely.
 - Must scale to millions of users: indexed queries, keyset pagination, stateless services.
+- Visual style: **no shadows anywhere** — separate surfaces with borders only (clear, premium look). Dark theme = pitch-black page + slate surfaces.
 - Git: work on `dev`, merge to `main` via PR. Commits authored as the owner (error0x0000001), no AI attribution lines.
 
 ## Status

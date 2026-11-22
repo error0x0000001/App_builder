@@ -15,7 +15,7 @@ export function Tooltip({ label, disabled = false, children }) {
     <span ref={ref} className="block" onMouseEnter={show} onMouseLeave={() => setPosition(null)} onFocus={show} onBlur={() => setPosition(null)}>
       {children}
       {position && createPortal(
-        <span role="tooltip" style={position} className="pointer-events-none fixed z-[60] -translate-y-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs font-medium text-bg shadow-md">{label}</span>,
+        <span role="tooltip" style={position} className="pointer-events-none fixed z-[60] -translate-y-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-xs font-medium text-bg">{label}</span>,
         document.body,
       )}
     </span>
