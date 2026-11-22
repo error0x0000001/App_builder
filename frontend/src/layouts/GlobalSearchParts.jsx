@@ -79,7 +79,7 @@ export function EmptyState({ title, hint, onClear }) {
     <div className="flex flex-col items-center px-6 pb-6 pt-4 text-center">
       <EmptyArt />
       <p className="text-sm font-semibold text-ink">{title}</p>
-      <p className="mt-1 max-w-xs text-[13px] text-muted">{hint}</p>
+      <p className="mt-1 max-w-sm text-[13px] text-muted">{hint}</p>
       <Button size="sm" variant="neutral" className="mt-3" onClick={onClear}>Clear filters</Button>
     </div>
   );
