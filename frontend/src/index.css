@@ -91,6 +91,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 
 @keyframes sheet-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 .sheet-in { animation: sheet-in 160ms ease-out; }
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+.backdrop-in { animation: backdrop-in 160ms ease-out; }
 
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 

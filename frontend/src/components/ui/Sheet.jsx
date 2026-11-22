@@ -4,8 +4,8 @@ import { Button } from './Button.jsx';
 import { Icon } from './Icon.jsx';
 
 /**
- * Floating side sheet: a bordered card inset from the window edge on the right. There is no dimming backdrop, so the page
- * stays visible and live while you change things in the sheet. Escape or the close button dismisses it.
+ * Floating side sheet: a bordered card inset from the window edge on the right. The page behind is dimmed and slightly
+ * blurred (light enough that changes you make in the sheet stay visible live); clicking it, Escape or the close button dismisses.
  */
 export function Sheet({ open, onClose, title, description, footer, children }) {
   useEffect(() => {
@@ -17,6 +17,8 @@ export function Sheet({ open, onClose, title, description, footer, children }) {
   if (!open) return null;
 
   return createPortal(
+    <>
+      <div aria-hidden="true" onMouseDown={onClose} className="backdrop-in fixed inset-0 z-[74] bg-black/25 backdrop-blur-[2px]" />
     <aside role="dialog" aria-label={title} className="sheet-in fixed bottom-2 right-2 top-2 z-[75] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface text-ink">
       <header className="flex items-start gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
@@ -27,7 +29,8 @@ export function Sheet({ open, onClose, title, description, footer, children }) {
       </header>
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4">{children}</div>
       {footer && <footer className="border-t border-line px-4 py-3">{footer}</footer>}
-    </aside>,
+    </aside>
+    </>,
     document.body,
   );
 }
