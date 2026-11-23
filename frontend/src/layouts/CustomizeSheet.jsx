@@ -1,4 +1,4 @@
-import { UI_DEFAULTS, UI_OPTIONS } from '@app/shared';
+import { UI_DEFAULTS, UI_OPTIONS, UI_PRESETS } from '@app/shared';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { Alert } from '../components/ui/Alert.jsx';
@@ -7,9 +7,11 @@ import { ColorPicker } from '../components/ui/ColorPicker.jsx';
 import { RadioCardGroup } from '../components/ui/RadioCardGroup.jsx';
 import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
 import { Sheet } from '../components/ui/Sheet.jsx';
+import { Icon } from '../components/ui/Icon.jsx';
 import { ThemePicker } from '../components/workspace/ThemePicker.jsx';
 import { applyCustomColors } from '../lib/customColors.js';
 import { useCustomize } from './CustomizeContext.jsx';
+import { matchesPreset, ThemePresetsSheet } from './ThemePresetsSheet.jsx';
 
 const swatch = (colors) => (
   <span className="flex shrink-0 overflow-hidden rounded-md border border-line" aria-hidden="true">
@@ -42,6 +44,7 @@ export function CustomizeSheet() {
   const { ui, updateUi } = useAuth();
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
 
   useEffect(() => { if (!saved) return undefined; const t = setTimeout(() => setSaved(false), 2000); return () => clearTimeout(t); }, [saved]);
 
@@ -73,6 +76,13 @@ export function CustomizeSheet() {
       {[...groups].map(([group, options]) => (
         <section key={group} className="space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{group}</h3>
+          {group === 'Colors' && (
+            <button type="button" onClick={() => setPresetsOpen(true)} aria-haspopup="dialog" className="flex h-12 w-full items-center gap-3 rounded-xl border border-line-strong bg-surface px-3 text-left outline-none hover:bg-surface-2 focus-visible:ring-4 focus-visible:ring-ring">
+              <Icon name="sliders" className="size-5 shrink-0 text-muted" />
+              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Theme presets</span><span className="block truncate text-xs text-muted">{UI_PRESETS.find((p) => matchesPreset(p, ui))?.label ?? 'Custom colours'} · browse {UI_PRESETS.length} looks</span></span>
+              <Icon name="chevron-right" className="size-4 shrink-0 text-muted" />
+            </button>
+          )}
           {options.filter((o) => !o.afterTheme).map(control)}
           {group === 'Colors' && (
             <div className="space-y-1.5">
@@ -83,6 +93,7 @@ export function CustomizeSheet() {
           {options.filter((o) => o.afterTheme).map(control)}
         </section>
       ))}
+      <ThemePresetsSheet open={presetsOpen} onClose={() => setPresetsOpen(false)} />
     </Sheet>
   );
 }

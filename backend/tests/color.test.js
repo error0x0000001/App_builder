@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { accentTokens, contrastRatio, customColorCss, hexToHsv, hsvToHex, navTokens, readableOn, resolveUiSettings, uiSettingsPatchSchema } from '@app/shared';
+import { UI_PRESETS, accentTokens, contrastRatio, customColorCss, hexToHsv, hsvToHex, navTokens, readableOn, resolveUiSettings, uiSettingsPatchSchema } from '@app/shared';
 
 describe('custom colours', () => {
   it('round-trips hex ↔ HSV and keeps greys and primaries exact', () => {
@@ -35,5 +35,15 @@ describe('custom colours', () => {
     assert.deepEqual(uiSettingsPatchSchema.parse({ accentHex: null }), { accentHex: null });
     for (const bad of ['red', '#fff', '#12345g', 'url(x)', 123]) assert.equal(uiSettingsPatchSchema.safeParse({ navHex: bad }).success, false, String(bad));
     assert.equal(resolveUiSettings({ accentHex: 'nope' }).accentHex, null, 'stored garbage falls back to the default');
+  });
+
+  it('every theme preset is a valid colour patch with readable colours', () => {
+    assert.ok(UI_PRESETS.length >= 6);
+    assert.equal(new Set(UI_PRESETS.map((p) => p.id)).size, UI_PRESETS.length, 'unique ids');
+    for (const preset of UI_PRESETS) {
+      assert.equal(uiSettingsPatchSchema.safeParse(preset.ui).success, true, `${preset.id} is accepted by the API schema`);
+      if (preset.ui.navHex) assert.ok(contrastRatio(preset.ui.navHex, navTokens(preset.ui.navHex)['--sidebar-ink']) >= 7, `${preset.id} navigation text`);
+      if (preset.ui.accentHex) assert.ok(contrastRatio(accentTokens(preset.ui.accentHex).light['--accent'], accentTokens(preset.ui.accentHex).light['--accent-ink']) >= 3, `${preset.id} button text`);
+    }
   });
 });

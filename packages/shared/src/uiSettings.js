@@ -38,6 +38,21 @@ export const UI_OPTIONS = Object.freeze([
   },
 ]);
 
+/**
+ * Complete colour looks the owner can apply in one click (Customize › Theme presets). Each is a patch of colour options only — layout and
+ * style stay as chosen. `navHex`/`accentHex` null = the built-in light navigation / the workspace's accent theme.
+ */
+export const UI_PRESETS = Object.freeze([
+  { id: 'untitled', label: 'Untitled', description: 'Light navigation, purple accent.', ui: { navColor: 'default', navHex: null, accentHex: null } },
+  { id: 'indigo', label: 'Indigo', description: 'Light navigation, indigo accent.', ui: { navColor: 'default', navHex: null, accentHex: '#444ce7' } },
+  { id: 'midnight', label: 'Midnight', description: 'Deep navy navigation, soft blue accent.', ui: { navColor: 'default', navHex: '#00072d', accentHex: '#6b9bff' } },
+  { id: 'ocean', label: 'Ocean', description: 'Dark teal-blue navigation, sky accent.', ui: { navColor: 'default', navHex: '#0b4a6f', accentHex: '#0ba5ec' } },
+  { id: 'forest', label: 'Forest', description: 'Deep green navigation, fresh green accent.', ui: { navColor: 'default', navHex: '#0b3d2e', accentHex: '#12b76a' } },
+  { id: 'sunset', label: 'Sunset', description: 'Warm brown navigation, orange accent.', ui: { navColor: 'default', navHex: '#7a2e0e', accentHex: '#ef6820' } },
+  { id: 'rose', label: 'Rose', description: 'Dark plum navigation, rose accent.', ui: { navColor: 'default', navHex: '#4a1022', accentHex: '#f63d68' } },
+  { id: 'graphite', label: 'Graphite', description: 'Charcoal navigation, charcoal accent.', ui: { navColor: 'default', navHex: '#1d2939', accentHex: '#344054' } },
+]);
+
 export const UI_DEFAULTS = Object.freeze(Object.fromEntries(UI_OPTIONS.map((o) => [o.key, o.default])));
 
 const colorValue = z.string().regex(HEX_RE, 'Use a colour like #7f56d9').transform((v) => v.toLowerCase()).nullable();
