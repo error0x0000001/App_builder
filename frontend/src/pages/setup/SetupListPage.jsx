@@ -95,8 +95,6 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
             {viewOptions.map((v) => <MenuChoice key={v.value} selected={v.value === view} onSelect={() => setView(v.value)}>{v.label}</MenuChoice>)}
           </RoundMenu>
         )}
-        {embedded && canCreate === false && total !== undefined && <span className="text-sm text-muted">{total} items</span>}
-        {!embedded && total !== undefined && <span className="text-sm text-muted">{total} {total === '1' ? 'item' : 'items'}</span>}
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />{deleteLabel} ({selected.size})</Button>}
         {canCreate && <Button size="sm" className={selected.size > 0 && canDelete ? '' : 'ml-auto'} onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />{label}</Button>}
       </div>
@@ -106,13 +104,15 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
           <DataTable
             columns={columns}
             rows={rows}
+            title="Records"
+            badge={`${total ?? rows.length} ${total === '1' ? 'record' : 'records'}`}
             loading={records.isFetching && !records.isFetchingNextPage && !rows.length}
             selection={canDelete ? { selected, onToggle: toggle, onToggleAll: toggleAll } : undefined}
             onRowClick={onOpen ?? (canEdit ? (record) => setDialog({ mode: 'edit', record }) : undefined)}
             empty={q ? `Nothing matches “${q}”` : `No ${page.name.toLowerCase()} yet`}
             footer={records.hasNextPage ? (
-              <div className="flex justify-center"><Button size="sm" variant="ghost" loading={records.isFetchingNextPage} onClick={() => records.fetchNextPage()}>Load more</Button></div>
-            ) : rows.length ? <p className="text-center text-xs text-muted">{rows.length.toLocaleString()} shown</p> : null}
+              <div className="flex items-center justify-between"><p className="text-sm text-muted">{rows.length.toLocaleString()} shown</p><Button size="sm" variant="secondary" loading={records.isFetchingNextPage} onClick={() => records.fetchNextPage()}>Load more</Button></div>
+            ) : rows.length ? <p className="text-sm text-muted">{rows.length.toLocaleString()} shown</p> : null}
           />
         )}
       </QueryState>
