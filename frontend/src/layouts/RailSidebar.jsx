@@ -119,7 +119,7 @@ function Panel({ section, sections }) {
   const items = tab === 'recent' ? recentItems : section.items;
 
   return (
-    <div className="flex w-75 min-w-0 flex-col gap-5 px-5 pb-4 pt-7">
+    <div className="flex min-h-0 w-75 min-w-0 flex-col gap-5 px-5 pb-4 pt-7">
       <div className="flex h-9 items-center justify-between gap-2 px-1">
         <h2 className="truncate text-xl font-semibold text-sidebar-ink">{section.label}</h2>
         <button type="button" aria-label="Hide panel" onClick={toggle} className={ROW_ACTION}><Icon name="panel-left" className="size-5" /></button>
@@ -151,8 +151,8 @@ export function RailSidebar() {
   const current = sections.find((s) => s.items.some((item) => matches(item, pathname)));
 
   return (
-    <aside aria-label="Application" className={cn('flex h-full shrink-0 bg-sidebar', floating ? 'm-2 overflow-hidden rounded-2xl border border-sidebar-line' : 'border-r border-sidebar-line')}>
-      <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-2xl bg-rail py-4 text-sidebar-ink">
+    <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden bg-sidebar', floating ? 'm-2 rounded-2xl border border-sidebar-line' : 'border-r border-sidebar-line')}>
+      <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden rounded-2xl bg-rail py-4 text-sidebar-ink">
         <div className="mb-4"><WorkspaceSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
           {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} />)}
