@@ -38,12 +38,14 @@
 :root {
   --accent: #7f56d9; --accent-hover: #6941c6; --accent-soft: #f9f5ff; --accent-ink: #ffffff;
   --link: #6941c6; --ring: #f4ebff;
+  --chrome: #eaecf0; /* the surface around the page card in the Inset style */
   --sidebar: #ffffff; --sidebar-ink: #101828; --sidebar-muted: #475467; --sidebar-line: #eaecf0; --sidebar-accent: #f2f4f7; --rail: #f2f4f7;
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {
   --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #1b1626; --accent-ink: #ffffff;
   --link: #b692f6; --ring: rgba(158, 119, 237, 0.28);
+  --chrome: #050506;
   --sidebar: #050506; --sidebar-ink: #ededee; --sidebar-muted: #a1a1a8; --sidebar-line: #1f1f22; --sidebar-accent: #161618; --rail: #0c0c0e;
 }
 
@@ -62,13 +64,13 @@
 
 /* midnight: navy accent + dark navy sidebar in both modes */
 :root[data-tenant-theme="midnight"], :root[data-theme="dark"][data-tenant-theme="midnight"] {
-  --rail: #000521; --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+  --rail: #000521; --chrome: #00072d; --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
 }
 :root[data-tenant-theme="midnight"] { --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22); }
 :root[data-theme="dark"][data-tenant-theme="midnight"] { --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120; --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28); }
 
 @theme inline {
-  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line); --color-line-strong: var(--line-strong); --color-rail: var(--rail); --color-placeholder: var(--placeholder);
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line); --color-line-strong: var(--line-strong); --color-rail: var(--rail); --color-chrome: var(--chrome); --color-placeholder: var(--placeholder);
   --color-ink: var(--ink); --color-muted: var(--muted);
   --color-accent: var(--accent); --color-accent-hover: var(--accent-hover); --color-accent-soft: var(--accent-soft); --color-accent-ink: var(--accent-ink);
   --color-sidebar: var(--sidebar); --color-sidebar-ink: var(--sidebar-ink); --color-sidebar-muted: var(--sidebar-muted); --color-sidebar-line: var(--sidebar-line);
@@ -88,14 +90,14 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 }
 /* Owner's navigation colour (Customize › Colors): overrides the sidebar / top-bar tokens in light and dark. */
 :root[data-nav-color="navy"], :root[data-theme="dark"][data-nav-color="navy"] {
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d; --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
+  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d; --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="slate"], :root[data-theme="dark"][data-nav-color="slate"] {
-  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a; --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
+  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a; --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="accent"], :root[data-theme="dark"][data-nav-color="accent"] {
   --sidebar: var(--accent); --sidebar-ink: var(--accent-ink); --sidebar-muted: color-mix(in srgb, var(--accent-ink) 70%, transparent); --sidebar-line: color-mix(in srgb, var(--accent-ink) 22%, transparent);
-  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
+  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent); --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 
 @keyframes sheet-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }

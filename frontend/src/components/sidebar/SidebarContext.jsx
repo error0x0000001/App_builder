@@ -36,7 +36,7 @@ export function SidebarProvider({ children }) {
 
   return (
     <SidebarContext.Provider value={value}>
-      <div data-variant={variant} data-layout={layout} className={`flex h-svh w-full overflow-hidden ${layout === 'topbar' ? 'flex-col' : ''} ${variant === 'floating' ? 'bg-bg' : 'bg-sidebar'}`}>{children}</div>
+      <div data-variant={variant} data-layout={layout} className={`flex h-svh w-full overflow-hidden ${layout === 'topbar' ? 'flex-col' : ''} ${{ flat: 'bg-sidebar', inset: 'bg-chrome', floating: 'bg-bg' }[variant]}`}>{children}</div>
     </SidebarContext.Provider>
   );
 }

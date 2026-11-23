@@ -41,12 +41,12 @@ export function Sidebar({ label = 'Sidebar', children }) {
 
 /**
  * The main content area, always exactly the remaining viewport — its content scrolls inside, it never grows. Flat: flush with the
- * navigation (the navigation draws the divider). Inset and floating: a rounded bordered card with a small margin.
+ * navigation (the navigation draws the divider). Inset: a rounded bordered card on the tinted navigation surface. Floating: a rounded bordered card beside the navigation card.
  */
 export function SidebarInset({ children }) {
   const { layout, variant } = useSidebar();
   const card = variant !== 'flat';
-  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-inset', card && 'rounded-xl border border-line', card && (layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0'))}>{children}</div>;
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', card ? 'bg-surface' : 'bg-inset', card && 'rounded-xl border border-line', card && (layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0'))}>{children}</div>;
 }
 
 const TRIGGER_TONES = {

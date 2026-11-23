@@ -76,7 +76,7 @@ export function RailSidebar() {
   const current = sections.find((s) => s.items.some((item) => isActivePath(item, pathname)));
 
   return (
-    <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden bg-sidebar', floating ? 'm-2 rounded-2xl border border-sidebar-line' : 'border-r border-sidebar-line')}>
+    <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden', floating ? 'm-2 rounded-2xl border border-sidebar-line bg-sidebar' : variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden rounded-2xl bg-rail py-4 text-sidebar-ink">
         <div className="mb-4"><WorkspaceSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
