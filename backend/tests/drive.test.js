@@ -180,7 +180,7 @@ describe('documents: access control', () => {
     assert.equal((await alice.request('PUT', `${D}/folders/${finance.id}/access`, { entries: [{ principalType: 'user', principalId: strangerId, role: 'viewer' }] })).status, 400, 'cannot share with a non-member');
     const info = await alice.get(`${D}/folders/${finance.id}/access`);
     assert.equal(info.body.owner.id, aliceId); assert.equal(info.body.folder.role, 'manager');
-    assert.equal((await boss.get(`${D}/people?q=meera`)).body.people.length >= 2, true, 'the share dialog can search members');
+    assert.equal((await boss.get(`/people?q=meera`)).body.people.length >= 2, true, 'every "add people" picker can search members');
   });
 
   it('record attachments use the record uuid, follow the record permission, and show up in Documents', async () => {

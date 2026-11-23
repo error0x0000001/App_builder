@@ -13,7 +13,7 @@ let accessToken = null;
 let refreshInFlight = null;
 const expiredListeners = new Set();
 
-export const tokenStore = { clear: () => { accessToken = null; } };
+export const tokenStore = { clear: () => { accessToken = null; }, current: () => accessToken };
 export const onSessionExpired = (listener) => { expiredListeners.add(listener); return () => expiredListeners.delete(listener); };
 
 async function send(path, { method = 'GET', body, signal } = {}) {

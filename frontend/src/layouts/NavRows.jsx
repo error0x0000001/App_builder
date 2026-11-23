@@ -6,6 +6,7 @@ import { Icon } from '../components/ui/Icon.jsx';
 import { cn } from '../lib/cn.js';
 import { isVisibleTo, NAV } from './navigation.js';
 import { useSearch } from './SearchContext.jsx';
+import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 
 /**
  * The navigation rows shared by the icon-rail panel and the classic sidebar, so both look and behave the same: 44px rows with a 22px
@@ -26,15 +27,22 @@ export function useNavSections() {
 const ROW = 'flex h-11 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-[15px] font-medium text-sidebar-ink outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring';
 export const ROW_ACTION = 'grid size-9 shrink-0 place-items-center rounded-lg text-sidebar-muted outline-none hover:bg-sidebar-accent hover:text-sidebar-ink focus-visible:ring-2 focus-visible:ring-ring';
 
+/** A live count for items that have one (Chat shows its unread messages); otherwise the static `badge` from navigation.js. */
+function useNavBadge(item) {
+  const unread = useChatUnread();
+  return item.to === '/app/chat' ? (unread > 0 ? (unread > 99 ? '99+' : unread) : null) : item.badge;
+}
+
 function PanelRow({ item }) {
   const { activeWorkspace } = useAuth();
+  const badge = useNavBadge(item);
   const canCreate = item.create && hasRole(activeWorkspace?.role, 'member');
   return (
     <li className="flex items-center">
       <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(ROW, isActive && 'bg-sidebar-accent')}>
         <Icon name={item.icon} className="size-5.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        {item.badge != null && <span className="rounded-md bg-sidebar-accent px-1.5 text-xs leading-5 text-sidebar-muted">{item.badge}</span>}
+        {badge != null && <span className="rounded-md bg-sidebar-accent px-1.5 text-xs leading-5 text-sidebar-muted">{badge}</span>}
       </NavLink>
       {canCreate && <Link to={`${item.to}?new=1`} aria-label={`New ${item.label}`} title={`New ${item.label}`} className={ROW_ACTION}><Icon name="plus" className="size-5" /></Link>}
     </li>

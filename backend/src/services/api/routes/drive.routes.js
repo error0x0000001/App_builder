@@ -94,7 +94,6 @@ export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
 
   router.get('/usage', async (req, res) => send(res, await drive.usage(ctx(req))));
   router.get('/list', validate({ query: driveListQuerySchema }), async (req, res) => send(res, await drive.list(ctx(req), req.valid.query)));
-  router.get('/people', validate({ query: z.object({ q: z.string().trim().min(2).max(60) }) }), async (req, res) => send(res, await drive.people(ctx(req), req.valid.query.q)));
 
   router.post('/folders', validate({ body: createFolderSchema }), async (req, res) => send(res, await drive.createFolder(ctx(req), req.valid.body), 201));
   router.patch('/folders/:id', validate({ params: idParam, body: patchFolderSchema }), async (req, res) => send(res, await drive.renameOrMoveFolder(ctx(req), req.params.id, req.valid.body)));

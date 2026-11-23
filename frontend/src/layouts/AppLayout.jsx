@@ -10,6 +10,7 @@ import { CustomizeSheet } from './CustomizeSheet.jsx';
 import { GlobalSearch } from './GlobalSearch.jsx';
 import { SearchProvider } from './SearchContext.jsx';
 import { ImpersonationBanner } from './ImpersonationBanner.jsx';
+import { ChatRealtimeProvider } from '../pages/chat/ChatRealtime.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
 import { TopBar } from './TopBar.jsx';
 
@@ -41,11 +42,13 @@ export function AppLayout() {
     <SidebarProvider>
       <CustomizeProvider>
         <SearchProvider>
-          <PageHeaderProvider>
-            <Shell bleed={bleed} />
-            <GlobalSearch />
-            <CustomizeSheet />
-          </PageHeaderProvider>
+          <ChatRealtimeProvider>
+            <PageHeaderProvider>
+              <Shell bleed={bleed} />
+              <GlobalSearch />
+              <CustomizeSheet />
+            </PageHeaderProvider>
+          </ChatRealtimeProvider>
         </SearchProvider>
       </CustomizeProvider>
     </SidebarProvider>

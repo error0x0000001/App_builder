@@ -1,6 +1,7 @@
 import {
   AlertTriangle, ArrowDown, Clock, Folder, FolderPlus, FilePlus02, HardDrive, Link01, List, Move, Paperclip, ReverseLeft, Star01, Upload01, UserPlus01, Globe01, ArrowUp, Announcement01, Briefcase01, Building02, Calendar, CheckSquare, Cloud01, Code01, CornerDownLeft, Cube01, Database01, Grid01, Key01, LifeBuoy01, Minus, Palette, Settings01, Stars01, Target01, TrendUp01, Zap, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronSelectorVertical, Copy01, DotsHorizontal, Download01, Edit01, Eye, EyeOff, FileSearch02, FilterLines,
   Home02, InfoCircle, LayoutLeft, Lock01, LogOut01, Mail01, Monitor01, Moon01, Plus, RefreshCw01, SearchLg, Sliders01, Sun, SwitchVertical01, Trash01, User01, Users01, XClose, ShieldTick,
+  FaceSmile, CornerUpLeft, CornerUpRight, Pin01, Send01, MessageChatCircle, Bell01, BellOff01, Archive, Phone01, VideoRecorder, UserPlus02, Microphone01, MicrophoneOff01, PhoneX, Airplay,
 } from '@untitledui/icons';
 
 /**
@@ -14,6 +15,8 @@ const ICONS = {
   eye: Eye, 'eye-off': EyeOff, sun: Sun, moon: Moon01, monitor: Monitor01, mail: Mail01, lock: Lock01, calendar: Calendar, alert: AlertTriangle, info: InfoCircle,
   'log-out': LogOut01, 'panel-left': LayoutLeft, 'chevrons-up-down': ChevronSelectorVertical, 'chevron-right': ChevronRight, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft,
   'more-horizontal': DotsHorizontal,
+  smile: FaceSmile, reply: CornerUpLeft, forward: CornerUpRight, pin: Pin01, send: Send01, chat: MessageChatCircle, bell: Bell01, 'bell-off': BellOff01, archive: Archive,
+  phone: Phone01, video: VideoRecorder, 'user-plus': UserPlus02, mic: Microphone01, 'mic-off': MicrophoneOff01, 'phone-off': PhoneX, 'screen-share': Airplay,
 };
 
 export function Icon({ name, className = 'size-4', ...rest }) {

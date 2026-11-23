@@ -39,6 +39,7 @@ import { IntakeService } from '../../modules/automation/intake.service.js';
 import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
+import { PeopleService } from '../../modules/users/people.service.js';
 import { ChatService } from '../../modules/chat/chat.service.js';
 import { createBus } from '../../modules/chat/bus.js';
 import { PresenceStore } from '../../modules/chat/presence.js';
@@ -99,6 +100,7 @@ export function createContainer({ boss }) {
     db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
     limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
   });
+  const people = new PeopleService({ db: readDb });
   const bus = createBus(config.REDIS_URL);
   const presence = new PresenceStore({ redis: cache.redis });
   const chat = new ChatService({ db, bus, cache, users });
@@ -112,5 +114,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { chat, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { people, chat, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

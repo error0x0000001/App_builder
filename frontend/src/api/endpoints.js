@@ -89,7 +89,6 @@ const form = (file, fields = {}) => { const data = new FormData(); for (const [k
 export const driveApi = {
   usage: () => get('/drive/usage'),
   list: (params, options) => get(`/drive/list${qs(params)}`, options),
-  people: (q) => get(`/drive/people${qs({ q })}`),
   createFolder: (name, parentId) => post('/drive/folders', { name, parentId: parentId ?? null }),
   patchFolder: (id, body) => patch(`/drive/folders/${id}`, body),
   access: (id) => get(`/drive/folders/${id}/access`),
@@ -105,4 +104,33 @@ export const driveApi = {
   upload: (folderId, file, options) => upload('/drive/files', form(file, { folderId }), options),
   recordFiles: (object, id) => get(`/drive/records/${object}/${id}/files`),
   uploadRecordFile: (object, id, file, options) => upload(`/drive/records/${object}/${id}/files`, form(file), options),
+};
+
+export const peopleApi = { search: (q) => get(`/people${qs({ q })}`) };
+
+export const chatApi = {
+  inbox: ({ archived } = {}) => get(`/chat/conversations${qs({ archived: archived ? '1' : undefined, limit: 100 })}`),
+  unread: () => get('/chat/unread'),
+  conversation: (id) => get(`/chat/conversations/${id}`),
+  openDm: (userId) => post('/chat/dm', { userId }),
+  createGroup: (body) => post('/chat/groups', body),
+  update: (id, body) => patch(`/chat/conversations/${id}`, body),
+  setState: (id, body) => patch(`/chat/conversations/${id}/state`, body),
+  setLegalHold: (id, on) => request(`/chat/conversations/${id}/legal-hold`, { method: 'PUT', body: { on } }),
+  createInvite: (id) => post(`/chat/conversations/${id}/invite`),
+  revokeInvite: (id) => del(`/chat/conversations/${id}/invite`),
+  join: (code) => post(`/chat/join/${code}`),
+  addMembers: (id, userIds) => post(`/chat/conversations/${id}/members`, { userIds }),
+  setRole: (id, userId, role) => request(`/chat/conversations/${id}/members/${userId}`, { method: 'PUT', body: { role } }),
+  removeMember: (id, userId) => del(`/chat/conversations/${id}/members/${userId}`),
+  messages: (id, { before } = {}) => get(`/chat/conversations/${id}/messages${qs({ before, limit: 50 })}`),
+  send: (id, body) => post(`/chat/conversations/${id}/messages`, body),
+  edit: (id, messageId, body) => patch(`/chat/conversations/${id}/messages/${messageId}`, { body }),
+  remove: (id, messageId) => del(`/chat/conversations/${id}/messages/${messageId}`),
+  react: (id, messageId, emoji) => request(`/chat/conversations/${id}/messages/${messageId}/reactions`, { method: 'PUT', body: { emoji } }),
+  pin: (id, messageId) => request(`/chat/conversations/${id}/messages/${messageId}/pin`, { method: 'PUT', body: {} }),
+  pins: (id) => get(`/chat/conversations/${id}/pins`),
+  markRead: (id, messageId) => post(`/chat/conversations/${id}/read`, { messageId }),
+  search: (q, conversationId) => get(`/chat/search${qs({ q, conversationId })}`),
+  presence: (ids) => get(`/chat/presence${qs({ ids: ids.join(',') })}`),
 };

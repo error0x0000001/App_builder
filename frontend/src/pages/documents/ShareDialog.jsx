@@ -1,6 +1,6 @@
 import { DRIVE_ROLES, DRIVE_ROLE_LABELS } from '@app/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { driveApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
@@ -8,11 +8,10 @@ import { Avatar } from '../../components/ui/Avatar.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { Dialog } from '../../components/ui/Dialog.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
-import { SearchInput } from '../../components/ui/SearchInput.jsx';
+import { PeoplePicker } from '../../components/ui/PeoplePicker.jsx';
 import { Select } from '../../components/ui/Select.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Switch } from '../../components/ui/Switch.jsx';
-import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 
 const ROLE_OPTIONS = DRIVE_ROLES.map((value) => ({ value, label: DRIVE_ROLE_LABELS[value] }));
 const GENERAL_OPTIONS = [{ value: '', label: 'Restricted — only people added below' }, { value: 'viewer', label: 'Everyone in this workspace can view' }, { value: 'editor', label: 'Everyone in this workspace can edit' }];
@@ -28,21 +27,17 @@ export function ShareDialog({ open, folder, onClose }) {
   const { data, isPending, error: loadError } = useQuery({ queryKey: ['drive', 'access', folder?.id], queryFn: () => driveApi.access(folder.id), enabled: open && Boolean(folder), gcTime: 0 });
   const [entries, setEntries] = useState([]);
   const [inherit, setInherit] = useState(true);
-  const [search, setSearch] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  const q = useDebouncedValue(search.trim(), 200);
   const canEdit = data?.folder.role === 'manager';
 
-  useEffect(() => { if (data) { setEntries(data.entries); setInherit(data.folder.inherit); setSearch(''); setError(null); } }, [data]);
-  const { data: found } = useQuery({ queryKey: ['drive', 'people', q], queryFn: () => driveApi.people(q), enabled: open && canEdit && q.length >= 2 });
+  useEffect(() => { if (data) { setEntries(data.entries); setInherit(data.folder.inherit); setError(null); } }, [data]);
 
   const people = entries.filter((e) => e.principalType === 'user');
   const general = entries.find((e) => e.principalType === 'workspace')?.role ?? '';
-  const suggestions = useMemo(() => (found?.people ?? []).filter((p) => p.id !== data?.owner.id && !people.some((e) => e.principalId === p.id)), [found, people, data]);
 
   const setRole = (principalId, role) => setEntries((list) => list.map((e) => (e.principalId === principalId ? { ...e, role } : e)));
-  const add = (person) => { setEntries((list) => [...list, { principalType: 'user', principalId: person.id, role: 'viewer', name: person.name, email: person.email }]); setSearch(''); };
+  const add = (person) => { setEntries((list) => [...list, { principalType: 'user', principalId: person.id, role: 'viewer', name: person.name, email: person.email }]); };
   const setGeneral = (role) => setEntries((list) => [...list.filter((e) => e.principalType !== 'workspace'), ...(role ? [{ principalType: 'workspace', principalId: workspaceId, role, name: 'Everyone in this workspace', email: null }] : [])]);
 
   const save = async () => {
@@ -65,19 +60,7 @@ export function ShareDialog({ open, folder, onClose }) {
         {isPending ? <div className="flex justify-center py-10"><Spinner /></div> : (
           <>
             {canEdit && (
-              <div className="relative">
-                <SearchInput label="Add people" placeholder="Add people by name or email" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} className="h-10 w-full" />
-                {q.length >= 2 && (
-                  <ul role="listbox" aria-label="People" className="absolute inset-x-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-line bg-surface p-1">
-                    {suggestions.map((p) => (
-                      <li key={p.id}><button type="button" role="option" aria-selected="false" onClick={() => add(p)} className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-2">
-                        <Avatar name={p.name} size="size-7" /><span className="min-w-0"><span className="block truncate font-medium text-ink">{p.name}</span><span className="block truncate text-xs text-muted">{p.email}</span></span>
-                      </button></li>
-                    ))}
-                    {!suggestions.length && <li className="px-3 py-2 text-sm text-muted">No matching people left to add</li>}
-                  </ul>
-                )}
-              </div>
+              <PeoplePicker exclude={[data.owner.id, ...people.map((e) => e.principalId)]} onPick={add} />
             )}
 
             <section aria-label="People with access" className="space-y-1">
