@@ -41,7 +41,8 @@ function UserMenuContent({ side, align, className }) {
 }
 
 /** Top bar: just the avatar, same menu. */
-export function NavUserCompact({ side = 'bottom', align = 'end' }) {
+/** `rail`: round 40px avatar with a presence dot, for the icon rail. */
+export function NavUserCompact({ side = 'bottom', align = 'end', rail = false }) {
   const { user } = useAuth();
   const fullName = `${user.firstName} ${user.lastName}`;
   return (
@@ -49,7 +50,12 @@ export function NavUserCompact({ side = 'bottom', align = 'end' }) {
       <DropdownMenuTrigger>
         {(props) => (
           <button type="button" aria-label={`Account menu for ${fullName}`} className="grid size-9 place-items-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
-            <Avatar name={fullName} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+            {rail ? (
+              <span className="relative">
+                <Avatar name={fullName} size="size-10" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+                <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-rail bg-success" />
+              </span>
+            ) : <Avatar name={fullName} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />}
           </button>
         )}
       </DropdownMenuTrigger>

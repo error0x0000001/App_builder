@@ -38,7 +38,7 @@
 :root {
   --accent: #7f56d9; --accent-hover: #6941c6; --accent-soft: #f9f5ff; --accent-ink: #ffffff;
   --link: #6941c6; --ring: #f4ebff;
-  --sidebar: #ffffff; --sidebar-ink: #101828; --sidebar-muted: #475467; --sidebar-line: #eaecf0; --sidebar-accent: #f9fafb; --rail: #f9fafb;
+  --sidebar: #ffffff; --sidebar-ink: #101828; --sidebar-muted: #475467; --sidebar-line: #eaecf0; --sidebar-accent: #f2f4f7; --rail: #f2f4f7;
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {

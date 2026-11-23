@@ -63,6 +63,14 @@ function ObjectBody({ object, definition, permissions }) {
     objectsApi.get(object, openId).then(({ record }) => setDialog({ mode: 'edit', record })).catch(() => {}).finally(() => setParams({}, { replace: true }));
   }, [openId, object, setParams]);
 
+  // Navigation "+" deep link: /app/o/Lead?new=1 opens the New dialog (only when this person may create).
+  const wantsNew = params.get('new');
+  useEffect(() => {
+    if (!wantsNew) return;
+    if (canCreate) setDialog({ mode: 'create' });
+    setParams({}, { replace: true });
+  }, [wantsNew, canCreate, setParams]);
+
   const records = useInfiniteQuery({
     queryKey: ['objects', 'records', object, { q }],
     queryFn: ({ pageParam }) => objectsApi.records(object, { after: pageParam, q }),
