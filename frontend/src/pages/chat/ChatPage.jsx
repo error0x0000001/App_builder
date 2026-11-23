@@ -17,10 +17,10 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { status } = useChatRealtime();
-  const listInNav = useNavPanel(); // the rail panel / sidebar already shows the inbox — and the info, which replaces it there
+  const listInNav = useNavPanel(); // the rail panel / sidebar already shows the inbox
   const [creating, setCreating] = useState(null);
   const [params, setParams] = useSearchParams();
-  const info = params.get('info') === '1'; // the URL carries it so the sidebar panel and this page agree
+  const info = params.get('info') === '1'; // the contact / group info: always a panel on the right of the conversation
   const setInfo = (next) => setParams((p) => { const q = new URLSearchParams(p); if (typeof next === 'function' ? next(info) : next) q.set('info', '1'); else q.delete('info'); return q; }, { replace: true });
   const open = (conversationId) => navigate(`/app/chat/${conversationId}`);
 
@@ -46,7 +46,7 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-      {id && info && !listInNav && <aside className="fixed inset-0 z-[60] min-h-0 border-l border-line lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></aside>}
+      {id && info && <aside className="fixed inset-0 z-[60] min-h-0 border-l border-line lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></aside>}
       <NewChatDialog mode={creating} onClose={() => setCreating(null)} onOpen={open} />
     </div>
   );

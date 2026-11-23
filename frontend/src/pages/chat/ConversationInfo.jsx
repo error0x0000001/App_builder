@@ -124,10 +124,9 @@ function Reschedule({ conversation, onSaved }) {
 
 /**
  * The contact / group info (Untitled UI "user profile" drawer): gradient banner and photo with presence, role tags, Audio / Video, About, shared media / docs / links,
- * notification settings with tinted icons, members (groups) or groups in common (people). It renders inside the sidebar panel (`onBack`), or as the page's own
- * column when the navigation has no panel (`onClose`).
+ * notification settings with tinted icons, members (groups) or groups in common (people). Always a panel on the right of the conversation.
  */
-export function ConversationInfo({ conversationId, onClose, onBack }) {
+export function ConversationInfo({ conversationId, onClose }) {
   const { user, activeWorkspace } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -165,9 +164,7 @@ export function ConversationInfo({ conversationId, onClose, onBack }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface" role="complementary" aria-label={group ? 'Group info' : 'Contact info'}>
       <div className="flex h-14 shrink-0 items-center gap-2 px-3">
-        {onBack
-          ? <Button size="icon" variant="ghost" aria-label="Back to chats" onClick={onBack}><Icon name="chevron-left" className="size-4" /></Button>
-          : <Button size="icon" variant="ghost" aria-label="Close info" onClick={onClose}><Icon name="x" className="size-4" /></Button>}
+        <Button size="icon" variant="ghost" aria-label="Close info" onClick={onClose}><Icon name="x" className="size-4" /></Button>
         <h2 className="text-base font-semibold text-ink">{group ? 'Group info' : 'Contact info'}</h2>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
