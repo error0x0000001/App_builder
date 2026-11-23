@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
-import { ConflictError, ForbiddenError, NotFoundError } from '../../shared/errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
 
 const STALE_AFTER_MS = 12 * 3600_000; // a call row older than this with an empty room is a leftover, not a call
 const EMPTY_GRACE_MS = 2 * 60_000; // a call that nobody is in yet is only reaped after this long (the caller is still connecting)
@@ -66,6 +66,7 @@ export class CallService {
     await this.chat.member(ctx, conversationId);
     const call = await this.#active(conversationId);
     if (!call) throw new NotFoundError('There is no call in progress');
+    if ((call.removed ?? []).includes(ctx.userId)) throw new ForbiddenError('The host removed you from this call');
     const { name } = (await this.chat.people([ctx.userId]))[ctx.userId];
     await this.#rows(sql`update chat_calls set joined = case when joined @> ${JSON.stringify([ctx.userId])}::jsonb then joined else joined || ${JSON.stringify([ctx.userId])}::jsonb end where id = ${call.id}`);
     return {
@@ -100,6 +101,29 @@ export class CallService {
     if (!call) return { ok: true };
     if (call.started_by !== ctx.userId && !(m.kind === 'group' && m.role === 'admin')) throw new ForbiddenError('Only the person who started the call or a group admin can end it for everyone');
     await this.#finish(ctx, call, { closeRoom: true });
+    return { ok: true };
+  }
+
+  /**
+   * Host controls: mute one person, mute everyone else, or remove someone (who then cannot rejoin). The host is whoever started the call, or an
+   * admin of the group. Everyone else may only control their own devices in the browser.
+   */
+  async moderate(ctx, conversationId, { action, userId }) {
+    this.#assertEnabled();
+    const m = await this.chat.member(ctx, conversationId);
+    const call = await this.#active(conversationId);
+    if (!call) throw new NotFoundError('There is no call in progress');
+    if (call.started_by !== ctx.userId && !(m.kind === 'group' && m.role === 'admin')) throw new ForbiddenError('Only the host can do that');
+    if (action === 'mute-all') {
+      const everyone = await this.livekit.participants(conversationId);
+      let muted = 0;
+      for (const id of everyone.filter((i) => i !== ctx.userId)) muted += await this.livekit.muteMicrophone(conversationId, id);
+      return { ok: true, muted };
+    }
+    if (!userId || userId === ctx.userId) throw new ValidationError({ userId: 'Choose another participant' });
+    if (action === 'mute') return { ok: true, muted: await this.livekit.muteMicrophone(conversationId, userId) };
+    await this.#rows(sql`update chat_calls set removed = case when removed @> ${JSON.stringify([userId])}::jsonb then removed else removed || ${JSON.stringify([userId])}::jsonb end where id = ${call.id}`);
+    await this.livekit.removeParticipant(conversationId, userId);
     return { ok: true };
   }
 

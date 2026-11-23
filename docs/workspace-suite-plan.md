@@ -72,9 +72,10 @@ ringtone, auto-dismiss), join with a member-only 1-hour token, call screen (part
 end for everyone), "call in progress — Join" banner, call lines in the conversation ("started a video call", "Video call ended · 4 min",
 "Missed video call"), webhook-verified end-of-call when a room finishes, config flag (`LIVEKIT_*` unset ⇒ no call buttons). Tested against a real
 LiveKit 1.9 server; setup for macOS in `docs/calls-local-dev.md` (`npm run dev:livekit`).
+**Also built (Phase 2c):** People panel in the call (profile, host badge, who is speaking, mic/camera/screen state), host controls (mute one, mute all, remove — remover cannot rejoin; host = starter or group admin; enforced on the server), in-call Chat panel (the conversation itself), grouped message bubbles.
 **Not verified:** audio/video flowing between browsers (the sandbox cannot establish WebRTC) — needs your first Mac test.
 **Not built yet:** scheduled meetings UI (the `meeting_at` field exists), join link for outsiders / lobby, device picker, raise hand, in-call chat panel,
-recording to Documents, background blur, per-device identities (a second tab of the same person replaces the first).
+recording to Documents, shared meeting notes, hand raise, background blur, per-device identities (a second tab of the same person replaces the first).
 
 ## Decisions (owner)
 - **File storage:** S3-compatible object storage in production (S3, R2 or MinIO). Next step: an S3 `StorageDriver` with presigned direct upload/download.

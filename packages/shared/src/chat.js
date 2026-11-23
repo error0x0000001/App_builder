@@ -51,6 +51,7 @@ export const chatSearchQuerySchema = z.object({
   conversationId: uuidField.optional(),
   limit: z.coerce.number().int().min(1).max(50).default(30),
 }).strict();
+export const callModerateSchema = z.object({ action: z.enum(['mute', 'mute-all', 'remove']), userId: uuidField.optional() }).strict();
 export const callStartSchema = z.object({ video: z.boolean().default(true) }).strict();
 
 /** The two people of a direct conversation, in one canonical order — the key that makes "open a DM" idempotent. */

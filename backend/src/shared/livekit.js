@@ -55,5 +55,21 @@ export class LiveKitClient {
     } catch { return null; }
   }
 
+  /** Connected participants with their published tracks (for moderation). */
+  async participantTracks(room) {
+    const data = await this.#admin('ListParticipants', room, { room });
+    return (data?.participants ?? []).map((p) => ({ identity: p.identity, tracks: (p.tracks ?? []).map((t) => ({ sid: t.sid, type: t.type, source: t.source, muted: t.muted })) }));
+  }
+
+  /** Force-mutes a person's microphone (they can unmute themselves again). Returns how many tracks were muted. */
+  async muteMicrophone(room, identity) {
+    const person = (await this.participantTracks(room)).find((p) => p.identity === identity);
+    const tracks = (person?.tracks ?? []).filter((t) => t.type === 'AUDIO' && !t.muted);
+    for (const t of tracks) await this.#admin('MutePublishedTrack', room, { room, identity, trackSid: t.sid, muted: true });
+    return tracks.length;
+  }
+
+  async removeParticipant(room, identity) { await this.#admin('RemoveParticipant', room, { room, identity }); }
+
   async closeRoom(room) { await this.#admin('DeleteRoom', room, { room }); }
 }

@@ -138,5 +138,6 @@ export const chatApi = {
   joinCall: (id) => post(`/chat/conversations/${id}/call/join`),
   declineCall: (id) => post(`/chat/conversations/${id}/call/decline`),
   leaveCall: (id) => post(`/chat/conversations/${id}/call/leave`),
+  moderateCall: (id, body) => post(`/chat/conversations/${id}/call/moderate`, body),
   endCall: (id) => post(`/chat/conversations/${id}/call/end`),
 };

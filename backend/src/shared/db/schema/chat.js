@@ -104,6 +104,7 @@ export const chatCalls = pgTable(
     conversationId: uuid('conversation_id').notNull(),
     startedBy: uuid('started_by').notNull(),
     video: boolean('video').notNull().default(true),
+    removed: jsonb('removed').notNull().default([]), // people the host removed: they cannot rejoin this call
     joined: jsonb('joined').notNull().default([]), // user ids who actually joined (a call only the starter joined is "missed")
     startedAt: createdAt(),
     endedAt: tz('ended_at'),

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   addMembersSchema, chatSearchQuerySchema, createDmSchema, createGroupSchema, editMessageSchema, inboxQuerySchema, memberRoleSchema, memberStateSchema,
-  callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
+  callModerateSchema, callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
 } from '@app/shared';
 import { TooManyRequestsError } from '../../../shared/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -63,6 +63,7 @@ export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, ca
   router.post('/conversations/:id/call/join', validate({ params: idParam }), async (req, res) => send(res, await calls.join(ctx(req), req.params.id)));
   router.post('/conversations/:id/call/decline', validate({ params: idParam }), async (req, res) => send(res, await calls.decline(ctx(req), req.params.id)));
   router.post('/conversations/:id/call/leave', validate({ params: idParam }), async (req, res) => send(res, await calls.leave(ctx(req), req.params.id)));
+  router.post('/conversations/:id/call/moderate', validate({ params: idParam, body: callModerateSchema }), async (req, res) => send(res, await calls.moderate(ctx(req), req.params.id, req.valid.body)));
   router.post('/conversations/:id/call/end', validate({ params: idParam }), async (req, res) => send(res, await calls.end(ctx(req), req.params.id)));
 
   router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));

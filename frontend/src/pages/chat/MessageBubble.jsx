@@ -40,7 +40,7 @@ function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRu
         {showSender && firstOfRun && !mine && <span className="mb-0.5 px-1 text-xs font-semibold text-muted">{sender}</span>}
         <div className={cn('flex items-center gap-1', mine && 'flex-row-reverse')}>
           <div
-            className={cn('min-w-0 break-words rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere]', mine ? 'bg-accent text-accent-ink' : 'border border-line bg-surface-2 text-ink', mine ? 'rounded-br-md' : 'rounded-bl-md', message.pending && 'opacity-70', deleted && 'italic opacity-70')}
+            className={cn('min-w-0 break-words rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere]', mine ? 'bg-accent text-accent-ink' : 'border border-line bg-surface-2 text-ink', mine ? 'rounded-br-md' : 'rounded-bl-md', !firstOfRun && (mine ? 'rounded-tr-md' : 'rounded-tl-md'), message.pending && 'opacity-70', deleted && 'italic opacity-70')}
           >
             {message.forwarded && !deleted && <p className="mb-1 flex items-center gap-1 text-xs opacity-80"><Icon name="forward" className="size-3" />Forwarded</p>}
             {message.replyPreview && !deleted && (

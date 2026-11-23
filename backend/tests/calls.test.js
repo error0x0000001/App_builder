@@ -117,6 +117,36 @@ describe('calls inside chat', () => {
     assert.equal((await a.person.get(`${C}/conversations/${conv}`)).body.conversation.activeCall, null);
   });
 
+  it('host controls: only the host mutes or removes, a removed person cannot rejoin', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'Asha'); const b = await join(boss, 'Bela'); const c = await join(boss, 'Chitra');
+    const group = (await a.person.post(`${C}/groups`, { title: 'Standup', memberIds: [b.id, c.id] })).body.conversation.id;
+    const calls = server.container.calls;
+    const real = calls.livekit;
+    const log = [];
+    const originals = { participants: real.participants, muteMicrophone: real.muteMicrophone, removeParticipant: real.removeParticipant };
+    Object.assign(real, {
+      participants: async () => [a.id, b.id, c.id],
+      muteMicrophone: async (room, id) => { log.push(`mute:${id}`); return 1; },
+      removeParticipant: async (room, id) => { log.push(`remove:${id}`); },
+    });
+    try {
+      await a.person.post(`${C}/conversations/${group}/call`, { video: true });
+      const M = `${C}/conversations/${group}/call/moderate`;
+      assert.equal((await b.person.post(M, { action: 'mute', userId: c.id })).status, 403, 'a participant is not the host');
+      assert.equal((await b.person.post(M, { action: 'remove', userId: c.id })).status, 403);
+      assert.equal((await a.person.post(M, { action: 'mute', userId: b.id })).body.muted, 1);
+      assert.equal((await a.person.post(M, { action: 'mute-all' })).body.muted, 2, 'mute-all skips the host');
+      assert.equal((await a.person.post(M, { action: 'mute', userId: a.id })).status, 400, 'the host cannot target themself');
+      assert.equal((await a.person.post(M, { action: 'remove', userId: c.id })).status, 200);
+      assert.deepEqual(log, [`mute:${b.id}`, `mute:${b.id}`, `mute:${c.id}`, `remove:${c.id}`]);
+      assert.equal((await c.person.post(`${C}/conversations/${group}/call/join`)).status, 403, 'a removed person cannot rejoin');
+      assert.equal((await b.person.post(`${C}/conversations/${group}/call/join`)).status, 200);
+      await a.person.put(`${C}/conversations/${group}/members/${b.id}`, { role: 'admin' }); // a group admin is a host too
+      assert.equal((await b.person.post(M, { action: 'mute', userId: c.id })).status, 200);
+    } finally { Object.assign(real, originals); }
+  });
+
   it('refuses to start calls when LiveKit is not configured', async () => {
     const calls = server.container.calls;
     const original = calls.livekit.enabled;

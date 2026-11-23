@@ -40,13 +40,13 @@ export function CallProvider({ children }) {
     setIncoming(null);
     setSession({ conversationId, video, status: 'connecting', startedBy });
     try {
-      const { Room, RoomEvent } = await import('livekit-client');
+      const { Room, RoomEvent, DisconnectReason } = await import('livekit-client');
       const { url, token } = await chatApi.joinCall(conversationId);
       const next = new Room({ adaptiveStream: true, dynacast: true });
       room.current = next;
       [RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected, RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted,
         RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ActiveSpeakersChanged, RoomEvent.ParticipantNameChanged].forEach((event) => next.on(event, rerender));
-      next.on(RoomEvent.Disconnected, () => { if (room.current === next) { room.current = null; chatApi.leaveCall(conversationId).catch(() => {}); setSession({ ended: true, notice: 'You were disconnected from the call' }); } });
+      next.on(RoomEvent.Disconnected, (reason) => { if (room.current === next) { room.current = null; chatApi.leaveCall(conversationId).catch(() => {}); setSession({ ended: true, notice: reason === DisconnectReason.PARTICIPANT_REMOVED ? 'The host removed you from the call' : 'You were disconnected from the call' }); } });
       await next.connect(url, token);
       setSession((s) => (s && !s.ended ? { ...s, status: 'connected', connectedAt: Date.now() } : s)); // in the room: the call is on, devices follow
       const blocked = video ? 'Your camera or microphone is blocked. Allow access in the browser address bar to be seen and heard.' : 'Your microphone is blocked. Allow access in the browser address bar to be heard.';

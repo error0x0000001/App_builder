@@ -1,0 +1,1 @@
+ALTER TABLE "chat_calls" ADD COLUMN "removed" jsonb DEFAULT '[]'::jsonb NOT NULL;
