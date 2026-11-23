@@ -1,4 +1,4 @@
-import { DISAPPEAR_OPTIONS, formatBytes, patchConversationSchema } from '@app/shared';
+import { DISAPPEAR_OPTIONS, formatBytes, meetingFormSchema, patchConversationSchema } from '@app/shared';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,8 @@ import { Switch } from '../../components/ui/Switch.jsx';
 import { Tabs } from '../../components/ui/Tabs.jsx';
 import { cn } from '../../lib/cn.js';
 import { formatDate } from '../../lib/format.js';
+import { formatMeeting, localParts, toIso } from '../../lib/meetingTime.js';
+import { MeetingFields } from './MeetingFields.jsx';
 import { PreviewDialog } from '../documents/PreviewDialog.jsx';
 import { FileTypeIcon } from '../documents/FileTypeIcon.jsx';
 import { ImageThumb, asDriveFile } from './Attachments.jsx';
@@ -102,6 +104,14 @@ function GroupDetails({ conversation, onSaved }) {
   );
 }
 
+function Reschedule({ conversation, onSaved }) {
+  const { form, submit, formError } = useAppForm({
+    schema: meetingFormSchema.pick({ date: true, time: true }), defaultValues: localParts(conversation.meetingAt),
+    onSubmit: async ({ date, time }) => { await chatApi.update(conversation.id, { meetingAt: toIso(date, time) }); onSaved(); },
+  });
+  return <Form form={form} onSubmit={submit} error={formError}><MeetingFields /><SubmitButton size="sm">Reschedule</SubmitButton></Form>;
+}
+
 /**
  * The WhatsApp-style info panel: photo, name and contact details, shared media / docs / links, notification and pin settings, the member list
  * and invite link for groups, groups in common for a person, legal hold for workspace admins.
@@ -162,6 +172,8 @@ export function ConversationInfo({ conversationId, onClose }) {
             </div>
 
             {group && (admin ? <Section title="About"><GroupDetails key={`${conversation.title}|${conversation.description}`} conversation={conversation} onSaved={refresh} /></Section> : conversation.description && <Section title="Description"><p className="whitespace-pre-wrap text-sm text-ink">{conversation.description}</p></Section>)}
+
+            {group && conversation.meetingAt && <Section title={`Meeting · ${formatMeeting(conversation.meetingAt)}`}>{admin ? <Reschedule key={conversation.meetingAt} conversation={conversation} onSaved={refresh} /> : <p className="text-sm text-muted">Only admins can reschedule.</p>}</Section>}
 
             <Section title="Media, docs and links"><SharedContent conversationId={conversationId} /></Section>
 

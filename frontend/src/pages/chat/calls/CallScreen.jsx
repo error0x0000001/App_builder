@@ -31,12 +31,14 @@ function Tile({ participant, people, local, source }) {
   const name = participant.name || people[participant.identity]?.name || 'Guest';
   const showVideo = camera?.track && !camera.isMuted;
   const micOn = Boolean(mic) && !mic.isMuted;
+  const hand = participant.attributes?.hand === '1';
   return (
     <>
       <div className={cn('relative aspect-video min-h-0 overflow-hidden rounded-xl border bg-white/10', participant.isSpeaking ? 'border-accent ring-2 ring-accent' : 'border-white/15')} data-participant={participant.identity}>
         {showVideo ? <MediaTrack track={camera.track} kind="video" muted className={cn('size-full object-cover', local && '-scale-x-100')} /> : <div className="grid size-full place-items-center"><Avatar name={name} src={people[participant.identity]?.avatar} size="size-20" className="text-2xl" /></div>}
         {!local && mic?.track && <MediaTrack track={mic.track} kind="audio" />}
         <div className="absolute bottom-2 left-2 flex max-w-[85%] items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white">
+          {hand && <Icon name="hand" className="size-3.5 shrink-0 text-warning" aria-label="Hand raised" />}
           {!micOn && <Icon name="mic-off" className="size-3.5 shrink-0 text-danger" aria-label="Muted" />}
           {!showVideo && <Icon name="video-off" className="size-3.5 shrink-0 text-white/70" aria-label="Camera off" />}
           <span className="truncate">{local ? 'You' : name}</span>
@@ -72,6 +74,7 @@ export function CallScreen({ session, room, myId, onLeave, onEndForAll, onDismis
   const hostId = detail?.activeCall?.startedBy ?? session.startedBy;
   const isHost = hostId === myId || (detail?.kind === 'group' && detail?.role === 'admin');
   const [now, setNow] = useState(Date.now());
+  const rerenderNow = () => setNow(Date.now());
   useEffect(() => { import('livekit-client').then((m) => setSource(m)); }, []);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
@@ -121,6 +124,7 @@ export function CallScreen({ session, room, myId, onLeave, onEndForAll, onDismis
       <footer className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t border-white/15 p-4">
         <Control icon={lp?.isMicrophoneEnabled ? 'mic' : 'mic-off'} label={lp?.isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'} on={Boolean(lp?.isMicrophoneEnabled)} onClick={() => lp?.setMicrophoneEnabled(!lp.isMicrophoneEnabled).catch(() => {})} />
         <Control icon="video" label={lp?.isCameraEnabled ? 'Turn camera off' : 'Turn camera on'} on={Boolean(lp?.isCameraEnabled)} onClick={() => lp?.setCameraEnabled(!lp.isCameraEnabled).catch(() => {})} />
+        <Control icon="hand" label={lp?.attributes?.hand === '1' ? 'Lower hand' : 'Raise hand'} on={lp?.attributes?.hand !== '1'} onClick={() => lp?.setAttributes({ hand: lp.attributes?.hand === '1' ? '' : '1' }).then(rerenderNow).catch(() => {})} />
         <Control icon="screen-share" label={lp?.isScreenShareEnabled ? 'Stop sharing' : 'Share screen'} on={!lp?.isScreenShareEnabled} onClick={() => lp?.setScreenShareEnabled(!lp.isScreenShareEnabled).catch(() => {})} />
         <Control icon="users" label="People" on={panel !== 'people'} onClick={() => setPanel((p) => (p === 'people' ? null : 'people'))} />
         <Control icon="chat" label="Chat" on={panel !== 'chat'} onClick={() => setPanel((p) => (p === 'chat' ? null : 'chat'))} />

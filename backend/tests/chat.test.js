@@ -353,3 +353,31 @@ describe('chat: attachments, shared media, profile photos', () => {
     assert.deepEqual(common, ['Alpha', 'Beta']);
   });
 });
+
+describe('chat: files in Documents', () => {
+  it('shows each member a Chat folder with only their conversations, named after them, read-only', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'member', 'Asha'); const b = await join(boss, 'member', 'Bela'); const c = await join(boss, 'member', 'Chitra');
+    const ab = (await a.person.post(`${C}/dm`, { userId: b.id })).body.conversation.id;
+    const grp = (await a.person.post(`${C}/groups`, { title: 'Launch', memberIds: [c.id] })).body.conversation.id;
+    await a.person.upload(`${C}/conversations/${ab}/files`, { filename: 'dm.txt', content: 'one' });
+    await a.person.upload(`${C}/conversations/${grp}/files`, { filename: 'group.txt', content: 'two' });
+
+    const rootFolders = (client) => client.get('/drive/list').then((r) => r.body.folders);
+    const chatRoot = async (client) => (await rootFolders(client)).find((f) => f.name === 'Chat');
+    assert.ok(await chatRoot(a.person), 'Asha has a Chat folder');
+    assert.equal(await chatRoot(boss), undefined, 'the owner is in neither conversation, so has none');
+
+    const listing = (await a.person.get(`/drive/list?folder=${(await chatRoot(a.person)).id}`)).body;
+    assert.deepEqual(listing.folders.map((f) => f.name).sort(), ['Bela Iyer', 'Launch'], 'a DM is named after the other person');
+    const forB = (await b.person.get(`/drive/list?folder=${(await chatRoot(b.person)).id}`)).body;
+    assert.deepEqual(forB.folders.map((f) => f.name), ['Asha Iyer'], 'Bela sees only hers, named after Asha');
+    const inside = (await b.person.get(`/drive/list?folder=${forB.folders[0].id}`)).body;
+    assert.deepEqual(inside.files.map((f) => f.name), ['dm.txt']);
+    assert.equal(inside.folder.name, 'Asha Iyer'); assert.equal(inside.folder.role, 'viewer', 'read-only in Documents');
+    assert.equal((await c.person.get(`/drive/list?folder=${forB.folders[0].id}`)).status, 404, 'Chitra cannot open the Asha/Bela folder by id');
+    assert.equal((await boss.get(`/drive/list?folder=${forB.folders[0].id}`)).status, 404, 'nor can the workspace owner');
+    assert.equal((await b.person.upload('/drive/files', { fields: { folderId: forB.folders[0].id }, filename: 'x.txt' })).status, 403, 'files are sent from the conversation, not uploaded into its folder');
+    assert.equal((await b.person.post('/drive/folders', { name: 'sub', parentId: forB.folders[0].id })).status, 400);
+  });
+});

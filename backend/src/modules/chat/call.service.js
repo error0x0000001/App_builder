@@ -105,7 +105,7 @@ export class CallService {
   }
 
   /**
-   * Host controls: mute one person, mute everyone else, or remove someone (who then cannot rejoin). The host is whoever started the call, or an
+   * Host controls: mute one person, mute everyone else, lower a raised hand, or remove someone (who then cannot rejoin). The host is whoever started the call, or an
    * admin of the group. Everyone else may only control their own devices in the browser.
    */
   async moderate(ctx, conversationId, { action, userId }) {
@@ -121,6 +121,7 @@ export class CallService {
       return { ok: true, muted };
     }
     if (!userId || userId === ctx.userId) throw new ValidationError({ userId: 'Choose another participant' });
+    if (action === 'lower-hand') { await this.livekit.updateAttributes(conversationId, userId, { hand: '' }); return { ok: true }; }
     if (action === 'mute') return { ok: true, muted: await this.livekit.muteMicrophone(conversationId, userId) };
     await this.#rows(sql`update chat_calls set removed = case when removed @> ${JSON.stringify([userId])}::jsonb then removed else removed || ${JSON.stringify([userId])}::jsonb end where id = ${call.id}`);
     await this.livekit.removeParticipant(conversationId, userId);

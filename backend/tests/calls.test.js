@@ -55,7 +55,7 @@ describe('calls inside chat', () => {
     const joined = (await b.person.post(`${C}/conversations/${conv}/call/join`)).body;
     assert.equal(joined.url, 'ws://127.0.0.1:7880'); assert.equal(joined.identity, b.id);
     const { payload } = await jwtVerify(joined.token, new TextEncoder().encode(process.env.LIVEKIT_API_SECRET), { issuer: 'devkey' });
-    assert.equal(payload.sub, b.id); assert.equal(payload.video.room, conv); assert.equal(payload.video.roomJoin, true);
+    assert.equal(payload.sub, b.id); assert.equal(payload.video.room, conv); assert.equal(payload.video.roomJoin, true); assert.equal(payload.video.canUpdateOwnMetadata, true, 'people may raise their own hand');
     assert.ok(payload.exp - payload.nbf <= 3600, 'tokens are short-lived');
     assert.equal((await outsider.person.post(`${C}/conversations/${conv}/call/join`)).status, 404, 'non-members cannot get a token');
 
@@ -124,11 +124,12 @@ describe('calls inside chat', () => {
     const calls = server.container.calls;
     const real = calls.livekit;
     const log = [];
-    const originals = { participants: real.participants, muteMicrophone: real.muteMicrophone, removeParticipant: real.removeParticipant };
+    const originals = { participants: real.participants, muteMicrophone: real.muteMicrophone, removeParticipant: real.removeParticipant, updateAttributes: real.updateAttributes };
     Object.assign(real, {
       participants: async () => [a.id, b.id, c.id],
       muteMicrophone: async (room, id) => { log.push(`mute:${id}`); return 1; },
       removeParticipant: async (room, id) => { log.push(`remove:${id}`); },
+      updateAttributes: async (room, id, attrs) => { log.push(`attrs:${id}:${JSON.stringify(attrs)}`); },
     });
     try {
       await a.person.post(`${C}/conversations/${group}/call`, { video: true });
@@ -138,8 +139,10 @@ describe('calls inside chat', () => {
       assert.equal((await a.person.post(M, { action: 'mute', userId: b.id })).body.muted, 1);
       assert.equal((await a.person.post(M, { action: 'mute-all' })).body.muted, 2, 'mute-all skips the host');
       assert.equal((await a.person.post(M, { action: 'mute', userId: a.id })).status, 400, 'the host cannot target themself');
+      assert.equal((await b.person.post(M, { action: 'lower-hand', userId: c.id })).status, 403, 'only the host lowers hands');
+      assert.equal((await a.person.post(M, { action: 'lower-hand', userId: c.id })).status, 200);
       assert.equal((await a.person.post(M, { action: 'remove', userId: c.id })).status, 200);
-      assert.deepEqual(log, [`mute:${b.id}`, `mute:${b.id}`, `mute:${c.id}`, `remove:${c.id}`]);
+      assert.deepEqual(log, [`mute:${b.id}`, `mute:${b.id}`, `mute:${c.id}`, `attrs:${c.id}:{"hand":""}`, `remove:${c.id}`]);
       assert.equal((await c.person.post(`${C}/conversations/${group}/call/join`)).status, 403, 'a removed person cannot rejoin');
       assert.equal((await b.person.post(`${C}/conversations/${group}/call/join`)).status, 200);
       await a.person.put(`${C}/conversations/${group}/members/${b.id}`, { role: 'admin' }); // a group admin is a host too

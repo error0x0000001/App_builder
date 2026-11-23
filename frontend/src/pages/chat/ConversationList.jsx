@@ -77,6 +77,7 @@ export function ConversationList({ activeId, onOpen }) {
             <DropdownMenuContent align="end" className="min-w-48">
               <DropdownMenuItem icon="chat" onSelect={() => onNew('dm')}>New message</DropdownMenuItem>
               <DropdownMenuItem icon="users" onSelect={() => onNew('group')}>New group</DropdownMenuItem>
+              <DropdownMenuItem icon="calendar" onSelect={() => onNew('meeting')}>Schedule a meeting</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

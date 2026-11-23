@@ -51,7 +51,7 @@ export class DriveService {
 
   /** What this person may do in a folder: viewer | editor | manager, or null (no access). */
   async roleOn(ctx, folder) {
-    if (folder.kind === 'chats') return null; // the container of every conversation's folder is never browsable
+    if (folder.kind === 'chats') return 'viewer'; // the container of the conversation folders: everyone may open it, but it only ever lists the conversations they are in
     if (folder.kind === 'chat') return (await this.#isChatMember(ctx, folder.record_id)) ? 'editor' : null; // conversation membership only — not even workspace admins
     if (this.#isAdmin(ctx)) return 'manager';
     if (folder.kind === 'record') { // the record's own permission decides — even for whoever created the folder
@@ -146,6 +146,12 @@ export class DriveService {
     const role = await this.#need(ctx, folder, 'viewer');
     const crumbs = await this.#breadcrumbs(ctx, folder);
     const head = { ...folderDto(folder), role, breadcrumbs: crumbs };
+    if (folder.kind === 'chats') return { folder: head, folders: await this.#chatFolders(ctx, folder), files: [], nextCursor: null };
+    if (folder.kind === 'chat') { // a conversation's files: named after the conversation, read-only here (files are sent from the conversation itself)
+      const name = await this.#chatName(ctx, folder.record_id);
+      Object.assign(head, { name, role: 'viewer', breadcrumbs: crumbs.map((c) => (c.id === folder.id ? { ...c, name } : c)) });
+      return { folder: head, folders: [], ...(await this.#childFiles(ctx, folder, { sort, after, limit })) };
+    }
 
     if (folder.kind === 'records' && !folder.record_object) { // the Records root: one folder per object the person can read
       const keys = new Set(await this.#visibleObjectKeys(ctx));
@@ -157,6 +163,23 @@ export class DriveService {
     const folders = folder.kind === 'record' ? [] : await this.#childFolders(ctx, folder, role);
     const { files, nextCursor } = await this.#childFiles(ctx, folder, { sort, after, limit });
     return { folder: head, folders, files, nextCursor };
+  }
+
+  /** A conversation's name as this person sees it: the group's title, or the other person's name in a DM. */
+  async #chatName(ctx, conversationId) {
+    const [row] = await this.#rows(sql`select case when c.kind = 'group' then coalesce(c.title, 'Group') else coalesce((select nullif(trim(u.first_name || ' ' || u.last_name), '') from chat_members p join users u on u.id = p.user_id where p.conversation_id = c.id and p.user_id <> ${ctx.userId} limit 1), 'Direct message') end as name
+      from chat_conversations c where c.id = ${conversationId}`);
+    return row?.name ?? 'Conversation';
+  }
+
+  /** The `Chat` container's children: one folder per conversation the person is in (named after the conversation), never anyone else's. */
+  async #chatFolders(ctx, root) {
+    const rows = await this.#rows(sql`select * from (select d.*, null::text as owner_name,
+        case when c.kind = 'group' then coalesce(c.title, 'Group') else coalesce((select nullif(trim(u.first_name || ' ' || u.last_name), '') from chat_members p join users u on u.id = p.user_id where p.conversation_id = c.id and p.user_id <> ${ctx.userId} limit 1), 'Direct message') end as display_name
+      from drive_folders d join chat_conversations c on c.id = d.record_id
+      join chat_members cm on cm.conversation_id = c.id and cm.user_id = ${ctx.userId} and cm.left_at is null
+      where d.workspace_id = ${ctx.workspaceId} and d.kind = 'chat' and d.parent_id = ${root.id} and d.trashed_at is null) q order by lower(q.display_name), q.id limit 500`);
+    return rows.map((r) => ({ ...folderDto(r), name: r.display_name }));
   }
 
   async #breadcrumbs(ctx, folder) {
@@ -180,7 +203,9 @@ export class DriveService {
       : sql`(d.owner_id = ${me} or exists (select 1 from drive_access a where a.folder_id = d.id and a.principal_id in (${me}, ${ws})))`;
     const rows = await this.#rows(sql`select d.*, ${this.#ownerName}, ${this.#starred(ctx, 'folder', 'd')}, exists (select 1 from drive_access a where a.folder_id = d.id) as shared
       from drive_folders d ${this.#ownerJoin('d')} where d.workspace_id = ${ws} and d.parent_id is null and d.kind = 'folder' and d.trashed_at is null and ${visible} order by lower(d.name), d.id limit 500`);
-    return { folder: null, folders: [folderDto(records), ...rows.map(folderDto)], files: [], nextCursor: null };
+    const [chats] = all ? [] : await this.#rows(sql`select d.* from drive_folders d where d.workspace_id = ${ws} and d.kind = 'chats' and d.parent_id is null
+      and exists (select 1 from drive_folders k join chat_members cm on cm.conversation_id = k.record_id and cm.user_id = ${me} and cm.left_at is null where k.parent_id = d.id and k.kind = 'chat' and k.trashed_at is null) limit 1`);
+    return { folder: null, folders: [folderDto(records), ...(chats ? [folderDto(chats)] : []), ...rows.map(folderDto)], files: [], nextCursor: null };
   }
 
   async #childFolders(ctx, parent, parentRole) {
@@ -326,7 +351,9 @@ export class DriveService {
 
   /** Streams an upload into a folder (a normal folder you can edit). */
   async upload(ctx, args) {
-    return this.#upload(ctx, await this.#folder(ctx, args.folderId), args);
+    const folder = await this.#folder(ctx, args.folderId);
+    if (folder.kind === 'chat' || folder.kind === 'chats') { args.stream.resume(); throw new ForbiddenError('Send files from the conversation itself'); }
+    return this.#upload(ctx, folder, args);
   }
 
   async #upload(ctx, folder, { filename, mime, stream, declaredSize }) {

@@ -17,6 +17,7 @@ import { messagesQueryOptions, useConversation, useInbox, usePeople } from './ch
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { Composer } from './Composer.jsx';
 import { PreviewDialog } from '../documents/PreviewDialog.jsx';
+import { MeetingBanner } from './MeetingBanner.jsx';
 import { MessageInfoDialog } from './MessageInfoDialog.jsx';
 import { PollDialog } from './PollDialog.jsx';
 import { asDriveFile } from './Attachments.jsx';
@@ -152,7 +153,8 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
         )}
         <Button size="icon" variant="ghost" aria-label="Conversation details" onClick={onInfo}><Icon name="info" className="size-4" /></Button>
       </header>}
-      {!embedded && calls.enabled && conversation?.activeCall && calls.session?.conversationId !== id && (
+      {!embedded && conversation?.meetingAt && <MeetingBanner conversation={conversation} title={title} />}
+      {!embedded && !conversation?.meetingAt && calls.enabled && conversation?.activeCall && calls.session?.conversationId !== id && (
         <div role="status" className="flex items-center gap-3 border-b border-line bg-surface-2 px-4 py-2 text-sm">
           <Icon name={conversation.activeCall.video ? 'video' : 'phone'} className="size-4 text-link" />
           <span className="min-w-0 flex-1 truncate font-medium text-ink">{conversation.activeCall.video ? 'Video' : 'Audio'} call in progress</span>

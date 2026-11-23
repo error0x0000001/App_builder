@@ -64,6 +64,13 @@ conversation membership only (not even workspace admins; forwarding copies the f
 other files as cards with the shared preview, WhatsApp-style info panel (profile photo, name/email/job title, Audio/Video, shared Media / Docs / Links
 tabs via partial indexes, mute/pin/archive, members + invite link + admin controls, groups in common, group name/description, legal hold), profile photos
 (browser-cropped 256 px JPEG, signed immutable URLs, shown in chat, calls, pickers and the account menu).
+**Phase 2e (built, verified):** Chat is its own rail/sidebar section (list lives in the navigation panel, unread badge on the rail icon); starred
+messages (Starred tab), "delete for me", disappearing messages (24 h / 7 d / 90 d, hidden at once, purged every minute by the worker with their files,
+never under legal hold), polls (single/multiple choice, live counts), voice notes (browser recording, in-bubble player), link previews (title/description/site
+only — server-fetched, SSRF-guarded, cached 7 days; no remote image is loaded), message info (who read it — per-person read cursors; delivery is not tracked),
+@mentions (picker, highlight, "@" marker in the inbox), group icons, scheduled meetings (date + time form, banner with Add to calendar (.ics) and Join from
+15 min before, reschedule), raise hand (host can lower it), Chat folders in Documents (read-only, named after the conversation, members only).
+Not built: meeting reminders/notifications before the start, recurring meetings, a lobby, voice-note waveform/speed, link-preview images, broadcast lists.
 Known trade-offs: `chat_conversations.last_message_*` is a hot row in extremely busy groups (one UPDATE per message); retention partition drops are not built yet; chat files are searchable/recent in Documents for members but there is no `Chat` folder tree to browse there yet.
 
 ## 3. Calls and meetings (inside Chat — LiveKit)

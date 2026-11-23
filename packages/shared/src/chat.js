@@ -52,7 +52,7 @@ export const chatSearchQuerySchema = z.object({
   conversationId: uuidField.optional(),
   limit: z.coerce.number().int().min(1).max(50).default(30),
 }).strict();
-export const callModerateSchema = z.object({ action: z.enum(['mute', 'mute-all', 'remove']), userId: uuidField.optional() }).strict();
+export const callModerateSchema = z.object({ action: z.enum(['mute', 'mute-all', 'remove', 'lower-hand']), userId: uuidField.optional() }).strict();
 export const callStartSchema = z.object({ video: z.boolean().default(true) }).strict();
 
 export const DISAPPEAR_OPTIONS = Object.freeze([{ seconds: 0, label: 'Off' }, { seconds: 86_400, label: '24 hours' }, { seconds: 604_800, label: '7 days' }, { seconds: 7_776_000, label: '90 days' }]);

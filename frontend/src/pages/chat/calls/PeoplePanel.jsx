@@ -26,7 +26,7 @@ export function PeoplePanel({ conversationId, participants, people, myId, hostId
         {isHost && participants.length > 1 && <Button size="sm" variant="neutral" onClick={() => act({ action: 'mute-all' })}><Icon name="mic-off" className="size-4" />Mute all</Button>}
       </div>
       <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" aria-label="People in this call">
-        {participants.map((p) => {
+        {[...participants].sort((a, b) => Number(b.attributes?.hand === '1') - Number(a.attributes?.hand === '1')).map((p) => {
           const name = p.name || people[p.identity]?.name || 'Guest';
           const mic = p.getTrackPublication(Track.Source.Microphone);
           const camera = p.getTrackPublication(Track.Source.Camera);
@@ -34,6 +34,7 @@ export function PeoplePanel({ conversationId, participants, people, myId, hostId
           const micOn = Boolean(mic) && !mic.isMuted;
           const camOn = Boolean(camera) && !camera.isMuted;
           const me = p.identity === myId;
+          const hand = p.attributes?.hand === '1';
           return (
             <li key={p.identity} className={cn('flex items-center gap-3 px-4 py-2.5', p.isSpeaking && 'bg-success/10')} data-person={p.identity}>
               <Avatar name={name} src={people[p.identity]?.avatar} size="size-9" />
@@ -45,6 +46,7 @@ export function PeoplePanel({ conversationId, participants, people, myId, hostId
                 </span>
               </span>
               {p.isSpeaking && <SpeakingBars />}
+              {hand && <Icon name="hand" className="size-4 text-warning" aria-label="Hand raised" />}
               {sharing && <Icon name="screen-share" className="size-4 text-link" aria-label="Sharing screen" />}
               <Icon name={camOn ? 'video' : 'video-off'} className={cn('size-4', camOn ? 'text-ink' : 'text-muted')} aria-label={camOn ? 'Camera on' : 'Camera off'} />
               <Icon name={micOn ? 'mic' : 'mic-off'} className={cn('size-4', micOn ? 'text-ink' : 'text-danger')} aria-label={micOn ? 'Microphone on' : 'Microphone muted'} />
@@ -52,6 +54,7 @@ export function PeoplePanel({ conversationId, participants, people, myId, hostId
                 <DropdownMenu>
                   <DropdownMenuTrigger>{(props) => <Button {...props} size="icon" variant="ghost" aria-label={`Manage ${name}`}><Icon name="more-horizontal" className="size-4" /></Button>}</DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-48">
+                    {hand && <DropdownMenuItem icon="hand" onSelect={() => act({ action: 'lower-hand', userId: p.identity })}>Lower hand</DropdownMenuItem>}
                     <DropdownMenuItem icon="mic-off" onSelect={() => act({ action: 'mute', userId: p.identity })}>Mute</DropdownMenuItem>
                     <DropdownMenuItem icon="phone-off" className="text-danger" onSelect={() => act({ action: 'remove', userId: p.identity })}>Remove from call</DropdownMenuItem>
                   </DropdownMenuContent>

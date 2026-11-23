@@ -24,7 +24,7 @@ export class LiveKitClient {
 
   /** A token that lets one person join one room. */
   joinToken({ room, identity, name, ttlSeconds = 3600 }) {
-    return this.#sign({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true }, { identity, name, ttlSeconds });
+    return this.#sign({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, canUpdateOwnMetadata: true }, { identity, name, ttlSeconds });
   }
 
   async #admin(method, room, body) {
@@ -68,6 +68,9 @@ export class LiveKitClient {
     for (const t of tracks) await this.#admin('MutePublishedTrack', room, { room, identity, trackSid: t.sid, muted: true });
     return tracks.length;
   }
+
+  /** Sets participant attributes from the server (e.g. lowering a raised hand). */
+  async updateAttributes(room, identity, attributes) { await this.#admin('UpdateParticipant', room, { room, identity, attributes }); }
 
   async removeParticipant(room, identity) { await this.#admin('RemoveParticipant', room, { room, identity }); }
 

@@ -1,4 +1,5 @@
 import { DISAPPEAR_OPTIONS } from '@app/shared';
+import { formatMeeting } from '../../lib/meetingTime.js';
 
 const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const dayName = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
@@ -60,7 +61,7 @@ export function callText(message, people, myId) {
 /** Preview line for the inbox: "You: text", "Asha: text", system sentence, or a placeholder for deleted messages. */
 export function previewText(conversation, people, myId) {
   const last = conversation.last;
-  if (!last) return conversation.meetingAt ? 'Scheduled meeting' : 'No messages yet';
+  if (!last) return conversation.meetingAt ? `Meeting · ${formatMeeting(conversation.meetingAt)}` : 'No messages yet';
   if (last.deleted) return 'This message was deleted';
   if (last.kind === 'system') return systemText({ ...last, mentions: [] }, people, myId);
   if (last.kind === 'call') return callText(last, people, myId);

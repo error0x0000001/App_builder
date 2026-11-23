@@ -45,7 +45,7 @@ export function CallProvider({ children }) {
       const next = new Room({ adaptiveStream: true, dynacast: true });
       room.current = next;
       [RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected, RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted,
-        RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ActiveSpeakersChanged, RoomEvent.ParticipantNameChanged].forEach((event) => next.on(event, rerender));
+        RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ActiveSpeakersChanged, RoomEvent.ParticipantNameChanged, RoomEvent.ParticipantAttributesChanged].forEach((event) => next.on(event, rerender));
       next.on(RoomEvent.Disconnected, (reason) => { if (room.current === next) { room.current = null; chatApi.leaveCall(conversationId).catch(() => {}); setSession({ ended: true, notice: reason === DisconnectReason.PARTICIPANT_REMOVED ? 'The host removed you from the call' : 'You were disconnected from the call' }); } });
       await next.connect(url, token);
       setSession((s) => (s && !s.ended ? { ...s, status: 'connected', connectedAt: Date.now() } : s)); // in the room: the call is on, devices follow
