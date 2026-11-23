@@ -60,9 +60,13 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const canDelete = !readOnly && (adapter ? adapter.canDelete : true);
   const searchable = adapter?.searchable !== false;
 
+  // Sorting is done by the server (keyset paging keeps working); adapter-backed pages have their own fixed order. Click: asc → desc → default.
+  const [sort, setSort] = useState(null);
+  const onSort = (key) => setSort((cur) => (cur?.key !== key ? { key, dir: 'asc' } : cur.dir === 'asc' ? { key, dir: 'desc' } : null));
+
   const records = useInfiniteQuery({
-    queryKey: ['setup', 'records', pageKey, { q, view, parentId }],
-    queryFn: ({ pageParam }) => setupApi.records(pageKey, { after: pageParam, q, view, parent: parentId, total: !pageParam }),
+    queryKey: ['setup', 'records', pageKey, { q, view, parentId, sort: sort?.key, dir: sort?.dir }],
+    queryFn: ({ pageParam }) => setupApi.records(pageKey, { after: pageParam, q, view, parent: parentId, sort: sort?.key, dir: sort?.dir, total: !pageParam }),
     ...cursorPagination,
     placeholderData: keepPreviousData,
   });
@@ -74,7 +78,7 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const columns = useMemo(() => page.columns.map((c) => {
     const type = adapter?.columnTypes?.[c.key] ?? c.type;
     const render = renderCell(type);
-    return { key: c.key, label: c.label, align: c.type === 'number' ? 'right' : undefined, render: (row) => render(row, c.key) };
+    return { key: c.key, label: c.label, sortable: !adapter, align: c.type === 'number' ? 'right' : undefined, render: (row) => render(row, c.key) };
   }), [page.columns, adapter]);
 
   const refresh = () => invalidateSetupData(queryClient);
@@ -106,6 +110,9 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
           <DataTable
             columns={columns}
             rows={rows}
+            sort={sort}
+            onSort={adapter ? undefined : onSort}
+            storageKey={`setup:${pageKey}`}
             loading={records.isFetching && !records.isFetchingNextPage && !rows.length}
             selection={canDelete ? { selected, onToggle: toggle, onToggleAll: toggleAll } : undefined}
             onRowClick={onOpen ?? (canEdit ? (record) => setDialog({ mode: 'edit', record }) : undefined)}

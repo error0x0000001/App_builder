@@ -83,6 +83,25 @@ describe('record pages', () => {
     const searched = await owner.get(`${S}/pages/profiles/records?q=${encodeURIComponent(all.body.items[0].profile_name.slice(0, 4))}`);
     assert.ok(searched.body.items.length >= 1);
   });
+  it('sorts server-side in both directions and pages with a cursor that carries the sort value', async () => {
+    const all = await owner.get(`${S}/pages/profiles/records?limit=200&sort=profile_name&dir=asc`);
+    const names = all.body.items.map((r) => r.profile_name ?? '');
+    assert.deepEqual(names, [...names].sort());
+    const seen = [];
+    let after;
+    do {
+      const r = await owner.get(`${S}/pages/profiles/records?limit=3&sort=profile_name&dir=desc${after ? `&after=${after}` : ''}`);
+      assert.equal(r.status, 200);
+      seen.push(...r.body.items.map((x) => x.id));
+      after = r.body.nextCursor;
+    } while (after);
+    assert.equal(seen.length, all.body.items.length);
+    assert.equal(new Set(seen).size, seen.length);
+    const bogus = await owner.get(`${S}/pages/profiles/records?limit=2&sort=data;drop`);
+    assert.equal(bogus.status, 400);
+    const unknown = await owner.get(`${S}/pages/profiles/records?limit=2&sort=nope`);
+    assert.equal(unknown.status, 200);
+  });
   it('creates, updates and deletes records and invalidates the cache', async () => {
     const before = await owner.get(`${S}/pages/profiles/records?limit=200`);
     const created = await owner.post(`${S}/pages/profiles/records`, { profile_name: 'Auditor' });

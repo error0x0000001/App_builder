@@ -114,7 +114,7 @@ function ObjectBody({ object, definition, permissions }) {
       <QueryState query={records}>
         {() => (
           <DataTable
-            columns={columns} rows={rows}
+            columns={columns} rows={rows} storageKey={`object:${definition.key ?? definition.plural}`}
             selection={canDelete ? { selected, onToggle: toggle, onToggleAll: (c) => setSelected(c ? new Set(rows.map((r) => r.id)) : new Set()) } : undefined}
             onRowClick={(record) => setDialog({ mode: 'edit', record })}
             empty={q ? `Nothing matches “${q}”` : `No ${definition.plural.toLowerCase()} yet`}

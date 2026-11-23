@@ -58,6 +58,8 @@ export const setupListQuerySchema = z.object({
   after: z.string().max(512).optional(),
   q: z.string().trim().max(100).optional(),
   view: z.string().max(100).optional(),
+  sort: z.string().max(60).regex(/^[A-Za-z0-9_]+$/).optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
   parent: z.string().uuid().optional(),
   total: bool.optional(),
 });

@@ -49,10 +49,31 @@ export class RecordsRepository {
     return sql.join(c, sql` and `);
   }
 
+  /**
+   * Keyset page. Default order is `id desc` (newest first, index-backed). With `sort` ({ key, dir }) the order is (value, id) in that
+   * direction and `after` carries the last row's value: `{ id, v }`. `key` is a column key already validated by the service
+   * ('createdAt' sorts by created_at, anything else by the text in data->>key).
+   */
   async list(ws, collection, params, limit) {
+    const { sort, afterValue, ...rest } = params;
+    if (!sort) {
+      const { rows } = await this.db.execute(sql`
+        select id, label, status, data, parent_id, created_by, created_at, updated_at from setup_records
+        where ${this.#where(ws, collection, rest)} order by id desc limit ${limit}`);
+      return rows;
+    }
+    const isTime = sort.key === 'createdAt';
+    const expr = isTime ? sql`created_at` : sql`coalesce(data->>${sort.key}, '')`;
+    const desc = sort.dir === 'desc';
+    const where = this.#where(ws, collection, { ...rest, after: undefined });
+    const seek = rest.after
+      ? (isTime
+        ? (desc ? sql`and (created_at, id) < (${afterValue}::timestamptz, ${rest.after}::uuid)` : sql`and (created_at, id) > (${afterValue}::timestamptz, ${rest.after}::uuid)`)
+        : (desc ? sql`and (coalesce(data->>${sort.key}, ''), id) < (${afterValue ?? ''}, ${rest.after}::uuid)` : sql`and (coalesce(data->>${sort.key}, ''), id) > (${afterValue ?? ''}, ${rest.after}::uuid)`))
+      : sql``;
     const { rows } = await this.db.execute(sql`
-      select id, label, status, data, parent_id, created_by, created_at, updated_at from setup_records
-      where ${this.#where(ws, collection, params)} order by id desc limit ${limit}`);
+      select id, label, status, data, parent_id, created_by, created_at, updated_at, ${isTime ? sql`created_at::text` : expr} as sort_v from setup_records
+      where ${where} ${seek} order by ${expr} ${desc ? sql`desc` : sql`asc`}, id ${desc ? sql`desc` : sql`asc`} limit ${limit}`);
     return rows;
   }
 

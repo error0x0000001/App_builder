@@ -63,13 +63,17 @@ export class RecordsService {
     return this.adapters[collection.key];
   }
 
-  async #list(ws, collection, { limit, after, q, view, total: wantTotal, status, parent, owner }) {
+  async #list(ws, collection, { limit, after, q, view, sort, dir, total: wantTotal, status, parent, owner }) {
     const filter = resolveView(collection, view) ?? {};
     const params = { q: q || undefined, status: status ?? filter.status, dataFilter: owner ? { ...filter.dataFilter, [owner.key]: owner.value } : filter.dataFilter, parentId: parent };
-    const cursor = decodeCursor(after)?.id;
-    const rows = await this.repos.setupRecords.list(ws, collection.key, { ...params, after: cursor }, limit + 1);
+    const decoded = decodeCursor(after);
+    // Only a declared column (or the creation time) can be sorted on; anything else is ignored rather than trusted into SQL.
+    const sortKey = sort && (sort === 'createdAt' || collection.columns?.some((c) => c.key === sort)) ? sort : null;
+    const sortBy = sortKey ? { key: sortKey, dir: dir === 'desc' ? 'desc' : 'asc' } : undefined;
+    const rows = await this.repos.setupRecords.list(ws, collection.key, { ...params, after: decoded?.id, sort: sortBy, afterValue: decoded?.v }, limit + 1);
     const items = rows.slice(0, limit).map(flatten);
-    const body = { items, nextCursor: rows.length > limit ? encodeCursor({ id: rows[limit - 1].id }) : null };
+    const last = rows[limit - 1];
+    const body = { items, nextCursor: rows.length > limit ? encodeCursor(sortBy ? { id: last.id, v: last.sort_v } : { id: last.id }) : null };
     // Odoo rule (web_search_read): count only on the first page and only when the page came back full.
     if (!after && rows.length <= limit) Object.assign(body, { total: items.length, totalCapped: false });
     else if (wantTotal && !after) {
@@ -182,6 +186,6 @@ export class RecordsService {
   }
 
   #hash(params, limit) {
-    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.status, params.parent, params.owner, params.total ? 1 : 0, limit])).digest('base64url').slice(0, 14);
+    return createHash('md5').update(JSON.stringify([params.after, params.q, params.view, params.sort, params.dir, params.status, params.parent, params.owner, params.total ? 1 : 0, limit])).digest('base64url').slice(0, 14);
   }
 }
