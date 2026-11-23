@@ -11,16 +11,21 @@ import { cn } from '../lib/cn.js';
 import { NavRows, ROW_ACTION, SearchField, useNavSections } from './NavRows.jsx';
 import { isActivePath, isVisibleTo, NAV } from './navigation.js';
 import { NavUserCompact } from './NavUser.jsx';
+import { ChatPanel } from './ChatPanel.jsx';
+import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 import { useSearch } from './SearchContext.jsx';
 
 const RECENT_MAX = 6;
 
 /** 44px tile on the rail holding a 22px icon: a link (active = tinted tile) or a button. */
 const RAIL_ICON = 'grid size-11 place-items-center rounded-xl text-sidebar-ink outline-none transition-colors hover:bg-line/70 focus-visible:ring-2 focus-visible:ring-ring';
-function RailLink({ to, end, icon, label, active }) {
+function RailLink({ to, end, icon, label, active, badge = 0 }) {
   return (
     <Tooltip label={label}>
-      <NavLink to={to} end={end} aria-label={label} className={({ isActive }) => cn(RAIL_ICON, (active ?? isActive) && 'bg-line')}><Icon name={icon} className="size-5.5" /></NavLink>
+      <NavLink to={to} end={end} aria-label={badge ? `${label} (${badge} unread)` : label} className={({ isActive }) => cn('relative', RAIL_ICON, (active ?? isActive) && 'bg-line')}>
+        <Icon name={icon} className="size-5.5" />
+        {badge > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-accent-ink">{badge > 99 ? '99+' : badge}</span>}
+      </NavLink>
     </Tooltip>
   );
 }
@@ -49,12 +54,16 @@ function Panel({ section, sections }) {
         <h2 className="truncate text-xl font-semibold text-sidebar-ink">{section.label}</h2>
         <button type="button" aria-label="Hide panel" onClick={toggle} className={ROW_ACTION}><Icon name="panel-left" className="size-5" /></button>
       </div>
-      <SearchField />
-      <Tabs tone="sidebar" label="Navigation" value={tab} onChange={setTab} tabs={[{ id: 'menu', label: 'Menu' }, { id: 'recent', label: 'Recent' }]} />
-      <nav aria-label={section.label} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
-        <ul className="flex flex-col gap-0.5"><NavRows items={items} /></ul>
-        {!items.length && <p className="px-3 py-2 text-sm text-sidebar-muted">Pages you open will show up here.</p>}
-      </nav>
+      {section.panel === 'chat' ? <ChatPanel /> : (
+        <>
+          <SearchField />
+          <Tabs tone="sidebar" label="Navigation" value={tab} onChange={setTab} tabs={[{ id: 'menu', label: 'Menu' }, { id: 'recent', label: 'Recent' }]} />
+          <nav aria-label={section.label} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            <ul className="flex flex-col gap-0.5"><NavRows items={items} /></ul>
+            {!items.length && <p className="px-3 py-2 text-sm text-sidebar-muted">Pages you open will show up here.</p>}
+          </nav>
+        </>
+      )}
     </div>
   );
 }
@@ -74,13 +83,14 @@ export function RailSidebar() {
   const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
   const floating = variant === 'floating';
   const current = sections.find((s) => s.items.some((item) => isActivePath(item, pathname)));
+  const chatUnread = useChatUnread();
 
   return (
     <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden', floating ? 'm-2 rounded-2xl border border-sidebar-line bg-sidebar' : variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden rounded-2xl bg-rail py-4 text-sidebar-ink">
         <div className="mb-4"><WorkspaceSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
-          {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} />)}
+          {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} badge={s.panel === 'chat' ? chatUnread : 0} />)}
         </nav>
         <div className="mt-auto flex flex-col items-center gap-1.5">
           {bottom.map((item) => <RailLink key={item.to} to={item.to} icon={item.icon} label={item.label} active={isActivePath({ ...item, end: !item.prefix }, pathname)} />)}

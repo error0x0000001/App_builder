@@ -69,6 +69,9 @@
 :root[data-tenant-theme="midnight"] { --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22); }
 :root[data-theme="dark"][data-tenant-theme="midnight"] { --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120; --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28); }
 
+/* Content components shown on the navigation surface (the chat list in the rail panel / sidebar) read the navigation colours instead of the page's. */
+.on-sidebar { --ink: var(--sidebar-ink); --muted: var(--sidebar-muted); --surface: transparent; --surface-2: var(--sidebar-accent); --line: var(--sidebar-line); --line-strong: var(--sidebar-muted); --placeholder: var(--sidebar-muted); --link: var(--sidebar-primary); }
+
 @theme inline {
   --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line); --color-line-strong: var(--line-strong); --color-rail: var(--rail); --color-chrome: var(--chrome); --color-placeholder: var(--placeholder);
   --color-ink: var(--ink); --color-muted: var(--muted);

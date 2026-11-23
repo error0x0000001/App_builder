@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { cn } from '../../lib/cn.js';
+import { useSidebar } from '../../components/sidebar/SidebarContext.jsx';
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { ConversationList } from './ConversationList.jsx';
 import { NewChatDialog } from './NewChatDialog.jsx';
@@ -16,6 +17,8 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { status } = useChatRealtime();
+  const { layout, isMobile, collapsed } = useSidebar();
+  const listInNav = !isMobile && layout !== 'topbar' && !collapsed; // the rail panel / sidebar already shows the inbox
   const [creating, setCreating] = useState(null);
   const [info, setInfo] = useState(false);
   const open = (conversationId) => navigate(`/app/chat/${conversationId}`);
@@ -25,10 +28,12 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className={cn('min-h-0 w-full shrink-0 border-r border-line md:block md:w-80 lg:w-96', id && 'hidden')} aria-label="Conversations">
-        <ConversationList activeId={id} onOpen={open} onNew={setCreating} />
-      </aside>
-      <div className={cn('min-h-0 min-w-0 flex-1', !id && 'hidden md:block')}>
+      {!listInNav && (
+        <aside className={cn('min-h-0 w-full shrink-0 border-r border-line md:block md:w-80 lg:w-96', id && 'hidden')} aria-label="Conversations">
+          <ConversationList activeId={id} onOpen={open} />
+        </aside>
+      )}
+      <div className={cn('min-h-0 min-w-0 flex-1', !id && !listInNav && 'hidden md:block')}>
         {status === 'offline' && <p role="status" className="border-b border-line bg-surface-2 px-4 py-1.5 text-center text-xs font-medium text-muted">Reconnecting… new messages will appear when you are back online.</p>}
         {id ? <Thread key={id} id={id} onBack={() => navigate('/app/chat')} onInfo={() => setInfo((open) => !open)} /> : (
           <div className="grid h-full place-items-center p-6 text-center">

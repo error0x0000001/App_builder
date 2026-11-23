@@ -18,7 +18,7 @@ export function useNavSections() {
   const { activeWorkspace } = useAuth();
   return useMemo(() => {
     const show = (items) => items.filter((item) => isVisibleTo(item, activeWorkspace));
-    return [{ id: 'overview', label: 'Overview', icon: 'home', items: show(NAV.main) }, ...NAV.groups.map((g) => ({ id: g.label, label: g.label, icon: g.icon, items: show(g.items) }))]
+    return [{ id: 'overview', label: 'Overview', icon: 'home', items: show(NAV.main) }, ...NAV.groups.map((g) => ({ id: g.label, label: g.label, icon: g.icon, panel: g.panel, items: show(g.items) }))]
       .filter((section) => section.items.length);
   }, [activeWorkspace]);
 }

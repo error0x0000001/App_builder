@@ -11,6 +11,7 @@ import { cn } from '../../lib/cn.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { ChatAvatar } from './ChatAvatar.jsx';
+import { NewChatDialog } from './NewChatDialog.jsx';
 import { conversationTitle, formatInboxTime, nameOf, previewText } from './chatFormat.js';
 import { useInbox, usePeople } from './chatQueries.js';
 import { usePresence } from './usePresence.js';
@@ -45,7 +46,9 @@ function Row({ conversation, people, selected, online, myId, onOpen }) {
 }
 
 /** The inbox: filter by tab, find a conversation by name, or search message text across everything you can see. */
-export function ConversationList({ activeId, onOpen, onNew }) {
+export function ConversationList({ activeId, onOpen }) {
+  const [creating, setCreating] = useState(null);
+  const onNew = setCreating;
   const { user } = useAuth();
   const people = usePeople();
   const inbox = useInbox();
@@ -114,6 +117,7 @@ export function ConversationList({ activeId, onOpen, onNew }) {
           </section>
         )}
       </div>
+      <NewChatDialog mode={creating} onClose={() => setCreating(null)} onOpen={onOpen} />
     </div>
   );
 }

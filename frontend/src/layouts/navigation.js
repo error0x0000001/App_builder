@@ -5,6 +5,7 @@
  *   main    – top-level rows
  *   groups  – collapsible titled sections: { label, icon (the rail icon), defaultOpen?, action?: { to, label, icon? }, items }
  *   bottom  – rows pinned above the user menu
+ * Group `panel: 'chat'` – the rail panel / sidebar shows the conversation list instead of rows.
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed?, create?, parent? }
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
  *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)
@@ -16,9 +17,9 @@ export const NAV = {
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
     { to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true },
-    { to: '/app/chat', icon: 'chat', label: 'Chat', prefix: true, bleed: true },
   ],
   groups: [
+    { label: 'Chat', icon: 'chat', panel: 'chat', defaultOpen: true, items: [{ to: '/app/chat', icon: 'chat', label: 'Chat', prefix: true, bleed: true }] },
     { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural, create: true })) },
     { label: 'Account', icon: 'user', defaultOpen: true, items: [
       { to: '/app/profile', icon: 'user', label: 'Profile', parent: { label: 'Settings', icon: 'settings' } },
