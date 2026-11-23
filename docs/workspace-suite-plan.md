@@ -67,7 +67,8 @@ be exercised end to end here; the signalling, tokens, permissions and UI states 
 ## Decisions (owner)
 - **File storage:** S3-compatible object storage in production (S3, R2 or MinIO). Next step: an S3 `StorageDriver` with presigned direct upload/download.
 - **Retention:** per-workspace retention **plus legal hold** (freeze chosen conversations): `messages` gets a month partition per conversation hash, a `retention_days` setting drops whole partitions, and a `legal_hold` flag on a conversation (or workspace) blocks both partition drops and deletes/edits-for-everyone.
-- **Call engine:** open — the owner asked whether an SFU adds load to our system (answer: it runs on its own machines or managed; our API only issues tokens). To be confirmed before Meet is built.
+- **Call engine:** **LiveKit** (SFU on its own machines or LiveKit Cloud; our API only issues room tokens). The owner develops on macOS: dev uses the native `livekit-server --dev` (`brew install livekit`), with a docker-compose variant that maps the UDP ports (Docker Desktop for Mac has no host networking). Camera/mic work on `http://localhost`.
+- **One app, not two:** Meet is a feature of Chat, not a separate module. A call starts from a conversation (DM or group), in-call chat *is* that conversation, a scheduled meeting is a conversation with a time and join link, and ringing/accept/decline use the same WebSocket. One nav item ("Chat"), one membership model, one permission check.
 
 ## Decisions that were needed before Chat/Meet
 1. **Media engine:** LiveKit self-hosted (our docker-compose, TURN included) or LiveKit Cloud / another managed SFU?
