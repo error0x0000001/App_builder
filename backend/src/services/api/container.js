@@ -38,6 +38,8 @@ import { AutomationService } from '../../modules/automation/automation.service.j
 import { IntakeService } from '../../modules/automation/intake.service.js';
 import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
+import { DriveService } from '../../modules/drive/drive.service.js';
+import { LocalStorageDriver } from '../../shared/storage/localStorage.js';
 
 const MINUTE_MS = 60_000;
 
@@ -89,7 +91,11 @@ export function createContainer({ boss }) {
   const escalation = new EscalationService({ repos, automation, cache, logger });
   const access = new AccessService({ automation, cache, seed: (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key)) });
   const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
-  const search = new SearchService({ db: readDb, objects, cache });
+  const drive = new DriveService({
+    db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
+    limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
+  });
+  const search = new SearchService({ db: readDb, objects, cache, drive });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
@@ -98,5 +104,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { search, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

@@ -51,6 +51,22 @@ export class Client {
     return { status: res.status, body: json, headers: res.headers };
   }
 
+  /** multipart/form-data upload: fields first, then one file part (as the real client sends it). */
+  async upload(path, { fields = {}, filename = 'note.txt', content = 'hello', type = 'text/plain' } = {}) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) form.append(key, value);
+    form.append('file', new Blob([content], { type }), filename);
+    const res = await fetch(`${this.base}${path}`, { method: 'POST', body: form, headers: { 'X-Forwarded-For': this.ip, ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) } });
+    const text = await res.text();
+    return { status: res.status, body: text ? JSON.parse(text) : null };
+  }
+
+  /** Raw download (no JSON parsing); pass extra headers such as Range. */
+  async download(path, headers = {}, { auth = true } = {}) {
+    const res = await fetch(`${this.base}${path}`, { headers: { 'X-Forwarded-For': this.ip, ...(auth && this.token ? { Authorization: `Bearer ${this.token}` } : {}), ...headers } });
+    return { status: res.status, text: await res.text(), headers: res.headers };
+  }
+
   get = (p) => this.request('GET', p);
   post = (p, b = {}) => this.request('POST', p, b);
   patch = (p, b = {}) => this.request('PATCH', p, b);

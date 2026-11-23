@@ -182,7 +182,8 @@ describe('guards', () => {
   it('rate limits writes per user', async () => {
     const { client } = await registerUser(server);
     let limited = 0;
-    for (let i = 0; i < 125; i++) {
+    // The limit is a fixed one-minute window: if the minute rolls over mid-test the counter restarts, so allow enough requests to cross it.
+    for (let i = 0; i < 400 && !limited; i++) {
       const res = await client.post(`${S}/pages/profiles/records`, { profile_name: `P${i}` });
       if (res.status === 429) limited++;
     }

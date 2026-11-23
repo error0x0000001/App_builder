@@ -1,5 +1,5 @@
 import { INTERNAL_COLLECTIONS, SETUP_PAGES } from '@app/shared/setup-registry';
-import { getAdapterMeta } from '@app/shared';
+import { FILE_KIND_LABELS, getAdapterMeta } from '@app/shared';
 import { sql } from 'drizzle-orm';
 import { pgArray } from '../../shared/db/helpers.js';
 import { searchSetupIndex } from './staticIndex.js';
@@ -38,7 +38,7 @@ const SCOPES = { all: ['records', 'people', 'navigation', 'documents'], records:
  * Each group is looked up in parallel; prefix matches (btree) come first, then substring matches (trigram), both capped.
  */
 export class SearchService {
-  constructor({ db, objects, cache }) { Object.assign(this, { db, objects, cache }); }
+  constructor({ db, objects, cache, drive }) { Object.assign(this, { db, objects, cache, drive }); }
 
   search(ctx, { q, type = 'all' }) {
     const query = q.trim();
@@ -55,7 +55,7 @@ export class SearchService {
       records: wants('records') && this.#records(ctx, query, limit),
       people: wants('people') && query.length >= CONTAINS_MIN && this.#people(ctx, query, limit),
       navigation: wants('navigation') && admin && this.#navigation(ctx, query, limit),
-      documents: wants('documents') && admin && this.#documents(ctx, query, limit),
+      documents: wants('documents') && this.#documents(ctx, query, limit, admin),
     };
     const entries = await Promise.all(Object.entries(tasks).filter(([, p]) => p).map(async ([key, p]) => [key, await timeLimited(p, GROUP_BUDGET_MS)]));
     return {
@@ -116,10 +116,17 @@ export class SearchService {
     return [...staticHits, ...records].slice(0, type_limit(limit));
   }
 
-  /** Email templates, letterheads, mail-merge templates, files … (Setup records that are documents). */
-  async #documents(ctx, query, limit) {
+  /** Files and folders of the Documents drive (only those this person may see), plus — for admins — document-like Setup records (templates, letterheads …). */
+  async #documents(ctx, query, limit, admin) {
+    const { files, folders } = await this.drive.search(ctx, query, limit);
+    const drive = [
+      ...folders.map((f) => ({ id: f.id, kind: 'folder', title: f.name, subtitle: '', tag: 'Folder', to: `/app/documents?folder=${f.id}` })),
+      ...files.map((f) => ({ id: f.id, kind: 'file', title: f.name, subtitle: f.folderName ?? '', tag: FILE_KIND_LABELS[f.kind], to: `/app/documents?folder=${f.folderId}&file=${f.id}` })),
+    ];
+    if (!admin) return drive.slice(0, limit);
     const rows = await this.#setupRecords(ctx, query, limit, DOCUMENT_COLLECTIONS);
-    return rows.map((r) => ({ id: r.id, kind: 'document', title: r.label, subtitle: r.status ?? '', tag: SETUP_COLLECTIONS[r.collection], to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
+    const templates = rows.map((r) => ({ id: r.id, kind: 'document', title: r.label, subtitle: r.status ?? '', tag: SETUP_COLLECTIONS[r.collection], to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
+    return [...drive, ...templates].slice(0, limit * 2);
   }
 }
 

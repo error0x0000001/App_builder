@@ -83,7 +83,7 @@ describe('global search', () => {
     assert.equal((await find(member, 'password')).groups.navigation, undefined, 'members get no Setup results');
   });
 
-  it('has Navigation and Documents scopes; Records covers people; documents are admin-only', async () => {
+  it('has Navigation and Documents scopes; Records covers people; Setup documents are admin-only', async () => {
     const { client: boss } = await registerUser(server);
     const { person: member } = await join(boss, 'member');
     const tpl = await boss.post(`${S}/pages/email-templates/records`, { email_template_name: 'Quarterly Welcome Pack' });
@@ -101,7 +101,7 @@ describe('global search', () => {
     assert.ok(!nav.groups.navigation.some((n) => n.title === 'Quarterly Welcome Pack'), 'documents are not repeated under navigation');
 
     assert.ok(docs.groups.documents && (await find(boss, 'quarterly')).groups.documents.length === 1, '"All" includes documents');
-    assert.equal((await find(member, 'quarterly', 'documents')).groups.documents, undefined, 'members never see Setup documents');
+    assert.deepEqual((await find(member, 'quarterly', 'documents')).groups.documents, [], 'members never see Setup documents (only drive files they may open)');
     assert.deepEqual(Object.keys((await find(boss, 'Meera', 'records')).groups).sort(), ['people', 'records'], 'the Records scope includes people');
   });
 

@@ -6,3 +6,7 @@ dist
 
 # Redis snapshots written when redis-server runs from the repo folder
 *.rdb
+
+# Uploaded Documents (local StorageDriver)
+storage/
+backend/storage/
