@@ -2,6 +2,7 @@ import { Icon } from '../components/ui/Icon.jsx';
 import { Kbd, MOD_KEY } from '../components/ui/Kbd.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
 import { Button } from '../components/ui/Button.jsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/DropdownMenu.jsx';
 import { cn } from '../lib/cn.js';
 import { initials } from '../lib/format.js';
 
@@ -43,38 +44,74 @@ export function ResultRow({ item, query, id, active, onHover, onOpen }) {
   );
 }
 
-/** Pill filter (People, Accounts …) — same look as the reference chips. */
-export const FilterChip = ({ selected, children, ...rest }) => (
+/** Outlined tag with an optional count ("Accounts 3") — Untitled UI's Tags › Count. */
+export const FilterChip = ({ selected, count, children, ...rest }) => (
   <button
     type="button" aria-pressed={selected} {...rest}
-    className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', selected ? 'border-accent/30 bg-accent-soft font-semibold text-link' : 'border-line-strong text-ink hover:bg-surface-2')}
-  >{children}</button>
+    className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', selected ? 'border-accent/40 bg-accent-soft text-link' : 'border-line-strong text-ink hover:bg-surface-2')}
+  >
+    {children}
+    {count != null && <span className={cn('rounded px-1 text-[11px] leading-4 tabular-nums', selected ? 'bg-accent/15 text-link' : 'bg-surface-2 text-muted')}>{count}</span>}
+  </button>
 );
 
-/** Round 28px icon button (filter / sort) at the end of the chip row. */
-export const RoundButton = ({ icon, label, active, ...rest }) => (
-  <button type="button" aria-label={label} title={label} className={cn('grid size-7 shrink-0 place-items-center rounded-full border border-line text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring', active && 'bg-surface-2 text-ink')} {...rest}><Icon name={icon} className="size-3.5" /></button>
-);
+/** The "Filters" button (Untitled UI's Filter bar): a menu to sort the results or clear the filters; shows how many are active. */
+export function FiltersMenu({ sort, onSort, activeCount, onClearFilters }) {
+  const SORTS = [['relevance', 'Relevance'], ['name', 'Name (A–Z)']];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        {(props) => (
+          <Button size="sm" variant="neutral" aria-label={activeCount ? `Filters (${activeCount} active)` : 'Filters'} {...props}>
+            <Icon name="filter" className="size-4" />Filters
+            {activeCount > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] leading-4 text-accent-ink">{activeCount}</span>}
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+        {SORTS.map(([value, label]) => (
+          <DropdownMenuItem key={value} onSelect={() => onSort(value)}>{label}{sort === value && <Icon name="check" className="ml-auto size-4 text-link" />}</DropdownMenuItem>
+        ))}
+        {activeCount > 0 && <><DropdownMenuSeparator /><DropdownMenuItem icon="x" onSelect={onClearFilters}>Clear filters</DropdownMenuItem></>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
-/** Soft grid fading out at the edges with three tilted tiles on it — the "nothing found" picture. */
-function EmptyArt() {
+/**
+ * "Nothing found" pictures from Untitled UI's Empty states: Avatar row (people) — a row of faded avatars around a search tile — and
+ * File icon (everything else) — a soft circle with a document-search icon — each on a faint grid that fades out at the edges.
+ */
+function EmptyArt({ variant }) {
   const grid = 'linear-gradient(to right, var(--color-line) 1px, transparent 1px), linear-gradient(to bottom, var(--color-line) 1px, transparent 1px)';
   const fade = 'radial-gradient(circle at center, #000 25%, transparent 70%)';
   return (
-    <div className="relative mb-3 grid h-28 w-56 place-items-center">
+    <div className="relative mb-3 grid h-28 w-64 place-items-center">
       <div aria-hidden="true" className="absolute inset-0 opacity-70" style={{ backgroundImage: grid, backgroundSize: '18px 18px', maskImage: fade, WebkitMaskImage: fade }} />
-      <span className="relative grid size-14 place-items-center rounded-full border-8 border-accent-soft bg-accent/10 text-link"><Icon name="search" className="size-6" /></span>
+      {variant === 'people' ? (
+        <div className="relative flex items-center gap-2" aria-hidden="true">
+          {[0.25, 0.5, 0.8].map((o) => <span key={o} className="grid size-9 place-items-center rounded-full bg-accent-soft text-link" style={{ opacity: o }}><Icon name="user" className="size-4" /></span>)}
+          <span className="grid size-12 place-items-center rounded-xl border border-line-strong bg-surface text-muted"><Icon name="search" className="size-5" /></span>
+          {[0.8, 0.5, 0.25].map((o) => <span key={o} className="grid size-9 place-items-center rounded-full bg-accent-soft text-link" style={{ opacity: o }}><Icon name="user" className="size-4" /></span>)}
+        </div>
+      ) : (
+        <span aria-hidden="true" className="relative grid size-16 place-items-center rounded-full border border-line bg-surface-2 text-link"><Icon name="file-search" className="size-7" /></span>
+      )}
     </div>
   );
 }
 
-export function EmptyState({ title, hint, onClear }) {
+export function EmptyState({ variant = 'generic', title, hint, filtered, onClearSearch, onClearFilters }) {
   return (
     <div className="flex flex-col items-center px-6 pb-6 pt-4 text-center">
-      <EmptyArt />
+      <EmptyArt variant={variant} />
       <p className="text-sm font-semibold text-ink">{title}</p>
       <p className="mt-1 max-w-sm text-[13px] text-muted">{hint}</p>
-      <Button size="sm" variant="neutral" className="mt-3" onClick={onClear}>Clear filters</Button>
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" variant="neutral" onClick={onClearSearch}>Clear search</Button>
+        {filtered && <Button size="sm" variant="neutral" onClick={onClearFilters}>Clear filters</Button>}
+      </div>
     </div>
   );
 }

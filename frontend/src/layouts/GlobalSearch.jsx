@@ -9,7 +9,7 @@ import { Tabs } from '../components/ui/Tabs.jsx';
 import { useGlobalSearch } from '../hooks/useGlobalSearch.js';
 import { readRecent, rememberRecent } from '../lib/recentSearch.js';
 import { NAV_ITEMS } from './navigation.js';
-import { EmptyState, FilterChip, Footer, ResultRow, RoundButton, SectionLabel } from './GlobalSearchParts.jsx';
+import { EmptyState, FilterChip, FiltersMenu, Footer, ResultRow, SectionLabel } from './GlobalSearchParts.jsx';
 import { useSearch } from './SearchContext.jsx';
 
 const GROUP_TITLES = { pages: 'Pages', records: 'Records', people: 'People', setup: 'Setup' };
@@ -83,6 +83,9 @@ export function GlobalSearch() {
   const tabs = [{ id: 'all', label: 'All' }, { id: 'records', label: 'Records', icon: 'users', iconOnly: true }, { id: 'people', label: 'People', icon: 'user', iconOnly: true }, { id: 'pages', label: 'Pages', icon: 'home', iconOnly: true }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders', iconOnly: true }] : [])];
   const nothing = searching && !flat.length && !server.loading && (type === 'pages' || server.searched);
   const filtered = type !== 'all' || Boolean(activeTag);
+  const activeFilters = Number(type !== 'all') + Number(Boolean(activeTag)) + Number(sort !== 'relevance');
+  const tagCounts = useMemo(() => (server.groups.records ?? []).reduce((n, r) => ({ ...n, [r.tag]: (n[r.tag] ?? 0) + 1 }), {}), [server.groups.records]);
+  const kindCounts = { records: server.groups.records?.length, people: server.groups.people?.length, setup: server.groups.setup?.length, pages: localPages.length };
   const clear = () => { setType('all'); setTag(null); input.current?.focus(); };
   const label = { recent: 'Recent', actions: 'Quick actions', ...GROUP_TITLES };
 
@@ -106,16 +109,15 @@ export function GlobalSearch() {
         <div className="flex items-center gap-2 border-b border-line px-4 py-2">
           <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
             {tags.length > 1 && (type === 'all' || type === 'records')
-              ? tags.map((t) => <FilterChip key={t} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
-              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
+              ? tags.map((t) => <FilterChip key={t} count={tagCounts[t]} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
+              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} count={kindCounts[t.id]} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
           </div>
-          <RoundButton icon="sliders" label="Clear filters" onClick={clear} active={filtered} />
-          <RoundButton icon="chevrons-up-down" label={sort === 'name' ? 'Sorted by name' : 'Sorted by relevance'} onClick={() => setSort((v) => (v === 'name' ? 'relevance' : 'name'))} active={sort === 'name'} />
+          <FiltersMenu sort={sort} onSort={setSort} activeCount={activeFilters} onClearFilters={() => { clear(); setSort('relevance'); }} />
         </div>
       )}
 
       <div ref={list} id="global-search-results" role="listbox" aria-label="Results" className="h-[min(46vh,330px)] overflow-y-auto px-2 pb-2">
-        {nothing ? <EmptyState title="No matches found" hint="We couldn’t find anything matching your search. Try adjusting your keywords, filters, or check for typos." onClear={filtered ? clear : () => setQuery('')} /> : (() => {
+        {nothing ? <EmptyState variant={type === 'people' ? 'people' : 'generic'} title="No matches found" hint={`We couldn’t find anything matching “${query.trim()}”. Try adjusting your keywords, filters, or check for typos.`} filtered={filtered} onClearSearch={() => { setQuery(''); input.current?.focus(); }} onClearFilters={clear} /> : (() => {
           let index = -1;
           return groups.map(([key, items]) => (
             <div key={key}>
