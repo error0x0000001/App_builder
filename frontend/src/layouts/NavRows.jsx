@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { hasRole } from '@app/shared';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { cn } from '../lib/cn.js';
@@ -70,6 +70,36 @@ function ParentRow({ parent, children }) {
       )}
     </li>
   );
+}
+
+const containsPath = (node, pathname) => (node.to ? node.to === pathname : node.children?.some((c) => containsPath(c, pathname)));
+const connector = 'relative pl-4 before:absolute before:left-0 before:top-5 before:h-px before:w-4 before:bg-line-strong'; // 20px = the middle of a 40px row, even when the row is a parent with its branch below
+
+function TreeRow({ node, depth, forceOpen }) {
+  const { pathname } = useLocation();
+  const active = containsPath(node, pathname);
+  const [open, setOpen] = useState(active);
+  useEffect(() => { if (active) setOpen(true); }, [active]); // arriving from search or a link opens the branch that holds the page
+  const nested = depth > 0;
+  const label = <><span className="min-w-0 flex-1 truncate text-left">{node.label}</span></>;
+  const icon = node.icon && <Icon name={node.icon} className="size-5.5 shrink-0" />;
+  if (!node.children) {
+    return <li className={nested ? connector : undefined}><NavLink to={node.to} className={({ isActive }) => cn(ROW, nested && 'h-10', 'w-full flex-none', isActive && 'bg-sidebar-accent')}>{icon}{label}</NavLink></li>;
+  }
+  const expanded = forceOpen || open;
+  return (
+    <li className={nested ? connector : undefined}>
+      <button type="button" aria-expanded={expanded} onClick={() => setOpen((o) => !o)} className={cn(ROW, nested && 'h-10', 'w-full flex-none')}>
+        {icon}{label}<Icon name={expanded ? 'minus' : 'plus'} className="size-5 shrink-0 text-sidebar-muted" />
+      </button>
+      {expanded && <ul className="ml-[22px] mt-0.5 flex flex-col gap-0.5 border-l border-line-strong">{node.children.map((child) => <TreeRow key={child.id} node={child} depth={depth + 1} forceOpen={forceOpen} />)}</ul>}
+    </li>
+  );
+}
+
+/** Nested navigation of any depth (the Setup tree) in the same rows as the rest of the sidebar: a parent is an expandable row (+/−), its children hang on a connector line. */
+export function NavTree({ nodes, forceOpen = false, label }) {
+  return <ul aria-label={label} className="flex flex-col gap-0.5">{nodes.map((node) => <TreeRow key={node.id} node={node} depth={0} forceOpen={forceOpen} />)}</ul>;
 }
 
 /** Rows in order; consecutive items sharing a `parent` collapse under one ParentRow. */
