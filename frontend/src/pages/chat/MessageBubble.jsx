@@ -57,7 +57,7 @@ function MessageBubbleImpl({ message, mine, people, group, firstOfRun, lastOfRun
   );
 
   return (
-    <div className={cn('group/msg flex gap-3', mine && 'flex-row-reverse', firstOfRun ? 'mt-4' : 'mt-1')}>
+    <div className={cn('group/msg flex gap-3', mine && 'flex-row-reverse', firstOfRun ? 'mt-4' : 'mt-2')}>
       {!mine && (firstOfRun ? <Avatar name={sender} src={people[message.senderId]?.avatar} size="size-10" /> : <span className="size-10 shrink-0" aria-hidden="true" />)}
       <div className={cn('flex min-w-0 max-w-[min(34rem,84%)] flex-col gap-1.5', mine ? 'items-end' : 'items-start')}>
         {firstOfRun && (
@@ -70,7 +70,7 @@ function MessageBubbleImpl({ message, mine, people, group, firstOfRun, lastOfRun
           {bare ? <div className={cn('min-w-0', message.pending && 'opacity-70')}>{<MessageAttachments attachments={message.attachments} onOpen={onOpenAttachment} />}</div> : (
             <div
               className={cn('min-w-0 rounded-lg border px-3.5 py-2.5 text-[15px] leading-6 text-ink [overflow-wrap:anywhere]', mine ? 'border-accent/25 bg-accent-soft' : 'border-line bg-surface-2',
-                !firstOfRun && (mine ? 'rounded-tr-sm' : 'rounded-tl-sm'), !lastOfRun && (mine ? 'rounded-br-sm' : 'rounded-bl-sm'), message.pending && 'opacity-70')}
+                !firstOfRun && (mine ? 'rounded-tr-md' : 'rounded-tl-md'), !lastOfRun && (mine ? 'rounded-br-md' : 'rounded-bl-md'), message.pending && 'opacity-70')}
               title={firstOfRun ? undefined : formatTime(message.createdAt)}
             >
               {content}
