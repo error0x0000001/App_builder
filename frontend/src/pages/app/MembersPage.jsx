@@ -3,7 +3,7 @@ import { ROLES, ROLE_LABELS, hasRole, outranks } from '@app/shared';
 import { workspacesApi } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
-import { PageHeaderActions } from '../../layouts/PageHeader.jsx';
+import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { InviteForm } from '../../components/workspace/InviteForm.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -86,9 +86,7 @@ export default function MembersPage() {
   return (
  <>
       {canInvite && (
-        <PageHeaderActions>
-          <Button size="sm" onClick={() => document.getElementById('invite-people')?.scrollIntoView({ behavior: 'smooth' })}><Icon name="plus" />Invite people</Button>
-        </PageHeaderActions>
+        <PageToolbar><Button size="sm" onClick={() => document.getElementById('invite-people')?.scrollIntoView({ behavior: 'smooth' })}><Icon name="plus" />Invite people</Button></PageToolbar>
       )}
       <Section title="Members" description={`People with access to ${activeWorkspace.name}.`}>
         <MemberList workspaceId={activeWorkspace.id} actorRole={activeWorkspace.role} currentUserId={user.id} />

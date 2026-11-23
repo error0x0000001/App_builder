@@ -10,7 +10,7 @@ import { Alert } from '../../components/ui/Alert.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { Section } from '../../components/ui/Card.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
-import { PageHeaderActions } from '../../layouts/PageHeader.jsx';
+import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { QueryState } from './QueryState.jsx';
 import { useSetupPage } from './useSetupPage.js';
 
@@ -72,14 +72,14 @@ function FormBody({ page, pageKey, data, onSaved }) {
 
   return (
     <Form id={formId} form={form} onSubmit={submit} error={formError} className="space-y-5">
-      <PageHeaderActions>
+      <PageToolbar>
         {editing ? (
           <>
             {dirty && <Button size="sm" variant="neutral" onClick={() => { form.reset(initial); if (detail) setEditing(false); }}>{detail ? 'Cancel' : 'Reset'}</Button>}
             <SubmitButton size="sm" form={formId} disabled={!dirty}>Save</SubmitButton>
           </>
         ) : <Button size="sm" variant="neutral" onClick={() => setEditing(true)}>Edit</Button>}
-      </PageHeaderActions>
+      </PageToolbar>
 
       {conflict && (
         <Alert tone="warning" title="Someone else changed this page">

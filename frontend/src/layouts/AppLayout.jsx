@@ -12,7 +12,7 @@ import { SearchProvider } from './SearchContext.jsx';
 import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { ChatRealtimeProvider } from '../pages/chat/ChatRealtime.jsx';
 import { CallProvider } from '../pages/chat/calls/CallProvider.jsx';
-import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
+import { MobileBar } from './MobileBar.jsx';
 import { TopBar } from './TopBar.jsx';
 
 /** Rail, sidebar or top bar (the owner's choice; phones always get the drawer), then the content card. */
@@ -21,7 +21,7 @@ function Shell({ bleed }) {
   const content = (
     <SidebarInset>
       <ImpersonationBanner />
-      <PageHeader />
+      <MobileBar />
       <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
         {bleed ? <Outlet /> : <div className="space-y-6 px-4 pb-4 pt-5"><Outlet /></div>}
       </main>
@@ -45,11 +45,9 @@ export function AppLayout() {
         <SearchProvider>
           <ChatRealtimeProvider>
             <CallProvider>
-              <PageHeaderProvider>
-                <Shell bleed={bleed} />
-                <GlobalSearch />
-                <CustomizeSheet />
-              </PageHeaderProvider>
+              <Shell bleed={bleed} />
+              <GlobalSearch />
+              <CustomizeSheet />
             </CallProvider>
           </ChatRealtimeProvider>
         </SearchProvider>

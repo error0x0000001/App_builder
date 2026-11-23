@@ -1,10 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { cn } from '../../lib/cn.js';
-import { useSidebar } from '../../components/sidebar/SidebarContext.jsx';
+import { useNavPanel } from '../../hooks/useNavPanel.js';
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { ConversationList } from './ConversationList.jsx';
 import { NewChatDialog } from './NewChatDialog.jsx';
@@ -17,13 +17,13 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { status } = useChatRealtime();
-  const { layout, isMobile, collapsed } = useSidebar();
-  const listInNav = !isMobile && layout !== 'topbar' && !collapsed; // the rail panel / sidebar already shows the inbox
+  const listInNav = useNavPanel(); // the rail panel / sidebar already shows the inbox — and the info, which replaces it there
   const [creating, setCreating] = useState(null);
-  const [info, setInfo] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const info = params.get('info') === '1'; // the URL carries it so the sidebar panel and this page agree
+  const setInfo = (next) => setParams((p) => { const q = new URLSearchParams(p); if (typeof next === 'function' ? next(info) : next) q.set('info', '1'); else q.delete('info'); return q; }, { replace: true });
   const open = (conversationId) => navigate(`/app/chat/${conversationId}`);
 
-  useEffect(() => { setInfo(false); }, [id]);
   useEffect(() => { qc.invalidateQueries({ queryKey: ['chat', 'inbox'] }); }, [qc]); // a fresh inbox whenever the page opens
 
   return (
@@ -46,7 +46,7 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-      {id && info && <aside className="fixed inset-0 z-[60] min-h-0 border-l border-line lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></aside>}
+      {id && info && !listInNav && <aside className="fixed inset-0 z-[60] min-h-0 border-l border-line lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></aside>}
       <NewChatDialog mode={creating} onClose={() => setCreating(null)} onOpen={open} />
     </div>
   );

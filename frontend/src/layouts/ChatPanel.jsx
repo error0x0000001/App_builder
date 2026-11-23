@@ -1,9 +1,22 @@
-import { useMatch, useNavigate } from 'react-router-dom';
+import { useMatch, useNavigate, useSearchParams } from 'react-router-dom';
+import { ConversationInfo } from '../pages/chat/ConversationInfo.jsx';
 import { ConversationList } from '../pages/chat/ConversationList.jsx';
 
-/** The chat inbox as a navigation panel (rail panel or classic sidebar): same list as the page used to carry, drawn in the navigation colours. */
+/**
+ * The chat section's panel (rail panel or classic sidebar): the inbox, which turns into the contact / group info when it is opened from the conversation
+ * (`?info=1`) — with a Back control, not a third column. Drawn in the navigation colours.
+ */
 export function ChatPanel() {
   const navigate = useNavigate();
   const match = useMatch('/app/chat/:id');
-  return <div className="on-sidebar -mx-5 min-h-0 flex-1 text-sidebar-ink"><ConversationList activeId={match?.params.id} onOpen={(id) => navigate(`/app/chat/${id}`)} /></div>;
+  const [params, setParams] = useSearchParams();
+  const id = match?.params.id;
+  const info = id && params.get('info') === '1';
+  return (
+    <div className="on-sidebar flex min-h-0 flex-1 flex-col text-sidebar-ink">
+      {info
+        ? <ConversationInfo key={id} conversationId={id} onBack={() => { const next = new URLSearchParams(params); next.delete('info'); setParams(next, { replace: true }); }} />
+        : <ConversationList activeId={id} onOpen={(conversationId) => navigate(`/app/chat/${conversationId}`)} />}
+    </div>
+  );
 }

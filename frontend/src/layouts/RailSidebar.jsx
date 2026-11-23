@@ -11,7 +11,7 @@ import { cn } from '../lib/cn.js';
 import { NavRows, ROW_ACTION, SearchField, useNavSections } from './NavRows.jsx';
 import { isActivePath, isVisibleTo, NAV } from './navigation.js';
 import { NavUserCompact } from './NavUser.jsx';
-import { ChatPanel } from './ChatPanel.jsx';
+import { SECTION_PANELS } from './sectionPanels.js';
 import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 import { useSearch } from './SearchContext.jsx';
 
@@ -54,7 +54,7 @@ function Panel({ section, sections }) {
         <h2 className="truncate text-xl font-semibold text-sidebar-ink">{section.label}</h2>
         <button type="button" aria-label="Hide panel" onClick={toggle} className={ROW_ACTION}><Icon name="panel-left" className="size-5" /></button>
       </div>
-      {section.panel === 'chat' ? <ChatPanel /> : (
+      {SECTION_PANELS[section.panel] ? (() => { const SectionPanel = SECTION_PANELS[section.panel]; return <div className="-mx-5 flex min-h-0 flex-1 flex-col"><SectionPanel /></div>; })() : (
         <>
           <SearchField />
           <Tabs tone="sidebar" label="Navigation" value={tab} onChange={setTab} tabs={[{ id: 'menu', label: 'Menu' }, { id: 'recent', label: 'Recent' }]} />

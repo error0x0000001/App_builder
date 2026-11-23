@@ -17,6 +17,7 @@
   /* shape: 8px controls (Untitled "lg" radius); the sign-in screens override these (see .auth-scope) */
   --radius-btn: 0.5rem; --ctl-h: 2.5rem; --ctl-r: 0.5rem;
   --danger: #d92d20; --success: #079455; --warning: #dc6803;
+  --fi-blue: #1570ef; --fi-purple: #7a5af8; --fi-pink: #dd2590; --fi-orange: #e04f16; --fi-teal: #0e9384; --fi-indigo: #444ce7; /* featured-icon hues (Untitled UI palette) */
   --hero-1: #9db8ff; --hero-2: #c9bcff; --hero-3: #dce8ff; --orb-a: #7fa6ff; --orb-b: #1b3a6b;
   color-scheme: light;
 }
@@ -27,6 +28,7 @@
   --bg: #000000; --surface: #0a0a0b; --surface-2: #141416; --line: #232326; --line-strong: #323236; --inset: #000000;
   --ink: #ededee; --muted: #a1a1a8; --placeholder: #6b6b72;
   --danger: #f97066; --success: #47cd89; --warning: #fdb022;
+  --fi-blue: #53b1fd; --fi-purple: #9b8afb; --fi-pink: #f670c7; --fi-orange: #ff692e; --fi-teal: #2ed3b7; --fi-indigo: #8098f9;
   --hero-1: #1a2a4d; --hero-2: #2a2552; --hero-3: #0c1019; --orb-a: #6b9bff; --orb-b: #16264d;
   color-scheme: dark;
 }

@@ -16,6 +16,7 @@ import { SearchInput } from '../../components/ui/SearchInput.jsx';
 import { SegmentedControl } from '../../components/ui/SegmentedControl.jsx';
 import { Select } from '../../components/ui/Select.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
+import { useNavPanel } from '../../hooks/useNavPanel.js';
 import { useLocalStorageState } from '../../hooks/useLocalStorageState.js';
 import { cn } from '../../lib/cn.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
@@ -24,13 +25,10 @@ import { MoveDialog } from './MoveDialog.jsx';
 import { NameDialog } from './NameDialog.jsx';
 import { PreviewDialog } from './PreviewDialog.jsx';
 import { ShareDialog } from './ShareDialog.jsx';
+import { DocumentsNav } from './DocumentsNav.jsx';
 import { UploadTray } from './UploadTray.jsx';
 import { useUploads } from './useUploads.js';
 
-const NAV = [
-  { view: 'my', label: 'My Drive', icon: 'hard-drive' }, { view: 'shared', label: 'Shared with me', icon: 'users' }, { view: 'recent', label: 'Recent', icon: 'clock' },
-  { view: 'starred', label: 'Starred', icon: 'star' }, { view: 'trash', label: 'Trash', icon: 'trash' }, { view: 'all', label: 'All folders', icon: 'lock', admin: true },
-];
 const SORTS = [{ value: 'name', label: 'Name' }, { value: 'modified', label: 'Last modified' }];
 const LAYOUTS = [{ value: 'list', label: 'List' }, { value: 'grid', label: 'Grid' }];
 const TITLES = { shared: 'Shared with me', recent: 'Recent', starred: 'Starred', trash: 'Trash', all: 'All folders' };
@@ -38,7 +36,7 @@ const TITLES = { shared: 'Shared with me', recent: 'Recent', starred: 'Starred',
 /** Documents: the workspace Drive. State lives in the URL (?view, ?folder, ?file) so every place can be linked, shared and reloaded. */
 export default function DocumentsPage() {
   const { activeWorkspace } = useAuth();
-  const isAdmin = ['owner', 'admin'].includes(activeWorkspace?.role);
+  const navPanel = useNavPanel();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const view = params.get('view') ?? 'my';
@@ -64,7 +62,6 @@ export default function DocumentsPage() {
     placeholderData: keepPreviousData,
     retry: false,
   });
-  const usage = useQuery({ queryKey: ['drive', 'usage'], queryFn: driveApi.usage, staleTime: 30_000 });
 
   const head = listing.data?.pages[0]?.folder ?? null;
   const folders = useMemo(() => [...new Map((listing.data?.pages ?? []).flatMap((p) => p.folders).map((f) => [f.id, f])).values()], [listing.data]);
@@ -107,37 +104,12 @@ export default function DocumentsPage() {
   const openPreview = (file) => { const next = new URLSearchParams(params); next.set('file', file.id); setParams(next, { replace: true }); };
 
   const empty = !listing.isPending && !items.length;
-  const usedPct = usage.data ? (usage.data.used / usage.data.quota) * 100 : 0;
   const forbidden = listing.error?.status === 404 || listing.error?.status === 403;
 
   return (
     <DropZone onFiles={startUpload} disabled={!canUploadHere} className="flex h-full min-h-0">
       {picker.input}
-      <aside aria-label="Documents navigation" className="hidden w-60 shrink-0 flex-col gap-4 border-r border-line p-3 md:flex">
-        <DropdownMenu>
-          <DropdownMenuTrigger>
-            {(props) => <Button {...props} className="w-full justify-start"><Icon name="plus" className="size-4" />New</Button>}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-52">
-            <DropdownMenuItem icon="folder-plus" onSelect={() => setDialog({ type: 'newFolder' })}>New folder</DropdownMenuItem>
-            {canUploadHere && <DropdownMenuItem icon="upload" onSelect={picker.open}>File upload</DropdownMenuItem>}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <nav aria-label="Drive views" className="flex flex-col gap-0.5">
-          {NAV.filter((n) => !n.admin || isAdmin).map((n) => {
-            const active = (view === n.view && !folderId) || (n.view === 'my' && folderId && view === 'my');
-            return (
-              <button key={n.view} type="button" aria-current={active ? 'page' : undefined} onClick={() => goView(n.view)} className={cn('flex h-10 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring', active ? 'bg-surface-2 text-ink' : 'text-ink')}>
-                <Icon name={n.icon} className="size-5 shrink-0 text-muted" />{n.label}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="mt-auto space-y-2 px-1 text-xs text-muted">
-          <ProgressBar value={usedPct} warn label="Storage used" className="h-1.5" />
-          <p>{usage.data ? `${formatBytes(usage.data.used)} of ${formatBytes(usage.data.quota)} used` : ' '}</p>
-        </div>
-      </aside>
+      {!navPanel && <aside aria-label="Documents navigation" className="hidden w-60 shrink-0 flex-col border-r border-line p-3 md:flex"><DocumentsNav /></aside>}
 
       <section aria-label="Files" className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
@@ -153,6 +125,13 @@ export default function DocumentsPage() {
               </>
             ) : <h2 className="px-1 font-semibold text-ink">{q ? `Results for “${q}”` : TITLES[view] ?? 'My Drive'}</h2>}
           </nav>
+          <DropdownMenu>
+            <DropdownMenuTrigger>{(props) => <Button {...props} size="sm"><Icon name="plus" className="size-4" />New</Button>}</DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem icon="folder-plus" onSelect={() => setDialog({ type: 'newFolder' })}>New folder</DropdownMenuItem>
+              {canUploadHere && <DropdownMenuItem icon="upload" onSelect={picker.open}>File upload</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <SearchInput label="Search Documents" placeholder="Search in Documents" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} className="h-9 w-full sm:w-64" />
           <div className="w-36"><Select aria-label="Sort by" size="sm" options={SORTS} value={sort} onChange={setSort} /></div>
           <SegmentedControl label="Layout" options={LAYOUTS} value={layout} onChange={setLayout} />

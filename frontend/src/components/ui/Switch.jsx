@@ -1,14 +1,17 @@
 import { forwardRef, useId } from 'react';
 
 /** Accessible on/off switch (a real checkbox with role="switch"). */
-export const Switch = forwardRef(function Switch({ label, description, id: idProp, ...rest }, ref) {
+export const Switch = forwardRef(function Switch({ label, description, leading, id: idProp, ...rest }, ref) {
   const generated = useId();
   const id = idProp ?? generated;
   return (
     <label htmlFor={id} className="flex cursor-pointer items-center justify-between gap-4">
-      <span>
-        <span className="block text-sm font-semibold text-ink">{label}</span>
-        {description && <span className="block text-xs text-muted">{description}</span>}
+      <span className="flex min-w-0 items-center gap-3">
+        {leading}
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink">{label}</span>
+          {description && <span className="block text-xs text-muted">{description}</span>}
+        </span>
       </span>
       <span className="relative inline-flex shrink-0 items-center">
         <input ref={ref} id={id} type="checkbox" role="switch" className="peer sr-only" {...rest} />

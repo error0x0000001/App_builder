@@ -7,12 +7,12 @@ import { cursorPagination, objectDefinitionQuery } from '../../api/queries.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
+import { cn } from '../../lib/cn.js';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
-import { PageHeaderActions, PageHeaderTitle } from '../../layouts/PageHeader.jsx';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from '../setup/QueryState.jsx';
 import { RecordAttachments } from '../../components/records/RecordAttachments.jsx';
@@ -101,16 +101,14 @@ function ObjectBody({ object, definition, permissions }) {
 
   return (
     <div className="space-y-3">
-      <PageHeaderTitle icon={CRM_NAV_OBJECTS.find((o) => o.key === definition.key)?.icon ?? 'users'}>{definition.plural}</PageHeaderTitle>
-      <PageHeaderActions>
-        {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral"><Icon name="sliders" className="size-4" />Customize</Button>}
-        {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
-      </PageHeaderActions>
-
       {notice.map((n) => <Alert key={n} tone="warning">{n}</Alert>)}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${definition.plural.toLowerCase()}`} label={`Search ${definition.plural}`} className="w-full sm:w-72" />
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />Delete ({selected.size})</Button>}
+        <div className={cn('flex items-center gap-2', !(selected.size > 0 && canDelete) && 'ml-auto')}>
+          {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral"><Icon name="sliders" className="size-4" />Customize</Button>}
+          {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
+        </div>
       </div>
 
       <QueryState query={records}>

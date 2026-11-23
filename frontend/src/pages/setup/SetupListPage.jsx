@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { SETUP_LIST } from '@app/shared';
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
@@ -12,7 +12,6 @@ import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
 import { Select } from '../../components/ui/Select.jsx';
-import { PageHeaderActions, PageHeaderMeta } from '../../layouts/PageHeader.jsx';
 import { formatDateTime } from '../../lib/format.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from './QueryState.jsx';
@@ -81,22 +80,18 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const toggle = (id) => setSelected((s) => { const next = new Set(s); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const toggleAll = (checked) => setSelected(checked ? new Set(rows.map((r) => r.id)) : new Set());
 
-  const Actions = embedded ? Fragment : PageHeaderActions;
   const label = adapter?.createLabel ?? page.newLabel;
   const deleteLabel = adapter?.deleteLabel ?? 'Delete';
 
   return (
     <div className="space-y-3">
-      {!embedded && total !== undefined && <PageHeaderMeta>{total} {total === '1' ? 'item' : 'items'}</PageHeaderMeta>}
-      <Actions>
-        {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />{label}</Button>}
-      </Actions>
-
       <div className="flex flex-wrap items-center gap-2">
         {searchable && <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${page.name.toLowerCase()}`} label={`Search ${page.name}`} className="w-full sm:w-72" />}
         {views?.length > 1 && <Select aria-label="List view" value={view} onChange={setView} options={views} size="sm" />}
         {embedded && canCreate === false && total !== undefined && <span className="text-sm text-muted">{total} items</span>}
+        {!embedded && total !== undefined && <span className="text-sm text-muted">{total} {total === '1' ? 'item' : 'items'}</span>}
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />{deleteLabel} ({selected.size})</Button>}
+        {canCreate && <Button size="sm" className={selected.size > 0 && canDelete ? '' : 'ml-auto'} onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />{label}</Button>}
       </div>
 
       <QueryState query={records}>

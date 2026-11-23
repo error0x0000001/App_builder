@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
-import { PageHeaderMeta, PageHeaderTitle } from '../../layouts/PageHeader.jsx';
 import { PageIntro } from './PageIntro.jsx';
 import { StatusBanner } from './StatusBanner.jsx';
 import { QueryState } from './QueryState.jsx';
@@ -20,8 +19,7 @@ export default function SetupPage() {
         if (!Template) return <Alert tone="warning">This page type is not available yet.</Alert>;
         return (
           <>
-            <PageHeaderTitle icon="sliders">{page.name}</PageHeaderTitle>
-            {page.path && <PageHeaderMeta>{page.path.at(-1)}</PageHeaderMeta>}
+            <div><h1 className="text-lg font-semibold text-ink">{page.name}</h1>{page.path && <p className="text-sm text-muted">{page.path.at(-1)}</p>}</div>
             <PageIntro>{page.desc}</PageIntro>
             <StatusBanner status={status} />
             <Suspense fallback={<div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>}><Template key={key} pageKey={key} /></Suspense>

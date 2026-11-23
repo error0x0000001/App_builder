@@ -10,7 +10,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { Dialog } from '../../components/ui/Dialog.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { TreeNav } from '../../components/ui/TreeNav.jsx';
-import { PageHeaderActions } from '../../layouts/PageHeader.jsx';
+import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { invalidateSetupData } from './invalidate.js';
 import { QueryState } from './QueryState.jsx';
 
@@ -55,7 +55,7 @@ export default function SetupHierarchyPage({ pageKey }) {
     <QueryState query={query}>
       {({ roots }) => (
         <>
-          <PageHeaderActions><Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />Add role</Button></PageHeaderActions>
+          <PageToolbar><Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />Add role</Button></PageToolbar>
           <div className="rounded-lg border border-line bg-surface p-2">
             <TreeNav nodes={nodes} label="Role hierarchy" isOpenByDefault={() => true} />
           </div>

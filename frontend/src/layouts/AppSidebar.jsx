@@ -7,14 +7,16 @@ import { WorkspaceSwitcher } from '../components/workspace/WorkspaceSwitcher.jsx
 import { NavBottom, NavMain } from './NavMain.jsx';
 import { SearchField } from './NavRows.jsx';
 import { NavUser } from './NavUser.jsx';
-import { ChatPanel } from './ChatPanel.jsx';
+import { SECTION_PANELS } from './sectionPanels.js';
+import { NAV } from './navigation.js';
 import { Tabs } from '../components/ui/Tabs.jsx';
 
 export function AppSidebar() {
   const { setMobileOpen } = useSidebar();
   const { pathname } = useLocation();
   const [view, setView] = useState('chats');
-  const onChat = pathname.startsWith('/app/chat');
+  const section = NAV.groups.find((g) => g.panel && pathname.startsWith(g.items[0].to));
+  const SectionPanel = section && SECTION_PANELS[section.panel];
   useEffect(() => setMobileOpen(false), [pathname, setMobileOpen]); // close the drawer after navigating
 
   return (
@@ -27,10 +29,10 @@ export function AppSidebar() {
         <SearchField />
       </SidebarHeader>
       <SidebarContent>
-        {onChat ? (
+        {SectionPanel ? (
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <Tabs tone="sidebar" label="Sidebar view" value={view} onChange={setView} tabs={[{ id: 'chats', label: 'Chats' }, { id: 'menu', label: 'Menu' }]} />
-            {view === 'chats' ? <ChatPanel /> : <NavMain />}
+            <Tabs tone="sidebar" label="Sidebar view" value={view} onChange={setView} tabs={[{ id: 'chats', label: section.label }, { id: 'menu', label: 'Menu' }]} />
+            {view === 'chats' ? <SectionPanel /> : <NavMain />}
           </div>
         ) : <NavMain />}
       </SidebarContent>
