@@ -23,7 +23,7 @@ const Status = ({ read, pending, failed }) => (failed
   : <Icon name={read ? 'check-double' : 'check'} aria-label={pending ? 'Sending' : read ? 'Read' : 'Sent'} className={cn('size-4', read ? 'text-accent' : 'text-placeholder', pending && 'opacity-50')} />);
 
 /**
- * One message in Untitled UI's message style: avatar + name/time header on the first message of a run, a neutral bordered bubble (grey for others, white for you),
+ * One message in Untitled UI's message style: avatar + name/time header on the first message of a run, a bordered bubble (neutral grey for others, a soft accent tint for you),
  * reply quote with a brand rule, link card, attachments as cards / pictures with a caption / a voice-note player, reactions as pills under the bubble.
  */
 function MessageBubbleImpl({ message, mine, people, group, firstOfRun, lastOfRun, peerRead, flipMenu, onReply, onReact, onEdit, onDelete, onForward, onPin, onRetry, onJumpTo, onOpenAttachment, onStar, onInfo, onHide, canDeleteOthers, myId, conversationId }) {
@@ -69,7 +69,7 @@ function MessageBubbleImpl({ message, mine, people, group, firstOfRun, lastOfRun
         <div className={cn('flex items-center gap-1', mine && 'flex-row-reverse')}>
           {bare ? <div className={cn('min-w-0', message.pending && 'opacity-70')}>{<MessageAttachments attachments={message.attachments} onOpen={onOpenAttachment} />}</div> : (
             <div
-              className={cn('min-w-0 rounded-lg border px-3.5 py-2.5 text-[15px] leading-6 text-ink [overflow-wrap:anywhere]', mine ? 'border-line-strong bg-surface' : 'border-line bg-surface-2',
+              className={cn('min-w-0 rounded-lg border px-3.5 py-2.5 text-[15px] leading-6 text-ink [overflow-wrap:anywhere]', mine ? 'border-accent/25 bg-accent-soft' : 'border-line bg-surface-2',
                 !firstOfRun && (mine ? 'rounded-tr-sm' : 'rounded-tl-sm'), !lastOfRun && (mine ? 'rounded-br-sm' : 'rounded-bl-sm'), message.pending && 'opacity-70')}
               title={firstOfRun ? undefined : formatTime(message.createdAt)}
             >
