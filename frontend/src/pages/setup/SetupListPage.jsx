@@ -6,7 +6,6 @@ import { setupApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { Badge, hueOf } from '../../components/ui/Badge.jsx';
-import { NameTile } from '../../components/ui/NameTile.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
@@ -32,7 +31,7 @@ const dash = <span className="text-muted">—</span>;
 const PERSON = /(^|_)(created_by|modified_by|updated_by|owner|assigned_to|user|monitored_user|manager|requester)$/i;
 const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
 
-/** Rich, coloured cells (Untitled UI tables are never plain text): tiles + two-line names, dotted status badges, hue tags, avatars. */
+/** Rich, coloured cells (Untitled UI tables are never plain text): two-line names, dotted status badges, hue tags, avatars. */
 const renderCell = (type, { key, first, subKey }) => (row) => {
   const v = row[key];
   const empty = v === undefined || v === null || v === '';
@@ -41,7 +40,6 @@ const renderCell = (type, { key, first, subKey }) => (row) => {
     const sub = subKey ? row[subKey] : null;
     return (
       <span className="flex min-w-0 items-center gap-3">
-        <NameTile name={String(v)} />
         <span className="min-w-0"><span className="block truncate font-medium text-ink">{String(v)}</span>{sub ? <span className="block truncate text-xs text-muted">{String(sub)}</span> : null}</span>
       </span>
     );
