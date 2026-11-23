@@ -25,6 +25,7 @@ import { MoveDialog } from './MoveDialog.jsx';
 import { NameDialog } from './NameDialog.jsx';
 import { PreviewDialog } from './PreviewDialog.jsx';
 import { ShareDialog } from './ShareDialog.jsx';
+import { Pane, PaneGroup } from '../../components/ui/Panes.jsx';
 import { DocumentsNav } from './DocumentsNav.jsx';
 import { UploadTray } from './UploadTray.jsx';
 import { useUploads } from './useUploads.js';
@@ -107,11 +108,12 @@ export default function DocumentsPage() {
   const forbidden = listing.error?.status === 404 || listing.error?.status === 403;
 
   return (
-    <DropZone onFiles={startUpload} disabled={!canUploadHere} className="flex h-full min-h-0">
+    <DropZone onFiles={startUpload} disabled={!canUploadHere} className="h-full min-h-0">
+      <PaneGroup>
       {picker.input}
-      {!navPanel && <aside aria-label="Documents navigation" className="hidden w-60 shrink-0 flex-col border-r border-line p-3 md:flex"><DocumentsNav /></aside>}
+      {!navPanel && <Pane as="aside" side="left" aria-label="Documents navigation" className="hidden w-60 shrink-0 flex-col p-3 md:flex"><DocumentsNav /></Pane>}
 
-      <section aria-label="Files" className="flex min-w-0 flex-1 flex-col">
+      <Pane as="section" aria-label="Files" className="flex flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
           <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-sm">
             {folderId && head ? (
@@ -175,7 +177,8 @@ export default function DocumentsPage() {
             </>
           )}
         </div>
-      </section>
+      </Pane>
+      </PaneGroup>
 
       <UploadTray items={uploads.items} onCancel={uploads.cancel} onRetry={uploads.retry} onClear={uploads.clear} />
 

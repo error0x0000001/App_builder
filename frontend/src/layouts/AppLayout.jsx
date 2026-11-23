@@ -16,10 +16,10 @@ import { MobileBar } from './MobileBar.jsx';
 import { TopBar } from './TopBar.jsx';
 
 /** Rail, sidebar or top bar (the owner's choice; phones always get the drawer), then the content card. */
-function Shell({ bleed }) {
+function Shell({ bleed, panes }) {
   const { layout, collapsed } = useSidebar();
   const content = (
-    <SidebarInset>
+    <SidebarInset panes={panes}>
       <ImpersonationBanner />
       <MobileBar />
       <main className={cn('min-h-0 flex-1', bleed ? 'overflow-hidden' : 'overflow-y-auto')}>
@@ -37,7 +37,8 @@ function Shell({ bleed }) {
  * The card's header is pinned; only the content below it scrolls.
  */
 export function AppLayout() {
-  const bleed = pageFor(useLocation().pathname).bleed; // pages that lay out their own panes (Setup) get the bare card body
+  const page = pageFor(useLocation().pathname);
+  const bleed = page.bleed; // pages that lay out their own panes (Setup) get the bare card body
 
   return (
     <SidebarProvider>
@@ -45,7 +46,7 @@ export function AppLayout() {
         <SearchProvider>
           <ChatRealtimeProvider>
             <CallProvider>
-              <Shell bleed={bleed} />
+              <Shell bleed={bleed} panes={page.panes} />
               <GlobalSearch />
               <CustomizeSheet />
             </CallProvider>

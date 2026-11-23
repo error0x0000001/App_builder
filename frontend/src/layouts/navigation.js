@@ -8,7 +8,7 @@
  * Group `panel: '<key>'` (see sectionPanels.js) – the rail panel / sidebar shows that component (chat list, Documents views…) instead of rows.
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed?, create?, parent? }
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
- *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)
+ *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
  */
 import { CRM_NAV_OBJECTS, hasRole } from '@app/shared';
 
@@ -18,8 +18,8 @@ export const NAV = {
     { to: '/app/members', icon: 'users', label: 'Members' },
   ],
   groups: [
-    { label: 'Documents', icon: 'folder', panel: 'documents', defaultOpen: true, items: [{ to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true }] },
-    { label: 'Chat', icon: 'chat', panel: 'chat', defaultOpen: true, items: [{ to: '/app/chat', icon: 'chat', label: 'Chat', prefix: true, bleed: true }] },
+    { label: 'Documents', icon: 'folder', panel: 'documents', defaultOpen: true, items: [{ to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true, panes: true }] },
+    { label: 'Chat', icon: 'chat', panel: 'chat', defaultOpen: true, items: [{ to: '/app/chat', icon: 'chat', label: 'Chat', prefix: true, bleed: true, panes: true }] },
     { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural, create: true })) },
     { label: 'Account', icon: 'user', defaultOpen: true, items: [
       { to: '/app/profile', icon: 'user', label: 'Profile', parent: { label: 'Settings', icon: 'settings' } },
@@ -27,7 +27,7 @@ export const NAV = {
     ] },
   ],
   bottom: [
-    { to: '/app/setup', icon: 'sliders', label: 'Setup', minRole: 'admin', prefix: true, bleed: true },
+    { to: '/app/setup', icon: 'sliders', label: 'Setup', minRole: 'admin', prefix: true, bleed: true, panes: true },
   ],
 };
 

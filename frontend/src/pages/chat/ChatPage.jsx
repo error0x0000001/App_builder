@@ -5,6 +5,7 @@ import { Icon } from '../../components/ui/Icon.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { cn } from '../../lib/cn.js';
 import { useNavPanel } from '../../hooks/useNavPanel.js';
+import { Pane, PaneGroup } from '../../components/ui/Panes.jsx';
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { ConversationList } from './ConversationList.jsx';
 import { NewChatDialog } from './NewChatDialog.jsx';
@@ -27,13 +28,13 @@ export default function ChatPage() {
   useEffect(() => { qc.invalidateQueries({ queryKey: ['chat', 'inbox'] }); }, [qc]); // a fresh inbox whenever the page opens
 
   return (
-    <div className="flex h-full min-h-0">
+    <PaneGroup>
       {!listInNav && (
-        <aside className={cn('min-h-0 w-full shrink-0 border-r border-line md:block md:w-80 lg:w-96', id && 'hidden')} aria-label="Conversations">
+        <Pane as="aside" side="left" className={cn('w-full shrink-0 md:block md:w-80 lg:w-96', id && 'hidden')} aria-label="Conversations">
           <ConversationList activeId={id} onOpen={open} />
-        </aside>
+        </Pane>
       )}
-      <div className={cn('min-h-0 min-w-0 flex-1', !id && !listInNav && 'hidden md:block')}>
+      <Pane className={cn('flex-1', !id && !listInNav && 'hidden md:block')}>
         {status === 'offline' && <p role="status" className="border-b border-line bg-surface-2 px-4 py-1.5 text-center text-xs font-medium text-muted">Reconnecting… new messages will appear when you are back online.</p>}
         {id ? <Thread key={id} id={id} onBack={() => navigate('/app/chat')} onInfo={() => setInfo((open) => !open)} /> : (
           <div className="grid h-full place-items-center p-6 text-center">
@@ -45,9 +46,9 @@ export default function ChatPage() {
             </div>
           </div>
         )}
-      </div>
-      {id && info && <aside className="fixed inset-0 z-[60] min-h-0 border-l border-line lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></aside>}
+      </Pane>
+      {id && info && <Pane as="aside" side="right" className="fixed inset-0 z-[60] bg-surface lg:static lg:z-auto lg:w-96 lg:shrink-0" aria-label="Details"><ConversationInfo key={id} conversationId={id} onClose={() => setInfo(false)} /></Pane>}
       <NewChatDialog mode={creating} onClose={() => setCreating(null)} onOpen={open} />
-    </div>
+    </PaneGroup>
   );
 }

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { setupTreeQuery } from '../../api/queries.js';
+import { Pane, PaneGroup } from '../../components/ui/Panes.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { TreeNav } from '../../components/ui/TreeNav.jsx';
@@ -19,7 +20,7 @@ function SetupTreePanel({ className }) {
   const visible = useMemo(() => filterNodes(nodes, query), [nodes, query]);
 
   return (
-    <aside aria-label="Setup" className={cn('flex min-h-0 w-full shrink-0 flex-col border-line lg:w-72 lg:border-r', className)}>
+    <Pane as="aside" side="left" aria-label="Setup" className={cn('flex w-full shrink-0 flex-col lg:w-72', className)}>
       <div className="p-3"><SearchInput value={query} onChange={(e) => setQuery(e.target.value)} onClear={() => setQuery('')} placeholder="Quick Find" label="Quick Find" /></div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
         {isPending ? <div className="grid place-items-center py-8 text-muted"><Spinner /></div> : (
@@ -27,7 +28,7 @@ function SetupTreePanel({ className }) {
         )}
         {!isPending && !visible.length && <p className="px-2 py-6 text-center text-sm text-muted">No pages match “{query}”</p>}
       </div>
-    </aside>
+    </Pane>
   );
 }
 
@@ -36,12 +37,12 @@ export default function SetupLayout() {
   const { pathname } = useLocation();
   const atRoot = pathname.replace(/\/$/, '') === '/app/setup';
   return (
-    <div className="flex h-full min-h-0">
+    <PaneGroup>
       <SetupTreePanel className={atRoot ? 'flex' : 'hidden lg:flex'} />
-      <section className={cn('min-w-0 flex-1 overflow-y-auto', atRoot && 'hidden lg:block')}>
+      <Pane as="section" className={cn('flex-1 overflow-y-auto', atRoot && 'hidden lg:block')}>
         <div className="space-y-5 px-4 pb-4 pt-5"><Outlet /></div>
-      </section>
-    </div>
+      </Pane>
+    </PaneGroup>
   );
 }
 
