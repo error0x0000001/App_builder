@@ -69,7 +69,12 @@ export const chatMessages = pgTable(
     deletedAt: tz('deleted_at'),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.conversationId, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.conversationId, t.id] }),
+    // "Media, docs and links" in the info panel: only the messages that have attachments / links, newest first
+    index('chat_messages_media_idx').on(t.conversationId, t.id.desc()).where(sql`jsonb_array_length(${t.attachments}) > 0`),
+    index('chat_messages_links_idx').on(t.conversationId, t.id.desc()).where(sql`${t.body} ~ 'https?://'`),
+  ],
 );
 
 export const chatReactions = pgTable(

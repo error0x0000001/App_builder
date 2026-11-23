@@ -45,6 +45,7 @@ export const messagesQuerySchema = z.object({
   after: uuidField.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(CHAT_PAGE_SIZE),
 }).strict();
+export const mediaQuerySchema = z.object({ type: z.enum(['media', 'docs', 'links']), before: uuidField.optional(), limit: z.coerce.number().int().min(1).max(60).default(30) }).strict();
 export const inboxQuerySchema = z.object({ archived: z.enum(['1']).optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }).strict();
 export const chatSearchQuerySchema = z.object({
   q: z.string().trim().min(2).max(100),

@@ -36,7 +36,7 @@ export function PeoplePanel({ conversationId, participants, people, myId, hostId
           const me = p.identity === myId;
           return (
             <li key={p.identity} className={cn('flex items-center gap-3 px-4 py-2.5', p.isSpeaking && 'bg-success/10')} data-person={p.identity}>
-              <Avatar name={name} size="size-9" />
+              <Avatar name={name} src={people[p.identity]?.avatar} size="size-9" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-ink">{name}{me && ' (you)'}</span>
                 <span className="flex items-center gap-1.5 text-xs text-muted">

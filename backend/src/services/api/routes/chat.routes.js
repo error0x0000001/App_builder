@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   addMembersSchema, chatSearchQuerySchema, createDmSchema, createGroupSchema, editMessageSchema, inboxQuerySchema, memberRoleSchema, memberStateSchema,
-  callModerateSchema, callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
+  callModerateSchema, mediaQuerySchema, callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
 } from '@app/shared';
 import { TooManyRequestsError } from '../../../shared/errors.js';
+import { receiveUpload, tooLarge } from '../middleware/upload.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -16,7 +17,7 @@ const memberParams = z.object({ id: uuidField, userId: uuidField });
 const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
 /** Chat. Any workspace member may call; the service authorises per conversation (membership is the only rule). */
-export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls }) {
+export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls, drive }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
   router.use((req, res, next) => {
@@ -65,6 +66,17 @@ export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, ca
   router.post('/conversations/:id/call/leave', validate({ params: idParam }), async (req, res) => send(res, await calls.leave(ctx(req), req.params.id)));
   router.post('/conversations/:id/call/moderate', validate({ params: idParam, body: callModerateSchema }), async (req, res) => send(res, await calls.moderate(ctx(req), req.params.id, req.valid.body)));
   router.post('/conversations/:id/call/end', validate({ params: idParam }), async (req, res) => send(res, await calls.end(ctx(req), req.params.id)));
+
+  router.get('/conversations/:id/shared', validate({ params: idParam, query: mediaQuerySchema }), async (req, res) => send(res, await chat.shared(ctx(req), req.params.id, req.valid.query)));
+  router.get('/people/:userId/common-groups', validate({ params: z.object({ userId: uuidField }) }), async (req, res) => send(res, await chat.commonGroups(ctx(req), req.params.userId)));
+  // Attachments: the file goes into the conversation's folder in Documents (members only); the message then references it by id.
+  router.post('/conversations/:id/files', validate({ params: idParam }), async (req, res, next) => {
+    try {
+      const declared = Number(req.headers['content-length']) || undefined;
+      const result = await receiveUpload(req, ({ stream, filename, mime }) => drive.uploadToChat(ctx(req), req.params.id, { filename, mime, stream, declaredSize: declared })).catch((error) => { throw tooLarge(error); });
+      send(res, { file: { id: result.file.id, name: result.file.name, mime: result.file.mime, size: result.file.size } }, 201);
+    } catch (error) { next(error); }
+  });
 
   router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));
   router.get('/presence', validate({ query: z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i) }) }), async (req, res) => send(res, { online: await presence.online(req.auth.workspaceId, req.valid.query.ids.split(',')) }));

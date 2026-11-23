@@ -74,10 +74,10 @@ export const qs = (params) => {
  * Authenticated multipart upload with progress (fetch cannot report upload progress, XHR can). `onProgress(0–1)`; `signal` aborts it.
  * Like `request`, an expired access token is refreshed once and the upload retried.
  */
-export async function upload(path, formData, { onProgress, signal } = {}) {
+export async function upload(path, formData, { onProgress, signal, method = 'POST' } = {}) {
   const attempt = () => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${BASE}${path}`);
+    xhr.open(method, `${BASE}${path}`);
     xhr.withCredentials = true;
     if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
     xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded / event.total); };

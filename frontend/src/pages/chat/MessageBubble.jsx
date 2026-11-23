@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { EmojiPicker } from '../../components/ui/EmojiPicker.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { cn } from '../../lib/cn.js';
+import { MessageAttachments } from './Attachments.jsx';
 import { formatTime, nameOf } from './chatFormat.js';
 
 const URL_PATTERN = /(https?:\/\/[^\s<>]+[^\s<>.,;:!?)\]'"])/g;
@@ -27,7 +28,7 @@ const Ticks = ({ read, pending, failed }) => (failed
   ? <span className="text-danger">Not sent</span>
   : <span aria-label={pending ? 'Sending' : read ? 'Read' : 'Sent'} className={cn('inline-flex', read ? 'text-accent-ink' : 'opacity-70')}>{pending ? '…' : read ? '✓✓' : '✓'}</span>);
 
-function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRun, peerRead, flipMenu, onReply, onReact, onEdit, onDelete, onForward, onPin, onRetry, onJumpTo, canDeleteOthers }) {
+function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRun, peerRead, flipMenu, onReply, onReact, onEdit, onDelete, onForward, onPin, onRetry, onJumpTo, onOpenAttachment, canDeleteOthers }) {
   const [picker, setPicker] = useState(false);
   const pickerButton = useRef(null);
   const deleted = Boolean(message.deletedAt);
@@ -35,7 +36,7 @@ function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRu
 
   return (
     <div className={cn('group/msg flex items-end gap-2', mine && 'flex-row-reverse', firstOfRun ? 'mt-3' : 'mt-0.5')}>
-      {!mine && group && (firstOfRun ? <Avatar name={sender} size="size-7" /> : <span className="size-7 shrink-0" aria-hidden="true" />)}
+      {!mine && group && (firstOfRun ? <Avatar name={sender} src={people[message.senderId]?.avatar} size="size-7" /> : <span className="size-7 shrink-0" aria-hidden="true" />)}
       <div className={cn('flex min-w-0 max-w-[min(34rem,82%)] flex-col', mine ? 'items-end' : 'items-start')}>
         {showSender && firstOfRun && !mine && <span className="mb-0.5 px-1 text-xs font-semibold text-muted">{sender}</span>}
         <div className={cn('flex items-center gap-1', mine && 'flex-row-reverse')}>
@@ -49,7 +50,8 @@ function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRu
                 <span className="line-clamp-2 opacity-90">{message.replyPreview.deleted ? 'This message was deleted' : message.replyPreview.body}</span>
               </button>
             )}
-            {deleted ? 'This message was deleted' : <p className="whitespace-pre-wrap"><Linkified text={message.body} /></p>}
+            {!deleted && message.attachments?.length > 0 && <MessageAttachments attachments={message.attachments} mine={mine} onOpen={onOpenAttachment} />}
+            {deleted ? 'This message was deleted' : message.body && <p className="whitespace-pre-wrap"><Linkified text={message.body} /></p>}
             <span className={cn('mt-0.5 flex items-center justify-end gap-1.5 text-[11px] leading-4', mine ? 'text-accent-ink/80' : 'text-muted')}>
               {message.editedAt && !deleted && <span>edited</span>}
               <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

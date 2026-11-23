@@ -7,6 +7,7 @@ import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Section } from '../../components/ui/Card.jsx';
 import { Input } from '../../components/ui/Input.jsx';
+import { PhotoUpload } from '../../components/ui/PhotoUpload.jsx';
 
 /** Shared by the profile page and onboarding's "About you" step. */
 export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
@@ -37,8 +38,12 @@ export function ProfileForm({ onSaved, submitLabel = 'Save changes' }) {
 }
 
 export default function ProfilePage() {
+  const { user, refresh } = useAuth();
   return (
     <div className="max-w-2xl space-y-6">
+      <Section title="Photo" description="Shown next to your name in chat, calls and sharing.">
+        <PhotoUpload name={`${user.firstName} ${user.lastName}`} src={user.avatar} onUpload={async (file) => { await meApi.uploadAvatar(file); await refresh(); }} onRemove={async () => { await meApi.removeAvatar(); await refresh(); }} />
+      </Section>
       <Section title="Profile" description="How you appear to teammates.">
         <ProfileForm />
       </Section>

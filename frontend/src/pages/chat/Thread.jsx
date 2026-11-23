@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { chatApi } from '../../api/endpoints.js';
+import { chatApi, download } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
+import { DropZone } from '../../components/ui/FilePicker.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
@@ -15,7 +16,8 @@ import { useCall } from './calls/CallProvider.jsx';
 import { messagesQueryOptions, useConversation, useInbox, usePeople } from './chatQueries.js';
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { Composer } from './Composer.jsx';
-import { ConversationInfoDialog } from './ConversationInfoDialog.jsx';
+import { PreviewDialog } from '../documents/PreviewDialog.jsx';
+import { asDriveFile } from './Attachments.jsx';
 import { ForwardDialog } from './ForwardDialog.jsx';
 import { MessageBubble } from './MessageBubble.jsx';
 import { usePresence } from './usePresence.js';
@@ -24,7 +26,7 @@ const RUN_GAP_MS = 5 * 60_000;
 const NEAR_BOTTOM = 140;
 
 /** One open conversation: header, the scrolling message list (older pages load as you scroll up) and the composer. */
-export function Thread({ id, onBack, embedded = false }) {
+export function Thread({ id, onBack, onInfo, embedded = false }) {
   const { user } = useAuth();
   const myId = user.id;
   const qc = useQueryClient();
@@ -40,7 +42,8 @@ export function Thread({ id, onBack, embedded = false }) {
   const [editing, setEditing] = useState(null);
   const [forwarding, setForwarding] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const [info, setInfo] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const composer = useRef(null);
   const [unseen, setUnseen] = useState(0);
   const [actionError, setActionError] = useState(null);
 
@@ -95,19 +98,19 @@ export function Thread({ id, onBack, embedded = false }) {
 
   // -- actions
   const fail = (error) => setActionError(error.message ?? 'Something went wrong');
-  const send = useCallback(async ({ body, replyTo: replyId }) => {
+  const send = useCallback(async ({ body, replyTo: replyId, attachments = [] }) => {
     const messageId = uuidv7();
     const replied = replyId ? messages.find((m) => m.id === replyId) : null;
     upsertMessage(qc, {
-      id: messageId, conversationId: id, senderId: myId, kind: 'text', body, replyTo: replyId ?? null, forwarded: false, attachments: [], mentions: [], editedAt: null, deletedAt: null,
+      id: messageId, conversationId: id, senderId: myId, kind: 'text', body, replyTo: replyId ?? null, forwarded: false, attachments, mentions: [], editedAt: null, deletedAt: null,
       createdAt: new Date().toISOString(), reactions: [], pending: true,
       ...(replied ? { replyPreview: { id: replied.id, senderId: replied.senderId, body: replied.body.slice(0, 140), deleted: false } } : {}),
     });
     setReplyTo(null); stick.current = true;
-    try { upsertMessage(qc, (await chatApi.send(id, { id: messageId, body, replyTo: replyId })).message); }
+    try { upsertMessage(qc, (await chatApi.send(id, { id: messageId, body, replyTo: replyId, attachments: attachments.map((a) => a.id) })).message); }
     catch { patchMessage(qc, id, messageId, { pending: false, failed: true }); }
   }, [qc, id, myId, messages]);
-  const retry = (message) => { dropMessage(qc, id, message.id); send({ body: message.body, replyTo: message.replyTo }); };
+  const retry = (message) => { dropMessage(qc, id, message.id); send({ body: message.body, replyTo: message.replyTo, attachments: message.attachments }); };
   const saveEdit = async (message, body) => { setEditing(null); if (body !== message.body) await chatApi.edit(id, message.id, body).catch(fail); };
   const react = (message, emoji) => chatApi.react(id, message.id, emoji).catch(fail);
   const pin = (message) => chatApi.pin(id, message.id).catch(fail);
@@ -116,16 +119,18 @@ export function Thread({ id, onBack, embedded = false }) {
 
   if (detail.isError) return <div className="grid h-full place-items-center p-6"><Alert tone="error">{detail.error.message}</Alert></div>;
 
+  const allFiles = messages.flatMap((m) => (m.deletedAt ? [] : (m.attachments ?? []).map(asDriveFile)));
   let unreadMarked = false;
   const subtitle = typers.length ? `${typers.map((u) => nameOf(people, u).split(' ')[0]).join(', ')} typing…`
     : conversation?.kind === 'dm' ? (online.includes(peerId) ? 'Online' : 'Offline')
       : conversation ? `${conversation.members.length} members${conversation.meetingAt ? ' · Meeting' : ''}` : '';
 
   return (
+    <DropZone onFiles={(files) => composer.current?.addFiles(files)} label="Drop files to send" className="h-full min-h-0">
     <section className="flex h-full min-h-0 flex-col" aria-label={`Conversation with ${title}`}>
       {!embedded && <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-3 sm:px-4">
         <Button size="icon" variant="ghost" aria-label="Back to conversations" onClick={onBack} className="md:hidden"><Icon name="chevron-left" className="size-4" /></Button>
-        <button type="button" onClick={() => setInfo(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" onClick={onInfo} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {(item || conversation) && <ChatAvatar conversation={item ?? { ...conversation, peerId }} people={people} online={online.includes(peerId)} />}
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-ink">{title}</span>
@@ -139,7 +144,7 @@ export function Thread({ id, onBack, embedded = false }) {
             <Button size="icon" variant="ghost" aria-label="Start video call" disabled={Boolean(calls.session)} onClick={() => calls.startCall(id, true)}><Icon name="video" className="size-4" /></Button>
           </>
         )}
-        <Button size="icon" variant="ghost" aria-label="Conversation details" onClick={() => setInfo(true)}><Icon name="info" className="size-4" /></Button>
+        <Button size="icon" variant="ghost" aria-label="Conversation details" onClick={onInfo}><Icon name="info" className="size-4" /></Button>
       </header>}
       {!embedded && calls.enabled && conversation?.activeCall && calls.session?.conversationId !== id && (
         <div role="status" className="flex items-center gap-3 border-b border-line bg-surface-2 px-4 py-2 text-sm">
@@ -171,7 +176,7 @@ export function Thread({ id, onBack, embedded = false }) {
                     <MessageBubble
                       message={m} mine={m.senderId === myId} people={people} group={conversation?.kind === 'group'} showSender={conversation?.kind === 'group'} firstOfRun={firstOfRun}
                       peerRead={Boolean(peerReadId) && peerReadId >= m.id} flipMenu={i >= messages.length - 3} canDeleteOthers={canDeleteOthers}
-                      onReply={setReplyTo} onReact={react} onEdit={(msg) => { setReplyTo(null); setEditing(msg); }} onDelete={setDeleting} onForward={setForwarding} onPin={pin} onRetry={retry} onJumpTo={jumpTo}
+                      onReply={setReplyTo} onReact={react} onEdit={(msg) => { setReplyTo(null); setEditing(msg); }} onDelete={setDeleting} onForward={setForwarding} onPin={pin} onRetry={retry} onJumpTo={jumpTo} onOpenAttachment={setPreview}
                     />
                   )}
               </div>
@@ -183,7 +188,7 @@ export function Thread({ id, onBack, embedded = false }) {
 
       {actionError && <div className="px-3 pb-2"><Alert tone="error">{actionError} <button type="button" onClick={() => setActionError(null)} className="ml-2 font-semibold underline">Dismiss</button></Alert></div>}
       <Composer
-        conversationId={id} replyTo={replyTo} editing={editing} people={people} myId={myId} disabled={!conversation && detail.isPending}
+        ref={composer} conversationId={id} replyTo={replyTo} editing={editing} people={people} myId={myId} disabled={!conversation && detail.isPending}
         onSend={send} onSaveEdit={saveEdit} onCancel={() => { setReplyTo(null); setEditing(null); }} onTyping={() => sendTyping(id)}
       />
 
@@ -192,7 +197,8 @@ export function Thread({ id, onBack, embedded = false }) {
         onConfirm={async () => { await chatApi.remove(id, deleting.id).catch(fail); }}
       />
       <ForwardDialog message={forwarding} fromConversationId={id} onClose={() => setForwarding(null)} />
-      <ConversationInfoDialog open={info} conversationId={id} onClose={() => setInfo(false)} />
+      <PreviewDialog file={preview} files={allFiles} onClose={() => setPreview(null)} onNavigate={setPreview} onDownload={(f) => download(`/drive/files/${f.id}/download`, f.name)} />
     </section>
+    </DropZone>
   );
 }

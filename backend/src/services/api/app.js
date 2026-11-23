@@ -57,6 +57,14 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));
   app.use('/api/v1/chat', chatRoutes(container));
+  app.get('/api/v1/avatars/:userId/:version.jpg', (req, res, next) => { // signed, immutable: no bearer needed for <img>
+    try {
+      const stream = container.avatars.open(req.params.userId, Number(req.params.version), req.query.s);
+      stream.on('error', () => res.status(404).end());
+      res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+      stream.pipe(res);
+    } catch (error) { next(error); }
+  });
   app.use('/api/v1/people', peopleRoutes(container));
   app.use('/api/v1/public', publicRoutes(container));
 

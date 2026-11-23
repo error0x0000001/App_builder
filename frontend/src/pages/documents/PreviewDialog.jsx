@@ -59,7 +59,7 @@ export function PreviewDialog({ file, files, onClose, onNavigate, onDownload }) 
         <>
           <header className="flex items-center gap-3 border-b border-line px-4 py-3">
             <FileTypeIcon item={file} />
-            <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold text-ink">{file.name}</h2><p className="truncate text-xs text-muted">{formatBytes(file.size)} · {file.ownerName ?? 'Unknown'} · {formatDateTime(file.updatedAt)}</p></div>
+            <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold text-ink">{file.name}</h2><p className="truncate text-xs text-muted">{[formatBytes(file.size), file.ownerName, file.updatedAt && formatDateTime(file.updatedAt)].filter(Boolean).join(' · ')}</p></div>
             <Button size="icon" variant="ghost" aria-label="Previous file" disabled={index <= 0} onClick={() => onNavigate(files[index - 1])}><Icon name="chevron-left" className="size-4" /></Button>
             <Button size="icon" variant="ghost" aria-label="Next file" disabled={index < 0 || index >= files.length - 1} onClick={() => onNavigate(files[index + 1])}><Icon name="chevron-right" className="size-4" /></Button>
             <Button size="sm" variant="neutral" onClick={() => onDownload(file)}><Icon name="download" className="size-4" />Download</Button>

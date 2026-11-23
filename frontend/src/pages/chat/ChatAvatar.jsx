@@ -10,7 +10,7 @@ export function ChatAvatar({ conversation, people, online = false, size = 'size-
   if (conversation.kind === 'dm') {
     return (
       <span className="relative shrink-0">
-        <Avatar name={title} size={size} />
+        <Avatar name={title} src={people[conversation.peerId]?.avatar} size={size} />
         {online && <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-surface bg-success" title="Online" />}
       </span>
     );

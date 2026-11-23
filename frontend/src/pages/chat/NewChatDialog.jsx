@@ -20,7 +20,7 @@ export function PersonChips({ people, onRemove }) {
     <ul className="flex flex-wrap gap-1.5" aria-label="Selected people">
       {people.map((p) => (
         <li key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 py-0.5 pl-0.5 pr-2 text-sm">
-          <Avatar name={p.name} size="size-6" /><span className="max-w-40 truncate">{p.name}</span>
+          <Avatar name={p.name} src={p.avatar} size="size-6" /><span className="max-w-40 truncate">{p.name}</span>
           <button type="button" aria-label={`Remove ${p.name}`} onClick={() => onRemove(p.id)} className="grid size-4 place-items-center rounded-full text-muted hover:text-ink"><Icon name="x" className="size-3" /></button>
         </li>
       ))}

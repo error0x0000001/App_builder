@@ -20,6 +20,8 @@ const fileDto = (r) => ({
   type: 'file', id: r.id, name: r.name, mime: r.mime, size: Number(r.size), kind: fileKindOf(r.name, r.mime), folderId: r.folder_id, ownerId: r.owner_id, ownerName: r.owner_name ?? null,
   recordObject: r.record_object, recordId: r.record_id, version: r.version, createdAt: r.created_at, updatedAt: r.updated_at, trashedAt: r.trashed_at ?? null, starred: Boolean(r.starred),
 });
+/** Marks drive rows that belong to a chat conversation (`record_id` is then the conversation id). */
+export const CHAT_OBJECT = '@chat';
 const encodeCursor = (k, id) => Buffer.from(JSON.stringify({ k, id })).toString('base64url');
 const decodeCursor = (s) => { try { return JSON.parse(Buffer.from(s, 'base64url').toString()); } catch { throw new ValidationError({ after: 'Invalid cursor' }); } };
 const cleanFilename = (name) => (String(name ?? '').split(/[\\/]/).pop().replace(/[\u0000-\u001f]/g, '').trim().slice(0, 200) || 'Untitled');
@@ -49,6 +51,8 @@ export class DriveService {
 
   /** What this person may do in a folder: viewer | editor | manager, or null (no access). */
   async roleOn(ctx, folder) {
+    if (folder.kind === 'chats') return null; // the container of every conversation's folder is never browsable
+    if (folder.kind === 'chat') return (await this.#isChatMember(ctx, folder.record_id)) ? 'editor' : null; // conversation membership only — not even workspace admins
     if (this.#isAdmin(ctx)) return 'manager';
     if (folder.kind === 'record') { // the record's own permission decides — even for whoever created the folder
       try {
@@ -82,6 +86,11 @@ export class DriveService {
     return role;
   }
 
+  async #isChatMember(ctx, conversationId) {
+    const [row] = await this.#rows(sql`select 1 as ok from chat_members where conversation_id = ${conversationId} and user_id = ${ctx.userId} and workspace_id = ${ctx.workspaceId} and left_at is null`);
+    return Boolean(row);
+  }
+
   async #visibleObjectKeys(ctx) {
     const { all, own } = await this.objects.readScopes(ctx);
     return [...all, ...own.map((o) => o.collection)].map((c) => c.slice(4));
@@ -108,9 +117,12 @@ export class DriveService {
   }
 
   async #fileVisible(ctx, alias = 'f') {
-    if (this.#isAdmin(ctx)) return sql`true`;
+    const a = sql.raw(alias);
+    // chat files: only people in the conversation (admins included — a conversation is private to its members)
+    const chat = sql`(${a}.record_object = ${CHAT_OBJECT} and exists (select 1 from chat_members cm where cm.conversation_id = ${a}.record_id and cm.user_id = ${ctx.userId} and cm.left_at is null))`;
+    if (this.#isAdmin(ctx)) return sql`(${a}.record_object is distinct from ${CHAT_OBJECT} or ${chat})`;
     const record = await this.#recordVisible(ctx, alias);
-    return sql`((${sql.raw(alias)}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or (${sql.raw(alias)}.record_object is not null and (${record})))`;
+    return sql`((${a}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or (${a}.record_object is not null and ${a}.record_object <> ${CHAT_OBJECT} and (${record})) or ${chat})`;
   }
 
   // ---------------------------------------------------------------------------------------------------------------- listing
@@ -426,8 +438,8 @@ export class DriveService {
     const key = `${ctx.workspaceId}/${new Date().getUTCFullYear()}/${newId}`;
     await this.storage.put(key, this.storage.open(file.storage_key));
     const copyName = await this.#freeFileName(ctx, target.id, name ?? (target.id === file.folder_id ? `Copy of ${file.name}` : file.name));
-    const [row] = await this.#rows(sql`insert into drive_files (id, workspace_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id)
-      values (${newId}, ${ctx.workspaceId}, ${target.id}, ${target.path}, ${copyName}, ${file.mime}, ${file.size}, ${key}, ${file.checksum}, ${ctx.userId}) returning *`);
+    const [row] = await this.#rows(sql`insert into drive_files (id, workspace_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id, record_object, record_id)
+      values (${newId}, ${ctx.workspaceId}, ${target.id}, ${target.path}, ${copyName}, ${file.mime}, ${file.size}, ${key}, ${file.checksum}, ${ctx.userId}, ${target.record_object}, ${target.record_id}) returning *`);
     await this.#bump(ctx);
     return { file: fileDto(row) };
   }
@@ -626,6 +638,57 @@ export class DriveService {
     if (!(await this.objects.permissions(ctx, objectKey)).edit) { args.stream.resume(); throw new ForbiddenError('You can view this record but not change it'); }
     const folder = await this.#recordFolder(ctx, objectKey, recordId, record.name ?? record.label ?? recordId);
     return this.#upload(ctx, folder, args);
+  }
+
+  async #chatsRoot(ctx) {
+    const find = (db) => db.execute(sql`select * from drive_folders where workspace_id = ${ctx.workspaceId} and kind = 'chats' and parent_id is null limit 1`).then((r) => r.rows[0]);
+    const hit = await find(this.db);
+    if (hit) return hit;
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.workspaceId}:chats`}))`);
+      const again = await find(tx);
+      if (again) return again;
+      const id = uuidv7();
+      return (await tx.execute(sql`insert into drive_folders (id, workspace_id, name, path, kind, inherit, owner_id) values (${id}, ${ctx.workspaceId}, 'Chat', ${`/${id}/`}, 'chats', false, ${ctx.userId}) returning *`)).rows[0];
+    });
+  }
+
+  /** The folder `Chat / <conversation uuid>`, created on first upload. Access = membership of that conversation. */
+  async #chatFolder(ctx, conversationId) {
+    const find = (db) => db.execute(sql`select * from drive_folders where workspace_id = ${ctx.workspaceId} and kind = 'chat' and record_id = ${conversationId}`).then((r) => r.rows[0]);
+    const hit = await find(this.db);
+    if (hit) return hit;
+    const root = await this.#chatsRoot(ctx);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.workspaceId}:chat:${conversationId}`}))`);
+      const again = await find(tx);
+      if (again) return again;
+      const id = uuidv7();
+      return (await tx.execute(sql`insert into drive_folders (id, workspace_id, parent_id, name, path, kind, record_object, record_id, inherit, owner_id)
+        values (${id}, ${ctx.workspaceId}, ${root.id}, ${conversationId}, ${`${root.path}${id}/`}, 'chat', ${CHAT_OBJECT}, ${conversationId}, false, ${ctx.userId}) returning *`)).rows[0];
+    });
+  }
+
+  /** The id of a conversation's file folder for a member (used to copy forwarded attachments into it). */
+  async chatFolderId(ctx, conversationId) {
+    if (!(await this.#isChatMember(ctx, conversationId))) throw new NotFoundError('Conversation not found');
+    return (await this.#chatFolder(ctx, conversationId)).id;
+  }
+
+  /** Uploads a file into a conversation (members only). It becomes visible in Documents search/recent to the same people. */
+  async uploadToChat(ctx, conversationId, args) {
+    if (!(await this.#isChatMember(ctx, conversationId))) { args.stream.resume(); throw new NotFoundError('Conversation not found'); }
+    return this.#upload(ctx, await this.#chatFolder(ctx, conversationId), args);
+  }
+
+  /** Metadata for files the caller uploaded into this conversation's folder — what a message stores about its attachments. */
+  async chatFileMeta(ctx, conversationId, ids) {
+    if (!ids.length) return [];
+    const folder = await this.#chatFolder(ctx, conversationId);
+    const rows = await this.#rows(sql`select id, name, mime, size from drive_files where workspace_id = ${ctx.workspaceId} and folder_id = ${folder.id} and owner_id = ${ctx.userId} and trashed_at is null and id = any(${pgArray(ids, 'uuid')})`);
+    if (rows.length !== new Set(ids).size) throw new ValidationError({ attachments: 'Attach files you uploaded to this conversation' });
+    const byId = new Map(rows.map((r) => [r.id, { id: r.id, name: r.name, mime: r.mime, size: Number(r.size) }]));
+    return ids.map((id) => byId.get(id));
   }
 
   /** Members of the workspace matching a name or email (the "Add people" box in the share dialog). */

@@ -92,6 +92,13 @@
       "when": 1795457400901,
       "tag": "0012_call_removed",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795457863569,
+      "tag": "0013_chat_media_avatars",
+      "breakpoints": true
     }
   ]
 }

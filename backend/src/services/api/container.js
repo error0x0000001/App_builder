@@ -39,6 +39,7 @@ import { IntakeService } from '../../modules/automation/intake.service.js';
 import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
+import { AvatarService } from '../../modules/users/avatar.service.js';
 import { PeopleService } from '../../modules/users/people.service.js';
 import { CallService } from '../../modules/chat/call.service.js';
 import { LiveKitClient } from '../../shared/livekit.js';
@@ -102,10 +103,11 @@ export function createContainer({ boss }) {
     db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
     limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
   });
+  const avatars = new AvatarService({ db, storage: drive.storage });
   const people = new PeopleService({ db: readDb });
   const bus = createBus(config.REDIS_URL);
   const presence = new PresenceStore({ redis: cache.redis });
-  const chat = new ChatService({ db, bus, cache, users });
+  const chat = new ChatService({ db, bus, cache, users, drive });
   const calls = new CallService({ db, chat, livekit: new LiveKitClient({ url: config.LIVEKIT_URL, apiKey: config.LIVEKIT_API_KEY, apiSecret: config.LIVEKIT_API_SECRET }) });
   const realtime = new RealtimeHub({ tokens, chat, bus, presence, logger }).start();
   const search = new SearchService({ db: readDb, objects, cache, drive });
@@ -117,5 +119,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { avatars, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

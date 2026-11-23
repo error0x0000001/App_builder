@@ -59,8 +59,12 @@ Measured on 3 000 000 messages in 500 conversations (32 hash partitions, one dev
 open a conversation (latest 50) **0.2 ms** · unread count 2 ms · selective search across all 500 conversations **~40 ms** ·
 two-term/prefix search across 300–500 conversations **~110–130 ms** · a single very common word across 300–500 conversations **~400–530 ms**
 (worst case: every 8th message matches). Past that scale, or for typo-tolerant search, swap the search interface for Meilisearch/OpenSearch.
-Known trade-offs: `chat_conversations.last_message_*` is a hot row in extremely busy groups (one UPDATE per message); attachments (Documents
-`Chat/<conversation>` folders) and retention partition drops are not built yet.
+**Phase 2d (built, verified):** attachments (paperclip, paste, drag-drop, progress) stored in Documents under `Chat / <conversation uuid>` — access is
+conversation membership only (not even workspace admins; forwarding copies the file into the target conversation's folder), images as thumbnails and
+other files as cards with the shared preview, WhatsApp-style info panel (profile photo, name/email/job title, Audio/Video, shared Media / Docs / Links
+tabs via partial indexes, mute/pin/archive, members + invite link + admin controls, groups in common, group name/description, legal hold), profile photos
+(browser-cropped 256 px JPEG, signed immutable URLs, shown in chat, calls, pickers and the account menu).
+Known trade-offs: `chat_conversations.last_message_*` is a hot row in extremely busy groups (one UPDATE per message); retention partition drops are not built yet; chat files are searchable/recent in Documents for members but there is no `Chat` folder tree to browse there yet.
 
 ## 3. Calls and meetings (inside Chat — LiveKit)
 

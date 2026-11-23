@@ -6,17 +6,24 @@ import { authenticate } from '../middleware/authenticate.js';
 import { loadUser } from '../middleware/loadUser.js';
 import { blockWhileImpersonating } from '../middleware/blockImpersonation.js';
 import { validate } from '../middleware/validate.js';
+import { receiveUpload } from '../middleware/upload.js';
+import { AVATAR_MAX_BYTES } from '../../../modules/users/avatar.service.js';
 import { toPublicUser } from '../../../modules/users/userPresenter.js';
 
 const MIN = 60;
 
 /** Everything about the signed-in person: profile, password, sessions, activity and two-factor auth. */
-export function meRoutes({ users, password, sessions, audit, mfa, tokens, repos, rateLimit }) {
+export function meRoutes({ users, password, sessions, audit, mfa, tokens, repos, rateLimit, avatars }) {
   const router = Router();
   router.use(authenticate(tokens), blockWhileImpersonating);
 
   router.get('/', async (req, res) => res.json(await users.me(req.auth.userId, req.auth.workspaceId, req.auth.impersonatedBy)));
   router.patch('/', validate({ body: updateProfileSchema }), async (req, res) => res.json({ user: await users.updateProfile(req.auth.userId, req.valid.body) }));
+
+  router.put('/avatar', async (req, res, next) => {
+    try { res.json(await receiveUpload(req, ({ stream }) => avatars.set(req.auth.userId, stream), { maxFileBytes: AVATAR_MAX_BYTES })); } catch (error) { next(error); }
+  });
+  router.delete('/avatar', async (req, res) => res.json(await avatars.remove(req.auth.userId)));
 
   router.patch('/preferences', validate({ body: userPreferencesSchema }), async (req, res) => res.json({ user: await users.updatePreferences(req.auth.userId, req.valid.body) }));
 

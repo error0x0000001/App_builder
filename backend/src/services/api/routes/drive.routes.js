@@ -1,10 +1,9 @@
-import busboy from 'busboy';
 import { Router } from 'express';
 import { z } from 'zod';
 import { INLINE_SAFE, accessSchema, copyFileSchema, createFolderSchema, driveListQuerySchema, patchFileSchema, patchFolderSchema, starSchema, trashActionSchema, uuidField } from '@app/shared';
 import { config } from '../../../shared/config.js';
-import { AppError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
-import { TooLargeError } from '../../../shared/storage/localStorage.js';
+import { TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
+import { receiveUpload, tooLarge } from '../middleware/upload.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -12,31 +11,6 @@ import { validate } from '../middleware/validate.js';
 const idParam = z.object({ id: uuidField });
 const recordParams = z.object({ object: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,79}$/), id: uuidField });
 
-/**
- * Reads ONE file from a multipart request without buffering it: `handler({ fields, stream, filename, mime })` runs as soon as the file part
- * starts (so form fields such as folderId must come first) and consumes the stream. Anything else in the body is drained.
- */
-function receiveUpload(req, handler) {
-  return new Promise((resolve, reject) => {
-    if (!req.is('multipart/form-data')) return reject(new ValidationError({ file: 'Send the file as multipart/form-data' }));
-    const parser = busboy({ headers: req.headers, limits: { files: 1, fields: 8, fieldSize: 1024 } });
-    const fields = {};
-    let work = null;
-    parser.on('field', (name, value) => { fields[name] = value; });
-    parser.on('file', (name, stream, info) => {
-      if (work) return stream.resume();
-      work = Promise.resolve().then(() => handler({ fields, stream, filename: info.filename, mime: info.mimeType })).catch((error) => { stream.resume(); throw error; });
-      work.catch(() => {}); // surfaced below; avoids an unhandled-rejection warning while the body finishes
-      return undefined;
-    });
-    parser.on('error', reject);
-    parser.on('close', () => (work ? work.then(resolve, reject) : reject(new ValidationError({ file: 'Attach a file' }))));
-    req.pipe(parser);
-    return undefined;
-  });
-}
-
-const tooLarge = (error) => (error instanceof TooLargeError ? new AppError(413, 'FILE_TOO_LARGE', `That file is larger than ${Math.floor(error.limit / 1024 / 1024)} MB`) : error);
 const contentDisposition = (kind, name) => `${kind}; filename*=UTF-8''${encodeURIComponent(name).replace(/['()]/g, escape)}`;
 
 /** Streams a stored file with Range support (media seeking, resumable downloads). Only safe types are ever shown inline. */

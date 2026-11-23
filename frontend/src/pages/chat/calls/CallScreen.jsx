@@ -34,7 +34,7 @@ function Tile({ participant, people, local, source }) {
   return (
     <>
       <div className={cn('relative aspect-video min-h-0 overflow-hidden rounded-xl border bg-white/10', participant.isSpeaking ? 'border-accent ring-2 ring-accent' : 'border-white/15')} data-participant={participant.identity}>
-        {showVideo ? <MediaTrack track={camera.track} kind="video" muted className={cn('size-full object-cover', local && '-scale-x-100')} /> : <div className="grid size-full place-items-center"><Avatar name={name} size="size-20" className="text-2xl" /></div>}
+        {showVideo ? <MediaTrack track={camera.track} kind="video" muted className={cn('size-full object-cover', local && '-scale-x-100')} /> : <div className="grid size-full place-items-center"><Avatar name={name} src={people[participant.identity]?.avatar} size="size-20" className="text-2xl" /></div>}
         {!local && mic?.track && <MediaTrack track={mic.track} kind="audio" />}
         <div className="absolute bottom-2 left-2 flex max-w-[85%] items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white">
           {!micOn && <Icon name="mic-off" className="size-3.5 shrink-0 text-danger" aria-label="Muted" />}

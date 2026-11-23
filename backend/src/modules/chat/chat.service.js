@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7, version as uuidVersion } from 'uuid';
 import { CHAT_MAX_GROUP_MEMBERS, dmKeyOf } from '@app/shared';
+import { avatarUrl } from '../../shared/avatar.js';
 import { pgArray } from '../../shared/db/helpers.js';
 import { ConflictError, ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../shared/errors.js';
 import { conversationChannel, userChannel } from './bus.js';
@@ -11,7 +12,7 @@ const CLOCK_SKEW_MS = 10 * 60_000;
 const SEND_LIMIT_PER_MINUTE = 240;
 
 const msTimeOfUuidV7 = (id) => parseInt(id.replace(/-/g, '').slice(0, 12), 16);
-const personOf = (r) => ({ id: r.id, name: `${r.first_name} ${r.last_name}`.trim(), email: r.email });
+const personOf = (r) => ({ id: r.id, name: `${r.first_name} ${r.last_name}`.trim(), email: r.email, jobTitle: r.job_title ?? null, avatar: avatarUrl(r.id, r.avatar_version ?? 0) });
 
 /** A sentence for the inbox preview is built by the UI from these machine bodies (system messages carry actor + targets). */
 export const SYSTEM_BODIES = Object.freeze(['created', 'added', 'removed', 'left', 'renamed', 'call']);
@@ -24,8 +25,8 @@ export const SYSTEM_BODIES = Object.freeze(['created', 'added', 'removed', 'left
  *  - client-generated UUIDv7 ids make a retried send idempotent.
  */
 export class ChatService {
-  constructor({ db, bus, cache, users }) {
-    Object.assign(this, { db, bus, cache, users });
+  constructor({ db, bus, cache, users, drive }) {
+    Object.assign(this, { db, bus, cache, users, drive });
   }
 
   async #rows(query, tx = this.db) { return (await tx.execute(query)).rows; }
@@ -35,7 +36,7 @@ export class ChatService {
   async #people(ids) {
     const unique = [...new Set(ids.filter(Boolean))];
     if (!unique.length) return {};
-    const rows = await this.#rows(sql`select id, first_name, last_name, email from users where id = any(${pgArray(unique, 'uuid')})`);
+    const rows = await this.#rows(sql`select id, first_name, last_name, email, job_title, avatar_version from users where id = any(${pgArray(unique, 'uuid')})`);
     return Object.fromEntries(rows.map((r) => [r.id, personOf(r)]));
   }
 
@@ -338,7 +339,12 @@ export class ChatService {
       await this.member(ctx, input.forwardOf.conversationId); // you can only forward what you can read
       const [src] = await this.#rows(sql`select body, attachments, deleted_at from chat_messages where conversation_id = ${input.forwardOf.conversationId} and id = ${input.forwardOf.messageId} and kind = 'text'`);
       if (!src || src.deleted_at) throw new NotFoundError('The message to forward no longer exists');
-      body = src.body; attachments = src.attachments; forwarded = true;
+      body = src.body; forwarded = true;
+      if (src.attachments?.length) { // forwarding copies the files into this conversation's own folder (the source folder is private to its members)
+        const folderId = await this.drive.chatFolderId(ctx, conversationId);
+        attachments = [];
+        for (const a of src.attachments) { const { file } = await this.drive.copyFile(ctx, a.id, { folderId, name: a.name }); attachments.push({ id: file.id, name: file.name, mime: file.mime, size: file.size }); }
+      }
     }
     if (input.replyTo) {
       const [reply] = await this.#rows(sql`select 1 as ok from chat_messages where conversation_id = ${conversationId} and id = ${input.replyTo}`);
@@ -347,7 +353,7 @@ export class ChatService {
     const mentions = input.mentions?.length
       ? (await this.#rows(sql`select user_id from chat_members where conversation_id = ${conversationId} and left_at is null and user_id = any(${pgArray(input.mentions, 'uuid')})`)).map((r) => r.user_id)
       : [];
-    if (input.attachments?.length) attachments = await this.attachmentsFor?.(ctx, conversationId, input.attachments) ?? [];
+    if (input.attachments?.length) attachments = await this.drive.chatFileMeta(ctx, conversationId, input.attachments);
 
     const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, reply_to, forwarded, attachments, mentions)
       values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'text', ${body}, ${input.replyTo ?? null}, ${forwarded}, ${JSON.stringify(attachments)}::jsonb, ${JSON.stringify(mentions)}::jsonb)
@@ -415,6 +421,39 @@ export class ChatService {
     const rows = await this.#rows(sql`update chat_members set last_read_id = ${messageId} where conversation_id = ${conversationId} and user_id = ${ctx.userId} and (last_read_id is null or last_read_id < ${messageId}) returning last_read_id`);
     if (rows.length) await this.#announce(conversationId, { type: 'read', userId: ctx.userId, lastReadId: messageId });
     return { ok: true };
+  }
+
+  // ---- shared media, documents, links, groups in common (the info panel) ---------------------------------------------------------
+
+  /** Photos/videos, documents or links shared in the conversation, newest first. Uses the partial indexes on messages that have attachments / links. */
+  async shared(ctx, conversationId, { type, before, limit }) {
+    await this.member(ctx, conversationId);
+    const older = before ? sql`and m.id < ${before}` : sql``;
+    const kind = type === 'links'
+      ? sql`m.body ~ 'https?://'`
+      : type === 'media'
+        ? sql`jsonb_array_length(m.attachments) > 0 and exists (select 1 from jsonb_array_elements(m.attachments) a where a->>'mime' ~ '^(image|video)/')`
+        : sql`jsonb_array_length(m.attachments) > 0 and exists (select 1 from jsonb_array_elements(m.attachments) a where a->>'mime' !~ '^(image|video)/')`;
+    const rows = await this.#rows(sql`select m.id, m.sender_id, m.body, m.attachments, m.created_at from chat_messages m
+      where m.conversation_id = ${conversationId} and ${kind} and m.deleted_at is null and m.kind = 'text' ${older} order by m.id desc limit ${limit + 1}`);
+    const page = rows.slice(0, limit);
+    const isMedia = (a) => /^(image|video)\//.test(a.mime);
+    const items = page.flatMap((r) => {
+      const base = { messageId: r.id, senderId: r.sender_id, createdAt: r.created_at };
+      if (type === 'links') return [...new Set(r.body.match(/https?:\/\/[^\s<>]+[^\s<>.,;:!?)\]'"]/g) ?? [])].map((url) => ({ ...base, url, text: r.body.slice(0, 200) }));
+      return r.attachments.filter((a) => (type === 'media') === isMedia(a)).map((file) => ({ ...base, file }));
+    });
+    return { items, nextBefore: rows.length > limit ? page.at(-1).id : null, people: await this.#people(page.map((r) => r.sender_id)) };
+  }
+
+  /** Groups both you and this person are in. */
+  async commonGroups(ctx, userId) {
+    const rows = await this.#rows(sql`select c.id, c.title, (select count(*) from chat_members x where x.conversation_id = c.id and x.left_at is null)::int as members
+      from chat_conversations c
+      join chat_members a on a.conversation_id = c.id and a.user_id = ${ctx.userId} and a.left_at is null
+      join chat_members b on b.conversation_id = c.id and b.user_id = ${userId} and b.left_at is null
+      where c.workspace_id = ${ctx.workspaceId} and c.kind = 'group' order by c.last_message_at desc nulls last limit 50`);
+    return { groups: rows.map((r) => ({ id: r.id, title: r.title, members: r.members })) };
   }
 
   // ---- search ----------------------------------------------------------------------------------------------------------------

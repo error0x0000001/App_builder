@@ -269,3 +269,87 @@ describe('chat: realtime', () => {
     assert.equal(code, 4401);
   });
 });
+
+describe('chat: attachments, shared media, profile photos', () => {
+  const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('fake-jpeg-body')]);
+
+  it('stores attachments in a private chat folder, shows them in the shared lists, and keeps outsiders (even admins) out', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'member', 'Asha');
+    const b = await join(boss, 'member', 'Bela');
+    const c = await join(boss, 'member', 'Chitra');
+    const ab = (await a.person.post(`${C}/dm`, { userId: b.id })).body.conversation.id;
+    const ac = (await a.person.post(`${C}/dm`, { userId: c.id })).body.conversation.id;
+
+    assert.equal((await c.person.upload(`${C}/conversations/${ab}/files`, { filename: 'x.txt' })).status, 404, 'non-members cannot upload into a conversation');
+    const photo = (await a.person.upload(`${C}/conversations/${ab}/files`, { filename: 'team.png', content: 'PNGDATA', type: 'image/png' })).body.file;
+    const doc = (await a.person.upload(`${C}/conversations/${ab}/files`, { filename: 'plan.pdf', content: 'PDFDATA', type: 'application/pdf' })).body.file;
+    assert.equal(photo.name, 'team.png');
+    assert.equal((await b.person.post(`${C}/conversations/${ab}/messages`, { body: 'steal', attachments: [photo.id] })).status, 400, 'you can only attach files you uploaded');
+
+    const sent = await a.person.post(`${C}/conversations/${ab}/messages`, { body: 'Look at this https://example.com/spec', attachments: [photo.id, doc.id] });
+    assert.equal(sent.status, 201, JSON.stringify(sent.body));
+    assert.deepEqual(sent.body.message.attachments.map((x) => x.name), ['team.png', 'plan.pdf']);
+    assert.equal((await a.person.post(`${C}/conversations/${ab}/messages`, { attachments: [photo.id, doc.id] })).status, 201, 'a file alone is a message');
+
+    // members can download; everyone else cannot — including the workspace owner who is not in the conversation
+    assert.equal((await b.person.download(`/drive/files/${photo.id}/download`)).text, 'PNGDATA');
+    assert.equal((await c.person.download(`/drive/files/${photo.id}/download`)).status, 404, 'a non-member gets nothing');
+    assert.equal((await boss.download(`/drive/files/${photo.id}/download`)).status, 404, 'workspace admins do not read other people\'s chats');
+    assert.equal((await boss.get('/drive/list?view=recent')).body.files.some((f) => f.id === photo.id), false, 'and chat files do not leak into their Documents');
+    assert.equal((await b.person.get('/drive/list?view=recent')).body.files.some((f) => f.id === photo.id), true, 'members see them in Documents');
+
+    // forwarding copies the file into the other conversation's own folder
+    const fwd = (await a.person.post(`${C}/conversations/${ac}/messages`, { forwardOf: { conversationId: ab, messageId: sent.body.message.id } })).body.message;
+    assert.equal(fwd.forwarded, true);
+    assert.notEqual(fwd.attachments[0].id, photo.id);
+    assert.equal((await c.person.download(`/drive/files/${fwd.attachments[0].id}/download`)).text, 'PNGDATA', 'the recipient reads their own copy');
+    assert.equal((await b.person.download(`/drive/files/${fwd.attachments[0].id}/download`)).status, 404, 'and Bela cannot read Chitra\'s conversation');
+
+    // shared lists
+    const S = `${C}/conversations/${ab}/shared`;
+    const media = (await b.person.get(`${S}?type=media`)).body;
+    assert.equal(media.items.length, 2); assert.ok(media.items.every((i) => i.file.name === 'team.png'));
+    assert.equal((await b.person.get(`${S}?type=docs`)).body.items.length, 2);
+    const links = (await b.person.get(`${S}?type=links`)).body.items;
+    assert.deepEqual(links.map((l) => l.url), ['https://example.com/spec']);
+    assert.equal((await c.person.get(`${S}?type=media`)).status, 404, 'non-members cannot list shared media');
+    const page1 = (await b.person.get(`${S}?type=media&limit=1`)).body;
+    assert.equal(page1.items.length, 1); assert.ok(page1.nextBefore);
+    assert.equal((await b.person.get(`${S}?type=media&limit=1&before=${page1.nextBefore}`)).body.items.length, 1);
+  });
+
+  it('profile photos: JPEG only, signed immutable URLs, shown to colleagues, removable', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'member', 'Asha');
+    const b = await join(boss, 'member', 'Bela');
+    const putPhoto = (bytes, type, name) => { const f = new FormData(); f.append('file', new Blob([bytes], { type }), name); return fetch(`${server.base}/me/avatar`, { method: 'PUT', headers: { Authorization: `Bearer ${a.person.token}` }, body: f }); };
+    assert.equal((await putPhoto('not a jpeg', 'image/png', 'me.png')).status, 400, 'only JPEG is accepted');
+    assert.equal((await putPhoto(Buffer.alloc(600 * 1024, 0xff), 'image/jpeg', 'big.jpg')).status, 400, 'and only small ones');
+    const res = await putPhoto(JPEG, 'image/jpeg', 'me.jpg');
+    assert.equal(res.status, 200);
+    const { avatar } = await res.json();
+    assert.match(avatar, /^\/api\/v1\/avatars\/[0-9a-f-]{36}\/1\.jpg\?s=/);
+    const origin = server.base.replace('/api/v1', '');
+    const img = await fetch(origin + avatar);
+    assert.equal(img.status, 200); assert.equal(img.headers.get('content-type'), 'image/jpeg'); assert.match(img.headers.get('cache-control'), /immutable/);
+    assert.equal(Buffer.from(await img.arrayBuffer()).equals(JPEG), true);
+    assert.equal((await fetch(origin + avatar.replace(/s=.*/, 's=forged'))).status, 404, 'a forged signature gets nothing');
+    assert.equal((await a.person.get('/me')).body.user.avatar, avatar);
+    assert.equal((await b.person.get(`/people?q=asha`)).body.people.find((p) => p.id === a.id).avatar, avatar, 'colleagues see it in pickers');
+    const dm = (await b.person.post(`${C}/dm`, { userId: a.id })).body;
+    assert.equal(dm.people[a.id].avatar, avatar, 'and in chat');
+    assert.equal((await a.person.delete('/me/avatar')).body.avatar, null);
+    assert.equal((await fetch(origin + avatar)).status, 404, 'the old photo is gone');
+  });
+
+  it('lists the groups you share with someone', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'member', 'Asha'); const b = await join(boss, 'member', 'Bela'); const c = await join(boss, 'member', 'Chitra');
+    await a.person.post(`${C}/groups`, { title: 'Alpha', memberIds: [b.id] });
+    await a.person.post(`${C}/groups`, { title: 'Beta', memberIds: [b.id, c.id] });
+    await a.person.post(`${C}/groups`, { title: 'Gamma', memberIds: [c.id] });
+    const common = (await a.person.get(`${C}/people/${b.id}/common-groups`)).body.groups.map((g) => g.title).sort();
+    assert.deepEqual(common, ['Alpha', 'Beta']);
+  });
+});

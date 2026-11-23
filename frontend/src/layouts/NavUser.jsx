@@ -19,7 +19,7 @@ function UserMenuContent({ side, align, className }) {
   return (
     <DropdownMenuContent side={side} align={align} className={className}>
       <DropdownMenuLabel className="flex items-center gap-2 p-1.5 text-ink!">
-        <Avatar name={fullName} size="size-9" shape="square" />
+        <Avatar name={fullName} src={user?.avatar} size="size-9" shape="square" />
         <span className="grid min-w-0 leading-tight"><span className="truncate text-sm font-medium">{fullName}</span><span className="truncate text-xs opacity-70">{user.email}</span></span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
@@ -51,10 +51,10 @@ export function NavUserCompact({ side = 'bottom', align = 'end', rail = false })
           <button type="button" aria-label={`Account menu for ${fullName}`} className="grid size-9 place-items-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
             {rail ? (
               <span className="relative">
-                <Avatar name={fullName} size="size-10" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+                <Avatar name={fullName} src={user?.avatar} size="size-10" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
                 <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-rail bg-success" />
               </span>
-            ) : <Avatar name={fullName} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />}
+            ) : <Avatar name={fullName} src={user?.avatar} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />}
           </button>
         )}
       </DropdownMenuTrigger>
@@ -71,7 +71,7 @@ export function NavUser() {
   // Colors inherit from the container, so the same block works on the sidebar and inside the menu.
   const identity = (avatarSize, avatarClassName) => (
     <>
-      <Avatar name={fullName} size={avatarSize} shape="square" className={avatarClassName} />
+      <Avatar name={fullName} src={user?.avatar} size={avatarSize} shape="square" className={avatarClassName} />
       <span className="grid min-w-0 flex-1 text-left leading-tight">
         <span className="flex items-center gap-1 text-sm font-medium">
           <span className="truncate">{fullName}</span>

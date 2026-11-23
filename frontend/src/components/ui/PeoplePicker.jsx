@@ -24,7 +24,7 @@ export function PeoplePicker({ label = 'Add people', placeholder = 'Add people b
           {suggestions.map((p) => (
             <li key={p.id}>
               <button type="button" role="option" aria-selected="false" onClick={() => pick(p)} className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-2">
-                <Avatar name={p.name} size="size-7" />
+                <Avatar name={p.name} src={p.avatar} size="size-7" />
                 <span className="min-w-0"><span className="block truncate font-medium text-ink">{p.name}</span><span className="block truncate text-xs text-muted">{p.email}</span></span>
               </button>
             </li>
