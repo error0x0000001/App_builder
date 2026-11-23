@@ -104,7 +104,7 @@ function SearchField() {
 }
 
 /** Section panel: title, search, Menu | Recent tabs and the section's rows. */
-function Panel({ section, sections }) {
+function Panel({ section, sections, floating }) {
   const { toggle } = useSidebar();
   const { pathname } = useLocation();
   const [tab, setTab] = useState('menu');
@@ -119,7 +119,7 @@ function Panel({ section, sections }) {
   const items = tab === 'recent' ? recentItems : section.items;
 
   return (
-    <div className="flex w-75 min-w-0 flex-col gap-5 border-r border-sidebar-line bg-sidebar px-5 pb-4 pt-7">
+    <div className={cn('flex w-75 min-w-0 flex-col gap-5 bg-sidebar px-5 pb-4 pt-7', floating ? 'rounded-2xl border border-sidebar-line' : 'border-r border-sidebar-line')}>
       <div className="flex h-9 items-center justify-between gap-2 px-1">
         <h2 className="truncate text-xl font-semibold text-sidebar-ink">{section.label}</h2>
         <button type="button" aria-label="Hide panel" onClick={toggle} className={ROW_ACTION}><Icon name="panel-left" className="size-5" /></button>
@@ -146,11 +146,12 @@ export function RailSidebar() {
   const { show: showSearch } = useSearch();
   const { activeWorkspace } = useAuth();
   const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
+  const floating = variant === 'floating';
   const current = sections.find((s) => s.items.some((item) => matches(item, pathname)));
 
   return (
-    <aside aria-label="Application" className={cn('flex h-full shrink-0', variant === 'floating' && 'm-2 mr-0 overflow-hidden rounded-xl border border-sidebar-line')}>
-      <div className="flex w-20 shrink-0 flex-col items-center gap-1.5 border-r border-sidebar-line bg-rail py-5 text-sidebar-ink">
+    <aside aria-label="Application" className={cn('flex h-full shrink-0', floating && 'gap-2 p-2')}>
+      <div className={cn('flex w-20 shrink-0 flex-col items-center gap-1.5 bg-rail py-5 text-sidebar-ink', floating ? 'rounded-2xl border border-sidebar-line' : 'border-r border-sidebar-line')}>
         <div className="mb-4"><WorkspaceSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
           {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} />)}
@@ -162,7 +163,7 @@ export function RailSidebar() {
           <div className="mt-3"><NavUserCompact side="right" align="end" rail /></div>
         </div>
       </div>
-      {current && !collapsed && <Panel section={current} sections={sections} />}
+      {current && !collapsed && <Panel section={current} sections={sections} floating={floating} />}
     </aside>
   );
 }
