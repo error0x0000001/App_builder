@@ -86,15 +86,20 @@ function Dashboard({ o }) {
         <Card className="xl:col-span-2">
           <CardHeader title="Recent changes" description="The latest edits made in Setup" action={<Link to="/app/setup/view-setup-audit-trail" className="text-sm font-semibold text-link hover:underline">View audit trail</Link>} />
           {o.recent.length === 0 ? <p className="py-10 text-center text-sm text-muted">No changes have been made yet.</p> : (
-            <ul className="divide-y divide-line" aria-label="Recent Setup changes">
-              {o.recent.map((r) => (
-                <li key={r.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                  <Avatar name={r.who.name} src={r.who.avatar} size="size-10" />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-x-2 text-sm"><span className="font-medium text-ink">{r.who.name}</span><time dateTime={r.at} className="text-xs text-muted">{formatRelative(r.at)}</time></p>
-                    <p className="text-sm text-muted">{r.summary} <Link to={`/app/setup/${r.pageKey}`} className="font-medium text-link hover:underline">{r.pageName}</Link></p>
+            <ul aria-label="Recent Setup changes">
+              {o.recent.map((r, i) => (
+                <li key={r.id} className="relative flex gap-3">
+                  <div className="flex shrink-0 flex-col items-center">
+                    <Avatar name={r.who.name} src={r.who.avatar} size="size-10" />
+                    {i < o.recent.length - 1 && <span aria-hidden className="my-1 w-0 flex-1 border-l-2 border-dotted border-line-strong" />}
                   </div>
-                  <Badge tone={ACTION_TONE[String(r.action).toLowerCase()] ?? 'neutral'}>{r.action}</Badge>
+                  <div className="flex min-w-0 flex-1 items-start gap-3 pb-6">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-center gap-x-2 text-sm"><span className="font-medium text-ink">{r.who.name}</span><time dateTime={r.at} className="text-xs text-muted">{formatRelative(r.at)}</time></p>
+                      <p className="text-sm text-muted">{r.summary} <Link to={`/app/setup/${r.pageKey}`} className="font-medium text-link hover:underline">{r.pageName}</Link></p>
+                    </div>
+                    <Badge tone={ACTION_TONE[String(r.action).toLowerCase()] ?? 'neutral'}>{r.action}</Badge>
+                  </div>
                 </li>
               ))}
             </ul>
