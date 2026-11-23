@@ -1,4 +1,4 @@
-import { del, get, patch, post, qs } from './http.js';
+import { del, get, patch, post, qs, request, upload } from './http.js';
 
 export { download } from './http.js';
 
@@ -80,4 +80,29 @@ export const objectsApi = {
   update: (object, id, body) => patch(`/objects/${object}/records/${id}`, body),
   remove: (object, ids) => post(`/objects/${object}/records/delete`, { ids }),
   decide: (object, id, body) => post(`/objects/${object}/records/${id}/approval`, body),
+};
+
+const put = (path, body) => request(path, { method: 'PUT', body });
+const form = (file, fields = {}) => { const data = new FormData(); for (const [k, v] of Object.entries(fields)) data.append(k, v); data.append('file', file, file.name); return data; }; // fields first: the server streams the file part
+
+/** Documents (the Drive) and record attachments. */
+export const driveApi = {
+  usage: () => get('/drive/usage'),
+  list: (params, options) => get(`/drive/list${qs(params)}`, options),
+  people: (q) => get(`/drive/people${qs({ q })}`),
+  createFolder: (name, parentId) => post('/drive/folders', { name, parentId: parentId ?? null }),
+  patchFolder: (id, body) => patch(`/drive/folders/${id}`, body),
+  access: (id) => get(`/drive/folders/${id}/access`),
+  setAccess: (id, body) => put(`/drive/folders/${id}/access`, body),
+  file: (id) => get(`/drive/files/${id}`),
+  patchFile: (id, body) => patch(`/drive/files/${id}`, body),
+  copyFile: (id, body = {}) => post(`/drive/files/${id}/copy`, body),
+  link: (id) => get(`/drive/files/${id}/link`),
+  trash: (type, id) => post('/drive/trash', { type, id }),
+  restore: (type, id) => post('/drive/restore', { type, id }),
+  deleteForever: (type, id) => post('/drive/delete-forever', { type, id }),
+  star: (type, id, starred) => put('/drive/stars', { type, id, starred }),
+  upload: (folderId, file, options) => upload('/drive/files', form(file, { folderId }), options),
+  recordFiles: (object, id) => get(`/drive/records/${object}/${id}/files`),
+  uploadRecordFile: (object, id, file, options) => upload(`/drive/records/${object}/${id}/files`, form(file), options),
 };

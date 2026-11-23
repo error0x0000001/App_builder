@@ -15,6 +15,7 @@ export const NAV = {
   main: [
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
+    { to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true },
   ],
   groups: [
     { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural, create: true })) },

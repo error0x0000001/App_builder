@@ -23,6 +23,9 @@ Multi-tenant, multi-workspace SaaS ("Cloudbase") — npm-workspaces monorepo. Se
 - **Tenant theming:** each workspace has a `theme` (untitled default, graphite, indigo, emerald, rose, midnight) set by admins (`PATCH /workspaces/:id/theme`) and applied to all members via `html[data-tenant-theme]`. Light/dark is separate and personal (`html[data-theme]`). Add a theme = entry in `TENANT_THEMES` (shared) + two token blocks in `frontend/src/index.css`.
 - Git: work on `dev`, merge to `main` via PR. Commits authored as the owner (error0x0000001), no AI attribution lines.
 
+## Documents (Drive), Chat, Meet
+Design and phases: `docs/workspace-suite-plan.md`. **Documents is built** (`/app/documents`, `modules/drive`, `routes/drive.routes.js`, `pages/documents/`): per-folder access control (viewer | editor | manager) inherited down the tree until a Restricted folder, so people only ever see folders they are allowed into; every record's attachments live in `Records / <Object> / <record uuid>` and follow the **record's own permission** (never the folder grants); files are streamed to a `StorageDriver` (`shared/storage`, local now, S3-compatible next) with a size cap and checksum; previews use short-lived signed links; search over files and folders is ACL-filtered. Never read a drive file or list a folder without going through `DriveService` (it is the only place access is decided). The browser's file chooser is opened only through `useFilePicker` (`components/ui/FilePicker.jsx`). Chat and Meet are designed, not built (they need a realtime tier and an SFU — see the plan).
+
 ## Product scope
 The full product (Setup/Admin, CRM apps, ERP) is inventoried in `docs/inventory/` (generated from the design mock-up; regenerate with `tools/inventory/build-inventory.cjs`) and planned in `docs/product-roadmap.md`. Build pages as configuration on shared templates (ListPage, SettingsForm, object framework) — never one-off screens.
 

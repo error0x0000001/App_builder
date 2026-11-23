@@ -70,6 +70,35 @@ export const qs = (params) => {
 };
 
 /** Authenticated file download (the bearer token can't ride on a plain <a href>): fetch → blob → save. */
+/**
+ * Authenticated multipart upload with progress (fetch cannot report upload progress, XHR can). `onProgress(0–1)`; `signal` aborts it.
+ * Like `request`, an expired access token is refreshed once and the upload retried.
+ */
+export async function upload(path, formData, { onProgress, signal } = {}) {
+  const attempt = () => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}${path}`);
+    xhr.withCredentials = true;
+    if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded / event.total); };
+    xhr.onload = () => {
+      const data = (() => { try { return JSON.parse(xhr.responseText); } catch { return null; } })();
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data); else reject(new ApiError(xhr.status, data?.error));
+    };
+    xhr.onerror = () => reject(new ApiError(0, { message: 'The upload was interrupted. Check your connection and try again.' }));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(formData);
+  });
+  try {
+    return await attempt();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401 || error.code !== 'UNAUTHENTICATED' || !accessToken) throw error;
+    await refreshSession();
+    return attempt();
+  }
+}
+
 export async function download(path, filename) {
   const response = await fetch(`${BASE}${path.replace(/^\/api\/v1/, '')}`, { credentials: 'include', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
   if (!response.ok) throw new ApiError(response.status, (await response.json().catch(() => null))?.error);

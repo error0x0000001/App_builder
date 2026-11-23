@@ -15,6 +15,7 @@ import { SearchInput } from '../../components/ui/SearchInput.jsx';
 import { PageHeaderActions, PageHeaderTitle } from '../../layouts/PageHeader.jsx';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from '../setup/QueryState.jsx';
+import { RecordAttachments } from '../../components/records/RecordAttachments.jsx';
 import { RecordDialog } from '../setup/RecordDialog.jsx';
 
 const APPROVAL_TONE = { Pending: 'warning', Approved: 'success', Rejected: 'danger' };
@@ -135,6 +136,7 @@ function ObjectBody({ object, definition, permissions }) {
         >
           {dialog.record?.approval_status === 'Pending' && <ApprovalBar object={object} record={dialog.record} onDecided={async () => { await refresh(); setDialog(null); }} />}
           {dialog.mode === 'edit' && !canEdit && <Alert tone="info">You have read-only access to these records.</Alert>}
+          {dialog.mode === 'edit' && <RecordAttachments object={object} recordId={dialog.record.id} />}
         </RecordDialog>
       )}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={remove} danger confirmLabel="Delete" title={`Delete ${selected.size} selected?`} description="This cannot be undone." />

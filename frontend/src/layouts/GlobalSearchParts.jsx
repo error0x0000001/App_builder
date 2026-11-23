@@ -1,4 +1,4 @@
-import { DocumentColorIcon } from '../components/ui/ColorIcons.jsx';
+import { DocumentColorIcon, FolderColorIcon } from '../components/ui/ColorIcons.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { Kbd, MOD_KEY } from '../components/ui/Kbd.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
@@ -28,8 +28,8 @@ export function ResultRow({ item, query, id, active, onHover, onOpen }) {
   const v = visualFor(item);
   const lead = v.type === 'person'
     ? <span style={{ '--h': hueOf(item.title) }} className="tint-solid grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold" aria-hidden="true">{initials(item.title)}</span>
-    : v.type === 'document'
-      ? <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-surface" aria-hidden="true"><DocumentColorIcon color={v.color} className="size-5" /></span>
+    : v.type === 'document' || v.type === 'folder'
+      ? <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-surface" aria-hidden="true">{v.type === 'folder' ? <FolderColorIcon color={v.color} className="size-5" /> : <DocumentColorIcon color={v.color} className="size-5" />}</span>
       : <span style={{ '--h': v.hue }} className="tint grid size-8 shrink-0 place-items-center rounded-lg border" aria-hidden="true"><Icon name={v.icon} className="size-4" /></span>;
   return (
     <button

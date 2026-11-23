@@ -18,7 +18,7 @@ const GROUP_ORDER = ['pages', 'navigation', 'records', 'people', 'documents'];
 /** Which result groups each tab shows (Records includes the workspace's people). */
 const SCOPE_GROUPS = { all: GROUP_ORDER, navigation: ['pages', 'navigation'], records: ['records', 'people'], documents: ['documents'] };
 const FILTER_BY_TAB = {
-  all: (item) => ({ record: 'Records', person: 'People', document: 'Documents' }[item.kind] ?? 'Navigation'),
+  all: (item) => ({ record: 'Records', person: 'People', document: 'Documents', file: 'Documents', folder: 'Documents' }[item.kind] ?? 'Navigation'),
   navigation: (item) => (item.kind === 'page' ? (item.tag === 'Page' ? 'Pages' : 'Setup pages') : item.kind === 'setting' ? 'Settings' : 'Configuration'),
   records: (item) => (item.kind === 'person' ? 'People' : item.tag),
   documents: (item) => item.tag,
@@ -101,7 +101,7 @@ export function GlobalSearch() {
     { id: 'all', label: 'All', iconNode: <AppsColorIcon /> },
     { id: 'navigation', label: 'Navigation', iconNode: <CompassColorIcon /> },
     { id: 'records', label: 'Records', iconNode: <RecordsColorIcon /> },
-    ...(isAdmin ? [{ id: 'documents', label: 'Documents', iconNode: <DocumentColorIcon /> }] : []),
+    { id: 'documents', label: 'Documents', iconNode: <DocumentColorIcon /> },
   ];
   const nothing = searching && !flat.length && !server.loading && (type === 'navigation' ? server.searched || !isAdmin : server.searched);
   const filtered = Boolean(activeChip);

@@ -7,6 +7,7 @@ import { AuthLayout } from './layouts/AuthLayout.jsx';
 
 // Route-level code splitting keeps the first load small.
 const page = (loader) => lazy(loader);
+const DocumentsPage = page(() => import('./pages/documents/DocumentsPage.jsx'));
 const LoginPage = page(() => import('./pages/auth/LoginPage.jsx'));
 const WorkspaceLoginPage = page(() => import('./pages/auth/WorkspaceLoginPage.jsx'));
 const MfaChallengePage = page(() => import('./pages/auth/MfaChallengePage.jsx'));
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="members" element={<MembersPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="security" element={<SecurityPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
               <Route path="o/:object" element={<ObjectListPage />} />
               <Route path="setup" element={<RequireRole minimumRole="admin" />}>
                 <Route element={<SetupLayout />}>
