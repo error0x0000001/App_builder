@@ -24,12 +24,12 @@ export function PageHeaderProvider({ children }) {
 export function PageHeader() {
   const { pathname } = useLocation();
   const { setMetaEl, setActionsEl, title } = useContext(HeaderSlots);
-  const { iconOnly, isMobile } = useSidebar();
+  const { isMobile } = useSidebar();
   const { icon, label } = title ?? pageFor(pathname);
   const { show: showSearch } = useSearch(); // pages whose name comes from data (Setup) override the nav lookup
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
-      {(isMobile || iconOnly) && <SidebarTrigger />}
+      {isMobile && <SidebarTrigger />}
       <Icon name={icon} className="size-4 shrink-0 text-muted" />
       <h1 className="min-w-0 truncate text-sm font-semibold text-ink">{label}</h1>
       <span ref={setMetaEl} className="hidden min-w-0 items-center gap-2 text-sm text-muted empty:hidden sm:flex" />

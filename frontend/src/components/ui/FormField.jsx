@@ -24,6 +24,6 @@ export const describedBy = ({ id, error, hint }) => (error ? `${id}-error` : hin
 
 export const controlClass = (error) =>
   cn(
-    'h-(--ctl-h) w-full rounded-(--ctl-r) border bg-surface px-3.5 text-sm text-ink transition focus-within:border-link focus-within:ring-4 focus-within:ring-ring',
-    error ? 'border-danger' : 'border-line',
+    'h-(--ctl-h) w-full rounded-(--ctl-r) border bg-surface px-3.5 text-sm text-ink transition focus-within:border-accent focus-within:ring-4 focus-within:ring-ring',
+    error ? 'border-danger' : 'border-line-strong',
   );

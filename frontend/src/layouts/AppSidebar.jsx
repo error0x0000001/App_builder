@@ -5,10 +5,11 @@ import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { SidebarContent, SidebarFooter, SidebarHeader } from '../components/sidebar/SidebarParts.jsx';
 import { WorkspaceSwitcher } from '../components/workspace/WorkspaceSwitcher.jsx';
 import { NavBottom, NavMain } from './NavMain.jsx';
+import { SearchField } from './NavRows.jsx';
 import { NavUser } from './NavUser.jsx';
 
 export function AppSidebar() {
-  const { iconOnly, setMobileOpen } = useSidebar();
+  const { setMobileOpen } = useSidebar();
   const { pathname } = useLocation();
   useEffect(() => setMobileOpen(false), [pathname, setMobileOpen]); // close the drawer after navigating
 
@@ -17,8 +18,9 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-1 pb-1">
           <div className="min-w-0 flex-1"><WorkspaceSwitcher /></div>
-          {!iconOnly && <SidebarTrigger tone="sidebar" className="-mr-1" />}
+          <SidebarTrigger tone="sidebar" className="-mr-1" />
         </div>
+        <SearchField />
       </SidebarHeader>
       <SidebarContent><NavMain /></SidebarContent>
       <SidebarFooter>

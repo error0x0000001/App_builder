@@ -57,6 +57,13 @@
       "when": 1795374070972,
       "tag": "0007_global_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795380000000,
+      "tag": "0008_untitled_theme",
+      "breakpoints": true
     }
   ]
 }

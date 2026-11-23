@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveUiSettings } from '@app/shared';
 import { authApi, meApi, workspacesApi } from '../api/endpoints.js';
+import { applyCustomColors } from '../lib/customColors.js';
 import { applyThemeMode } from '../lib/themeMode.js';
 import { onSessionExpired, refreshSession, tokenStore } from '../api/http.js';
 import { meQuery } from '../api/queries.js';
@@ -89,11 +90,11 @@ export function AuthProvider({ children }) {
     else delete document.documentElement.dataset.tenantTheme;
   }, [status, activeTheme]);
 
-  const navColor = resolveUiSettings(me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.uiSettings).navColor;
+  const storedUi = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.uiSettings;
   useEffect(() => {
-    if (status === 'authenticated' && navColor !== 'default') document.documentElement.dataset.navColor = navColor;
-    else delete document.documentElement.dataset.navColor;
-  }, [status, navColor]);
+    // Navigation colour and the owner's custom colours only apply inside the app, like the tenant theme.
+    applyCustomColors(status === 'authenticated' ? resolveUiSettings(storedUi) : null);
+  }, [status, storedUi]);
 
   const value = useMemo(() => {
     const activeWorkspace = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;

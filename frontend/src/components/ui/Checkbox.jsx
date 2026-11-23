@@ -11,7 +11,7 @@ export const Checkbox = forwardRef(function Checkbox({ label, error, id: idProp,
       <label htmlFor={id} className={cn('flex cursor-pointer items-start gap-2.5 text-sm text-ink', rest.disabled && 'cursor-not-allowed opacity-60', className)}>
         <span className="relative mt-0.5 inline-flex size-4 shrink-0">
           <input ref={ref} id={id} type="checkbox" aria-invalid={Boolean(error) || undefined} className="peer absolute inset-0 size-full cursor-[inherit] opacity-0" {...rest} />
-          <span aria-hidden="true" className={cn('pointer-events-none grid size-4 place-items-center rounded border bg-surface text-accent-ink transition-colors peer-checked:border-accent peer-checked:bg-accent peer-focus-visible:ring-4 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100', error ? 'border-danger' : 'border-line')}>
+          <span aria-hidden="true" className={cn('pointer-events-none grid size-4 place-items-center rounded-[4px] border bg-surface text-accent-ink transition-colors peer-checked:border-accent peer-checked:bg-accent peer-focus-visible:ring-4 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100', error ? 'border-danger' : 'border-line-strong')}>
             <Icon name="check" className="size-3" strokeWidth={3} />
           </span>
         </span>

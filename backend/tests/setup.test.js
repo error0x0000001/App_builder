@@ -280,6 +280,11 @@ describe('UI customization and preferences', () => {
     assert.deepEqual(merged.body.workspace.uiSettings, { layout: 'topbar', navColor: 'navy', variant: 'floating' }, 'patches merge');
     assert.equal((await owner.get('/me')).body.workspaces[0].uiSettings.navColor, 'navy');
 
+    const custom = await owner.patch(`/workspaces/${ws}/ui`, { navHex: '#1E293B', accentHex: '#12b76a' });
+    assert.equal(custom.status, 200);
+    assert.equal(custom.body.workspace.uiSettings.navHex, '#1e293b', 'custom colours are stored normalised');
+    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { navHex: 'url(javascript:x)' })).status, 400, 'only #rrggbb colours are accepted');
+    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { navHex: null, accentHex: null })).status, 200, 'null returns to the preset');
     assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { layout: 'diagonal' })).status, 400, 'values are validated');
     assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { favouriteColour: 'red' })).status, 400, 'unknown options are refused');
     assert.equal((await owner.patch(`/workspaces/${ws}/ui`, {})).status, 400);

@@ -41,8 +41,8 @@ export const objectRecordSchema = (fields, mode) => {
 
 /** Objects shown as top-level navigation (the rest stay reachable from Object Manager and ⌘K). */
 export const CRM_NAV_OBJECTS = Object.freeze([
-  { key: 'Lead', plural: 'Leads' }, { key: 'Account', plural: 'Accounts' }, { key: 'Contact', plural: 'Contacts' },
-  { key: 'Opportunity', plural: 'Opportunities' }, { key: 'Case', plural: 'Cases' }, { key: 'Campaign', plural: 'Campaigns' }, { key: 'Task', plural: 'Tasks' },
+  { key: 'Lead', plural: 'Leads', icon: 'target' }, { key: 'Account', plural: 'Accounts', icon: 'building' }, { key: 'Contact', plural: 'Contacts', icon: 'users' },
+  { key: 'Opportunity', plural: 'Opportunities', icon: 'trend-up' }, { key: 'Case', plural: 'Cases', icon: 'life-buoy' }, { key: 'Campaign', plural: 'Campaigns', icon: 'megaphone' }, { key: 'Task', plural: 'Tasks', icon: 'check-square' },
 ]);
 
 export const APPROVAL_STATUS = Object.freeze({ PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' });

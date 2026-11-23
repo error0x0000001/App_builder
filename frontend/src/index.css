@@ -9,19 +9,24 @@
    and an entry in TENANT_THEMES (packages/shared/src/constants.js).
    --------------------------------------------------------------------------------------------- */
 :root {
-  --bg: #f4f4f5; --surface: #ffffff; --surface-2: #f4f4f5; --line: #e4e4e7; --inset: #ffffff;
-  --ink: #18181b; --muted: #71717a;
-  /* shape: compact 8px controls in the app; the sign-in screens override these (see .auth-scope) */
+  /* Untitled UI gray scale (light) — every neutral below is one of these steps. */
+  --gray-25: #fcfcfd; --gray-50: #f9fafb; --gray-100: #f2f4f7; --gray-200: #eaecf0; --gray-300: #d0d5dd; --gray-400: #98a2b3;
+  --gray-500: #667085; --gray-600: #475467; --gray-700: #344054; --gray-800: #1d2939; --gray-900: #101828;
+  --bg: var(--gray-50); --surface: #ffffff; --surface-2: var(--gray-50); --line: var(--gray-200); --line-strong: var(--gray-300); --inset: #ffffff;
+  --ink: var(--gray-900); --muted: var(--gray-600); --placeholder: var(--gray-500);
+  /* shape: 8px controls (Untitled "lg" radius); the sign-in screens override these (see .auth-scope) */
   --radius-btn: 0.5rem; --ctl-h: 2.5rem; --ctl-r: 0.5rem;
-  --danger: #c62828; --success: #1b7f4b; --warning: #b7791f;
+  --danger: #d92d20; --success: #079455; --warning: #dc6803;
   --hero-1: #9db8ff; --hero-2: #c9bcff; --hero-3: #dce8ff; --orb-a: #7fa6ff; --orb-b: #1b3a6b;
   color-scheme: light;
 }
 [data-theme="dark"] {
-  /* pitch-black page + slate surfaces */
-  --bg: #000000; --surface: #0e1116; --surface-2: #171b22; --line: #262c36; --inset: #000000;
-  --ink: #e8ebf0; --muted: #8d97a8;
-  --danger: #ff7b72; --success: #4cc38a; --warning: #e3b341;
+  /* pitch-black page + neutral near-black surfaces (Untitled's dark mode, desaturated to true neutrals) */
+  --gray-25: #0a0a0b; --gray-50: #0f0f11; --gray-100: #141416; --gray-200: #232326; --gray-300: #323236; --gray-400: #6b6b72;
+  --gray-500: #8b8b92; --gray-600: #a1a1a8; --gray-700: #cecfd2; --gray-800: #e4e4e7; --gray-900: #ededee;
+  --bg: #000000; --surface: #0a0a0b; --surface-2: #141416; --line: #232326; --line-strong: #323236; --inset: #000000;
+  --ink: #ededee; --muted: #a1a1a8; --placeholder: #6b6b72;
+  --danger: #f97066; --success: #47cd89; --warning: #fdb022;
   --hero-1: #1a2a4d; --hero-2: #2a2552; --hero-3: #0c1019; --orb-a: #6b9bff; --orb-b: #16264d;
   color-scheme: dark;
 }
@@ -29,18 +34,24 @@
 /* Sign-in / onboarding surfaces use softer, rounder controls. */
 .auth-scope { --radius-btn: 9999px; --ctl-h: 2.75rem; --ctl-r: 0.75rem; }
 
-/* graphite (default): near-black accent, light neutral sidebar */
+/* untitled (default): Untitled UI brand purple, white sidebar on a light-gray rail */
 :root {
-  --accent: #18181b; --accent-hover: #3f3f46; --accent-soft: #ececf0; --accent-ink: #ffffff;
-  --link: #1f56c4; --ring: rgba(24, 24, 27, 0.16);
-  --sidebar: #fafafa; --sidebar-ink: #18181b; --sidebar-muted: #71717a; --sidebar-line: #e4e4e7; --sidebar-accent: #ececee;
+  --accent: #7f56d9; --accent-hover: #6941c6; --accent-soft: #f9f5ff; --accent-ink: #ffffff;
+  --link: #6941c6; --ring: #f4ebff;
+  --chrome: #eaecf0; /* the surface around the page card in the Inset style */
+  --sidebar: #ffffff; --sidebar-ink: #101828; --sidebar-muted: #475467; --sidebar-line: #eaecf0; --sidebar-accent: #f2f4f7; --rail: #f2f4f7;
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {
-  --accent: #f4f4f5; --accent-hover: #e4e4e7; --accent-soft: #1c1c20; --accent-ink: #0a0a0b;
-  --link: #8ab4ff; --ring: rgba(244, 244, 245, 0.25);
-  --sidebar: #0e1116; --sidebar-ink: #e6e8ec; --sidebar-muted: #8d97a8; --sidebar-line: #262c36; --sidebar-accent: #1b212b;
+  --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #1b1626; --accent-ink: #ffffff;
+  --link: #b692f6; --ring: rgba(158, 119, 237, 0.28);
+  --chrome: #050506;
+  --sidebar: #050506; --sidebar-ink: #ededee; --sidebar-muted: #a1a1a8; --sidebar-line: #1f1f22; --sidebar-accent: #161618; --rail: #0c0c0e;
 }
+
+/* graphite: the earlier near-black accent */
+:root[data-tenant-theme="graphite"] { --accent: #18181b; --accent-hover: #3f3f46; --accent-soft: #ececf0; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(24, 24, 27, 0.16); }
+:root[data-theme="dark"][data-tenant-theme="graphite"] { --accent: #f4f4f5; --accent-hover: #e4e4e7; --accent-soft: #1c1c20; --accent-ink: #0a0a0b; --link: #8ab4ff; --ring: rgba(244, 244, 245, 0.25); }
 
 :root[data-tenant-theme="indigo"] { --accent: #4f46e5; --accent-hover: #4338ca; --accent-soft: #eef2ff; --accent-ink: #ffffff; --link: #4f46e5; --ring: rgba(79, 70, 229, 0.22); }
 :root[data-theme="dark"][data-tenant-theme="indigo"] { --accent: #818cf8; --accent-hover: #6366f1; --accent-soft: #1a1c3d; --accent-ink: #0b0b2a; --link: #a5b4fc; --ring: rgba(129, 140, 248, 0.3); }
@@ -53,20 +64,20 @@
 
 /* midnight: navy accent + dark navy sidebar in both modes */
 :root[data-tenant-theme="midnight"], :root[data-theme="dark"][data-tenant-theme="midnight"] {
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+  --rail: #000521; --chrome: #00072d; --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
 }
 :root[data-tenant-theme="midnight"] { --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22); }
 :root[data-theme="dark"][data-tenant-theme="midnight"] { --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120; --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28); }
 
 @theme inline {
-  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line);
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2); --color-line: var(--line); --color-line-strong: var(--line-strong); --color-rail: var(--rail); --color-chrome: var(--chrome); --color-placeholder: var(--placeholder);
   --color-ink: var(--ink); --color-muted: var(--muted);
   --color-accent: var(--accent); --color-accent-hover: var(--accent-hover); --color-accent-soft: var(--accent-soft); --color-accent-ink: var(--accent-ink);
   --color-sidebar: var(--sidebar); --color-sidebar-ink: var(--sidebar-ink); --color-sidebar-muted: var(--sidebar-muted); --color-sidebar-line: var(--sidebar-line);
   --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-ink: var(--sidebar-primary-ink); --color-inset: var(--inset);
   --color-link: var(--link); --color-ring: var(--ring);
   --color-danger: var(--danger); --color-success: var(--success); --color-warning: var(--warning);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html, body, #root { min-height: 100%; }
@@ -79,14 +90,14 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 }
 /* Owner's navigation colour (Customize › Colors): overrides the sidebar / top-bar tokens in light and dark. */
 :root[data-nav-color="navy"], :root[data-theme="dark"][data-nav-color="navy"] {
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d; --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="slate"], :root[data-theme="dark"][data-nav-color="slate"] {
-  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a;
+  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a; --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="accent"], :root[data-theme="dark"][data-nav-color="accent"] {
   --sidebar: var(--accent); --sidebar-ink: var(--accent-ink); --sidebar-muted: color-mix(in srgb, var(--accent-ink) 70%, transparent); --sidebar-line: color-mix(in srgb, var(--accent-ink) 22%, transparent);
-  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent);
+  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent); --chrome: var(--sidebar); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 
 @keyframes sheet-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }

@@ -14,7 +14,7 @@ export const Textarea = forwardRef(function Textarea({ label, hint, error, requi
         rows={rows}
         aria-invalid={Boolean(error) || undefined}
         aria-describedby={describedBy({ id, error, hint })}
-        className={cn('w-full resize-y rounded-(--ctl-r) border bg-surface px-3.5 py-2 text-sm text-ink outline-none transition focus:border-link focus:ring-4 focus:ring-ring disabled:opacity-60', error ? 'border-danger' : 'border-line', className)}
+        className={cn('w-full resize-y rounded-(--ctl-r) border bg-surface px-3.5 py-2 text-sm text-ink outline-none transition focus:border-accent focus:ring-4 focus:ring-ring disabled:opacity-60', error ? 'border-danger' : 'border-line', className)}
         {...rest}
       />
     </FormField>

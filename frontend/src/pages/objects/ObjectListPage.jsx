@@ -1,4 +1,4 @@
-import { hasRole, objectRecordFormSchema } from '@app/shared';
+import { CRM_NAV_OBJECTS, hasRole, objectRecordFormSchema } from '@app/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -36,8 +36,8 @@ function ApprovalBar({ object, record, onDecided }) {
       {error && <p className="mb-2 text-sm text-danger">{error}</p>}
       {allowed ? (
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => decide('approve')} loading={busy}>Approve</Button>
-          <Button size="sm" variant="neutral" onClick={() => decide('reject')} disabled={busy}>Reject</Button>
+          <Button size="sm" onClick={() => decide('approve')} loading={busy}><Icon name="check" className="size-4" />Approve</Button>
+          <Button size="sm" variant="neutral" onClick={() => decide('reject')} disabled={busy}><Icon name="x" className="size-4" />Reject</Button>
         </div>
       ) : <p className="text-sm">Only the approver or an admin can decide.</p>}
     </Alert>
@@ -62,6 +62,14 @@ function ObjectBody({ object, definition, permissions }) {
     if (!openId) return;
     objectsApi.get(object, openId).then(({ record }) => setDialog({ mode: 'edit', record })).catch(() => {}).finally(() => setParams({}, { replace: true }));
   }, [openId, object, setParams]);
+
+  // Navigation "+" deep link: /app/o/Lead?new=1 opens the New dialog (only when this person may create).
+  const wantsNew = params.get('new');
+  useEffect(() => {
+    if (!wantsNew) return;
+    if (canCreate) setDialog({ mode: 'create' });
+    setParams({}, { replace: true });
+  }, [wantsNew, canCreate, setParams]);
 
   const records = useInfiniteQuery({
     queryKey: ['objects', 'records', object, { q }],
@@ -92,9 +100,9 @@ function ObjectBody({ object, definition, permissions }) {
 
   return (
     <div className="space-y-3">
-      <PageHeaderTitle icon="users">{definition.plural}</PageHeaderTitle>
+      <PageHeaderTitle icon={CRM_NAV_OBJECTS.find((o) => o.key === definition.key)?.icon ?? 'users'}>{definition.plural}</PageHeaderTitle>
       <PageHeaderActions>
-        {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral">Customize</Button>}
+        {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral"><Icon name="sliders" className="size-4" />Customize</Button>}
         {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
       </PageHeaderActions>
 

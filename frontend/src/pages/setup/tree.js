@@ -1,8 +1,13 @@
 /** Setup tree (from the API) → TreeNav nodes / palette items. Leaves link to /app/setup/:page. */
+/** Icons for the Setup sections (presentation only; leaves keep the plain look). */
+const SECTION_ICONS = {
+  Users: 'users', Data: 'database', Email: 'mail', Apps: 'grid', 'Feature Settings': 'sliders', Einstein: 'stars', 'Objects and Fields': 'cube',
+  'Process Automation': 'zap', 'User Interface': 'palette', 'Custom Code': 'code', Environments: 'cloud', 'Company Settings': 'building', Identity: 'key', Security: 'shield',
+};
 const toNode = (node, trail) => {
   const id = `${trail}/${node.label}`;
   return node.children
-    ? { id, label: node.label, children: node.children.map((c) => toNode(c, id)) }
+    ? { id, label: node.label, icon: SECTION_ICONS[node.label], children: node.children.map((c) => toNode(c, id)) }
     : { id, label: node.label, to: `/app/setup/${node.page}`, page: node.page };
 };
 export const toTreeNodes = (tree) => tree.map((n) => toNode(n, ''));

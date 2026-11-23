@@ -9,7 +9,7 @@ import { useSidebar } from './SidebarContext.jsx';
  * Mobile: off-canvas drawer with a backdrop.
  */
 export function Sidebar({ label = 'Sidebar', children }) {
-  const { variant, iconOnly, isMobile, mobileOpen, setMobileOpen, toggle } = useSidebar();
+  const { variant, isMobile, mobileOpen, setMobileOpen, toggle } = useSidebar();
 
   if (isMobile) {
     return (
@@ -27,7 +27,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('relative h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-66')}>
+    <aside aria-label={label} className={cn('relative h-full w-66 shrink-0 p-2', variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>
@@ -39,10 +39,14 @@ export function Sidebar({ label = 'Sidebar', children }) {
   );
 }
 
-/** The main content area: a fixed-height bordered floating card in every variant — its content scrolls inside, it never grows. */
+/**
+ * The main content area, always exactly the remaining viewport — its content scrolls inside, it never grows. Flat: flush with the
+ * navigation (the navigation draws the divider). Inset: a rounded bordered card on the tinted navigation surface. Floating: a rounded bordered card beside the navigation card.
+ */
 export function SidebarInset({ children }) {
-  const { layout } = useSidebar();
-  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset', layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0')}>{children}</div>;
+  const { layout, variant } = useSidebar();
+  const card = variant !== 'flat';
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', card ? 'bg-surface' : 'bg-inset', card && 'rounded-xl border border-line', card && (layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0'))}>{children}</div>;
 }
 
 const TRIGGER_TONES = {

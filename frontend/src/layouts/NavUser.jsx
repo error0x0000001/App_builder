@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme.js';
 import { useCustomize } from './CustomizeContext.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
-import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../components/sidebar/SidebarParts.jsx';
 import { Avatar } from '../components/ui/Avatar.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/DropdownMenu.jsx';
@@ -41,7 +40,8 @@ function UserMenuContent({ side, align, className }) {
 }
 
 /** Top bar: just the avatar, same menu. */
-export function NavUserCompact() {
+/** `rail`: round 40px avatar with a presence dot, for the icon rail. */
+export function NavUserCompact({ side = 'bottom', align = 'end', rail = false }) {
   const { user } = useAuth();
   const fullName = `${user.firstName} ${user.lastName}`;
   return (
@@ -49,11 +49,16 @@ export function NavUserCompact() {
       <DropdownMenuTrigger>
         {(props) => (
           <button type="button" aria-label={`Account menu for ${fullName}`} className="grid size-9 place-items-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
-            <Avatar name={fullName} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+            {rail ? (
+              <span className="relative">
+                <Avatar name={fullName} size="size-10" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
+                <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-rail bg-success" />
+              </span>
+            ) : <Avatar name={fullName} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />}
           </button>
         )}
       </DropdownMenuTrigger>
-      <UserMenuContent side="bottom" align="end" className="w-64" />
+      <UserMenuContent side={side} align={align} className="w-64" />
     </DropdownMenu>
   );
 }
@@ -61,7 +66,6 @@ export function NavUserCompact() {
 /** Sidebar footer: current user (avatar, name, email) with a "…" menu for account shortcuts and sign out. */
 export function NavUser() {
   const { user } = useAuth();
-  const { iconOnly } = useSidebar();
   const fullName = `${user.firstName} ${user.lastName}`;
 
   // Colors inherit from the container, so the same block works on the sidebar and inside the menu.
@@ -85,12 +89,12 @@ export function NavUser() {
           <DropdownMenuTrigger>
             {(props) => (
               <SidebarMenuButton size="lg" aria-label={`Account menu for ${fullName}`} {...props}>
-                {identity(iconOnly ? 'size-8' : 'size-9', 'bg-sidebar-primary! text-sidebar-primary-ink!')}
+                {identity('size-9', 'bg-sidebar-primary! text-sidebar-primary-ink!')}
                 <Icon name="more-horizontal" className="ml-auto size-4 shrink-0 stroke-[3.5] opacity-80" />
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
-          <UserMenuContent side={iconOnly ? 'right' : 'top'} align={iconOnly ? 'end' : 'start'} className={iconOnly ? undefined : 'w-full'} />
+          <UserMenuContent side="top" align="start" className="w-full" />
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>

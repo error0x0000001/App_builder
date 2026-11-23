@@ -16,7 +16,7 @@ export const Input = forwardRef(function Input({ label, hint, error, prefix, suf
           required={required}
           aria-invalid={Boolean(error) || undefined}
           aria-describedby={describedBy({ id, error, hint })}
-          className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted/60 disabled:opacity-60"
+          className="h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-placeholder disabled:opacity-60"
           {...rest}
         />
         {suffix}
