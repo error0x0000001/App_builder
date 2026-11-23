@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
-import { Badge } from '../../components/ui/Badge.jsx';
+import { Avatar } from '../../components/ui/Avatar.jsx';
+import { Badge, hueOf } from '../../components/ui/Badge.jsx';
+import { NameTile } from '../../components/ui/NameTile.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
@@ -27,14 +29,36 @@ const BAD = /(fatal|fail|error|invalid|denied|locked)/i;
 const tone = (v) => (BAD.test(v) ? 'danger' : GOOD.test(v) ? 'success' : WARN.test(v) ? 'warning' : 'neutral');
 
 const dash = <span className="text-muted">—</span>;
-const renderCell = (type) => (row, key) => {
+const PERSON = /(^|_)(created_by|modified_by|updated_by|owner|assigned_to|user|monitored_user|manager|requester)$/i;
+const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
+
+/** Rich, coloured cells (Untitled UI tables are never plain text): tiles + two-line names, dotted status badges, hue tags, avatars. */
+const renderCell = (type, { key, first, subKey }) => (row) => {
   const v = row[key];
-  if (type === 'check') return v ? <Icon name="check" className="size-4 text-success" /> : dash;
-  if (v === undefined || v === null || v === '') return dash;
-  if (type === 'datetime') return formatDateTime(v);
-  if (type === 'status') return <Badge tone={tone(String(v))}>{String(v)}</Badge>;
-  if (type === 'link') return <span className="font-medium">{String(v)}</span>;
-  return String(v);
+  const empty = v === undefined || v === null || v === '';
+  if (first) {
+    if (empty) return dash;
+    const sub = subKey ? row[subKey] : null;
+    return (
+      <span className="flex min-w-0 items-center gap-3">
+        <NameTile name={String(v)} />
+        <span className="min-w-0"><span className="block truncate font-medium text-ink">{String(v)}</span>{sub ? <span className="block truncate text-xs text-muted">{String(sub)}</span> : null}</span>
+      </span>
+    );
+  }
+  if (type === 'check' || v === true || v === false || v === 'true' || v === 'false') {
+    const on = v === true || v === 'true';
+    if (empty && type !== 'check') return dash;
+    return on ? <Badge tone="success" dot>Yes</Badge> : <Badge tone="neutral" dot>No</Badge>;
+  }
+  if (empty) return dash;
+  if (type === 'datetime') return <span className="text-muted">{formatDateTime(v)}</span>;
+  if (type === 'status') return <Badge tone={tone(String(v))} dot>{String(v)}</Badge>;
+  if (type === 'select') return <Badge hue={hueOf(v)}>{String(v)}</Badge>;
+  if (PERSON.test(key)) return <span className="flex items-center gap-2"><Avatar name={String(v)} size="size-7" /><span className="truncate font-medium text-ink">{String(v)}</span></span>;
+  if (type === 'link') return <span className="font-medium text-link">{String(v)}</span>;
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(v)) || /^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(v))) return <span className="text-muted">{String(v)}</span>;
+  return <span className="text-muted">{String(v)}</span>;
 };
 
 /**
@@ -87,11 +111,17 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const totalKnown = knownTotal.sig === sig ? knownTotal : { n: undefined, capped: false };
   const total = totalKnown.n === undefined ? undefined : `${totalKnown.n.toLocaleString()}${totalKnown.capped ? '+' : ''}`;
 
-  const columns = useMemo(() => page.columns.map((c) => {
-    const type = adapter?.columnTypes?.[c.key] ?? c.type;
-    const render = renderCell(type);
-    return { key: c.key, label: c.label, sortable: !adapter, align: c.type === 'number' ? 'right' : undefined, render: (row) => render(row, c.key) };
-  }), [page.columns, adapter]);
+  const columns = useMemo(() => {
+    const subKey = page.columns.slice(1).find((c) => DESCRIPTION.test(c.key))?.key;
+    const firstType = adapter?.columnTypes?.[page.columns[0]?.key] ?? page.columns[0]?.type;
+    const richFirst = firstType === 'text' || firstType === 'link' || firstType === undefined;
+    return page.columns.filter((c) => !(richFirst && subKey && c.key === subKey)).map((c) => {
+      const i = page.columns.indexOf(c);
+      const type = adapter?.columnTypes?.[c.key] ?? c.type;
+      const first = i === 0 && (type === 'text' || type === 'link' || type === undefined);
+      return { key: c.key, label: c.label, sortable: !adapter, width: first ? 280 : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined }) };
+    });
+  }, [page.columns, adapter]);
 
   const refresh = () => invalidateSetupData(queryClient);
   const remove = async () => { await setupApi.deleteRecords(pageKey, [...selected]); setSelected(new Set()); await refresh(); };
