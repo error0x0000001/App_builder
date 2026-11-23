@@ -6,7 +6,7 @@ import { RealtimeClient } from '../../lib/realtime.js';
 import { KEYS, applyReaction, mergePeople, patchInboxItem, sortInbox, upsertMessage, patchMessage } from './chatCache.js';
 
 const TYPING_MS = 4000;
-const Context = createContext({ status: 'offline', typingIn: () => [], sendTyping: () => {}, setOpenConversation: () => {} });
+const Context = createContext({ status: 'offline', typingIn: () => [], sendTyping: () => {}, setOpenConversation: () => {}, subscribe: () => () => {} });
 export const useChatRealtime = () => useContext(Context);
 
 /** Unread messages across all conversations (the number on the Chat navigation item). */
@@ -27,9 +27,11 @@ export function ChatRealtimeProvider({ children }) {
   const [typing, setTyping] = useState({}); // conversationId -> { userId: expiresAt }
   const client = useRef(null);
   const open = useRef(null); // the conversation on screen: its new messages are read immediately
+  const listeners = useRef(new Set()); // other features (calls) that want the raw event stream
   const myId = user?.id;
 
   const handle = useCallback((event) => {
+    listeners.current.forEach((fn) => fn(event));
     switch (event.type) {
       case 'message.new': {
         if (event.sender) mergePeople(qc, { [event.sender.id]: event.sender });
@@ -66,6 +68,10 @@ export function ChatRealtimeProvider({ children }) {
         qc.invalidateQueries({ queryKey: KEYS.conversation(event.conversationId) });
         qc.invalidateQueries({ queryKey: KEYS.unread });
         break;
+      case 'call.started': case 'call.ended':
+        qc.invalidateQueries({ queryKey: KEYS.conversation(event.conversationId) });
+        qc.invalidateQueries({ queryKey: KEYS.inbox });
+        break;
       case 'pins.changed': qc.invalidateQueries({ queryKey: ['chat', 'pins', event.conversationId] }); break;
       default: break;
     }
@@ -94,6 +100,7 @@ export function ChatRealtimeProvider({ children }) {
     typingIn: (conversationId) => Object.keys(typing[conversationId] ?? {}),
     sendTyping: (conversationId) => client.current?.send({ type: 'typing', conversationId }),
     setOpenConversation: (id) => { open.current = id; },
+    subscribe: (fn) => { listeners.current.add(fn); return () => listeners.current.delete(fn); },
   }), [status, typing]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

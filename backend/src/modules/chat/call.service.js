@@ -103,6 +103,17 @@ export class CallService {
     return { ok: true };
   }
 
+  /** LiveKit tells us when a room is finished (everyone gone, even if nobody hung up cleanly): the call is over. */
+  async onWebhook(rawBody, authorization) {
+    const event = await this.livekit.verifyWebhook(rawBody, authorization);
+    if (!event) throw new ForbiddenError('Invalid webhook signature');
+    if (event.event === 'room_finished' && event.room?.name) {
+      const call = await this.#active(event.room.name);
+      if (call) await this.#finish(null, call);
+    }
+    return { ok: true };
+  }
+
   async config() { return { enabled: this.livekit.enabled }; }
 
 }

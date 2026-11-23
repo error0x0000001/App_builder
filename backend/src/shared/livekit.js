@@ -1,4 +1,5 @@
-import { SignJWT } from 'jose';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { SignJWT, jwtVerify } from 'jose';
 
 const httpUrl = (url) => url.replace(/^ws/i, 'http').replace(/\/$/, '');
 
@@ -41,6 +42,17 @@ export class LiveKitClient {
   async participants(room) {
     const data = await this.#admin('ListParticipants', room, { room });
     return (data?.participants ?? []).map((p) => p.identity);
+  }
+
+  /** Verifies a LiveKit webhook (signed JWT whose `sha256` claim is the body's hash) and returns the parsed event, or null when it is not genuine. */
+  async verifyWebhook(rawBody, authorization) {
+    try {
+      const { payload } = await jwtVerify(authorization ?? '', this.key, { issuer: this.apiKey });
+      const hash = createHash('sha256').update(rawBody).digest();
+      const claimed = Buffer.from(String(payload.sha256 ?? ''), 'base64');
+      if (claimed.length !== hash.length || !timingSafeEqual(claimed, hash)) return null;
+      return JSON.parse(rawBody.toString('utf8'));
+    } catch { return null; }
   }
 
   async closeRoom(room) { await this.#admin('DeleteRoom', room, { room }); }

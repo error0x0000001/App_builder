@@ -10,7 +10,8 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { uuidv7 } from '../../lib/uuidv7.js';
 import { ChatAvatar } from './ChatAvatar.jsx';
 import { KEYS, dropMessage, patchInboxItem, patchMessage, upsertMessage } from './chatCache.js';
-import { conversationTitle, formatDayLabel, nameOf, sameDay, systemText } from './chatFormat.js';
+import { callText, conversationTitle, formatDayLabel, nameOf, sameDay, systemText } from './chatFormat.js';
+import { useCall } from './calls/CallProvider.jsx';
 import { messagesQueryOptions, useConversation, useInbox, usePeople } from './chatQueries.js';
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { Composer } from './Composer.jsx';
@@ -29,6 +30,7 @@ export function Thread({ id, onBack }) {
   const qc = useQueryClient();
   const people = usePeople();
   const { typingIn, sendTyping, setOpenConversation } = useChatRealtime();
+  const calls = useCall();
   const inbox = useInbox();
   const detail = useConversation(id);
   const item = inbox.data?.conversations.find((c) => c.id === id);
@@ -131,8 +133,21 @@ export function Thread({ id, onBack }) {
           </span>
         </button>
         {conversation?.legalHold && <span className="hidden items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium text-muted sm:inline-flex"><Icon name="lock" className="size-3" />Legal hold</span>}
+        {calls.enabled && (
+          <>
+            <Button size="icon" variant="ghost" aria-label="Start audio call" disabled={Boolean(calls.session)} onClick={() => calls.startCall(id, false)}><Icon name="phone" className="size-4" /></Button>
+            <Button size="icon" variant="ghost" aria-label="Start video call" disabled={Boolean(calls.session)} onClick={() => calls.startCall(id, true)}><Icon name="video" className="size-4" /></Button>
+          </>
+        )}
         <Button size="icon" variant="ghost" aria-label="Conversation details" onClick={() => setInfo(true)}><Icon name="info" className="size-4" /></Button>
       </header>
+      {calls.enabled && conversation?.activeCall && calls.session?.conversationId !== id && (
+        <div role="status" className="flex items-center gap-3 border-b border-line bg-surface-2 px-4 py-2 text-sm">
+          <Icon name={conversation.activeCall.video ? 'video' : 'phone'} className="size-4 text-link" />
+          <span className="min-w-0 flex-1 truncate font-medium text-ink">{conversation.activeCall.video ? 'Video' : 'Audio'} call in progress</span>
+          <Button size="sm" onClick={() => calls.joinCall(id, conversation.activeCall.video)}>Join</Button>
+        </div>
+      )}
 
       <div className="relative min-h-0 flex-1">
         <div ref={scroller} onScroll={onScroll} className="h-full overflow-y-auto px-3 py-3 sm:px-5" role="log" aria-live="polite" aria-label="Messages">
@@ -150,8 +165,8 @@ export function Thread({ id, onBack }) {
               <div key={m.id} id={`msg-${m.id}`}>
                 {newDay && <div className="my-3 flex justify-center"><span className="rounded-full border border-line bg-surface px-3 py-0.5 text-xs font-medium text-muted">{formatDayLabel(m.createdAt)}</span></div>}
                 {showUnread && <div className="my-2 flex items-center gap-3 text-xs font-semibold text-link"><span className="h-px flex-1 bg-accent/40" />New messages<span className="h-px flex-1 bg-accent/40" /></div>}
-                {m.kind === 'system'
-                  ? <p className="my-2 text-center text-xs text-muted">{systemText(m, people, myId)}</p>
+                {m.kind === 'system' || m.kind === 'call'
+                  ? <p className="my-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted">{m.kind === 'call' && <Icon name={m.body.endsWith('video') ? 'video' : 'phone'} className="size-3.5" />}{m.kind === 'call' ? callText(m, people, myId) : systemText(m, people, myId)}</p>
                   : (
                     <MessageBubble
                       message={m} mine={m.senderId === myId} people={people} group={conversation?.kind === 'group'} showSender={conversation?.kind === 'group'} firstOfRun={firstOfRun}

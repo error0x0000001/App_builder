@@ -15,7 +15,8 @@
     "test": "npm test -w backend",
     "db:up": "docker compose up -d postgres mailpit",
     "db:generate": "npm run db:generate -w backend",
-    "db:migrate": "npm run db:migrate -w backend"
+    "db:migrate": "npm run db:migrate -w backend",
+    "dev:livekit": "livekit-server --config tools/livekit/livekit.dev.yaml --node-ip 127.0.0.1"
   },
   "devDependencies": {
     "autocannon": "^8.0.0",

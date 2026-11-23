@@ -54,7 +54,7 @@ describe('calls inside chat', () => {
 
     const joined = (await b.person.post(`${C}/conversations/${conv}/call/join`)).body;
     assert.equal(joined.url, 'ws://127.0.0.1:7880'); assert.equal(joined.identity, b.id);
-    const { payload } = await jwtVerify(joined.token, new TextEncoder().encode('secret'), { issuer: 'devkey' });
+    const { payload } = await jwtVerify(joined.token, new TextEncoder().encode(process.env.LIVEKIT_API_SECRET), { issuer: 'devkey' });
     assert.equal(payload.sub, b.id); assert.equal(payload.video.room, conv); assert.equal(payload.video.roomJoin, true);
     assert.ok(payload.exp - payload.nbf <= 3600, 'tokens are short-lived');
     assert.equal((await outsider.person.post(`${C}/conversations/${conv}/call/join`)).status, 404, 'non-members cannot get a token');
@@ -95,6 +95,26 @@ describe('calls inside chat', () => {
     assert.deepEqual(after2, ['started', 'missed', 'started', 'ended']);
     assert.equal((await a.person.get(`${C}/conversations`)).body.conversations[0].inCall, false);
     sa.close();
+  });
+
+  it('ends a call when LiveKit reports the room finished, and rejects forged webhooks', async () => {
+    const { client: boss } = await registerUser(server);
+    const a = await join(boss, 'Asha'); const b = await join(boss, 'Bela');
+    const conv = (await a.person.post(`${C}/dm`, { userId: b.id })).body.conversation.id;
+    await a.person.post(`${C}/conversations/${conv}/call`, { video: true });
+    const hook = server.base.replace('/api/v1', '/api/v1/calls/livekit-webhook');
+    const body = JSON.stringify({ event: 'room_finished', room: { name: conv } });
+    const sign = async (payload, secret = process.env.LIVEKIT_API_SECRET) => {
+      const { SignJWT } = await import('jose');
+      const { createHash } = await import('node:crypto');
+      return new SignJWT({ sha256: createHash('sha256').update(payload).digest('base64') }).setProtectedHeader({ alg: 'HS256' }).setIssuer('devkey').setExpirationTime('1m').sign(new TextEncoder().encode(secret));
+    };
+    const post = async (payload, auth) => fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/webhook+json', Authorization: auth }, body: payload });
+    assert.equal((await post(body, await sign(body, 'wrong-secret'))).status, 403, 'a wrong signature is refused');
+    assert.equal((await post(body, await sign('{"tampered":true}'))).status, 403, 'a signature for different bytes is refused');
+    assert.equal((await a.person.get(`${C}/conversations/${conv}`)).body.conversation.activeCall !== null, true, 'forged hooks changed nothing');
+    assert.equal((await post(body, await sign(body))).status, 200);
+    assert.equal((await a.person.get(`${C}/conversations/${conv}`)).body.conversation.activeCall, null);
   });
 
   it('refuses to start calls when LiveKit is not configured', async () => {

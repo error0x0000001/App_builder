@@ -42,12 +42,24 @@ export function systemText(message, people, myId) {
   }
 }
 
+const minutes = (seconds) => (seconds < 60 ? `${seconds} sec` : `${Math.round(seconds / 60)} min`);
+
+/** "started:0:video" / "ended:272:audio" / "missed:0:video" → one sentence for the conversation. */
+export function callText(message, people, myId) {
+  const [state, seconds, mode] = message.body.split(':');
+  const who = message.senderId === myId ? 'You' : nameOf(people, message.senderId);
+  if (state === 'started') return `${who} started a ${mode} call`;
+  if (state === 'ended') return `${mode === 'video' ? 'Video' : 'Audio'} call ended · ${minutes(Number(seconds))}`;
+  return `Missed ${mode} call`;
+}
+
 /** Preview line for the inbox: "You: text", "Asha: text", system sentence, or a placeholder for deleted messages. */
 export function previewText(conversation, people, myId) {
   const last = conversation.last;
   if (!last) return conversation.meetingAt ? 'Scheduled meeting' : 'No messages yet';
   if (last.deleted) return 'This message was deleted';
   if (last.kind === 'system') return systemText({ ...last, mentions: [] }, people, myId);
+  if (last.kind === 'call') return callText(last, people, myId);
   const prefix = last.senderId === myId ? 'You: ' : conversation.kind === 'group' ? `${nameOf(people, last.senderId).split(' ')[0]}: ` : '';
   return `${prefix}${last.body || 'Attachment'}`;
 }

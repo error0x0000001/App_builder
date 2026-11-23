@@ -133,4 +133,10 @@ export const chatApi = {
   markRead: (id, messageId) => post(`/chat/conversations/${id}/read`, { messageId }),
   search: (q, conversationId) => get(`/chat/search${qs({ q, conversationId })}`),
   presence: (ids) => get(`/chat/presence${qs({ ids: ids.join(',') })}`),
+  config: () => get('/chat/config'),
+  startCall: (id, video) => post(`/chat/conversations/${id}/call`, { video }),
+  joinCall: (id) => post(`/chat/conversations/${id}/call/join`),
+  declineCall: (id) => post(`/chat/conversations/${id}/call/decline`),
+  leaveCall: (id) => post(`/chat/conversations/${id}/call/leave`),
+  endCall: (id) => post(`/chat/conversations/${id}/call/end`),
 };

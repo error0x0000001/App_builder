@@ -27,6 +27,10 @@ export function createApp(container, { recycler } = {}) {
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: config.APP_URL, credentials: true }));
+  // LiveKit posts signed webhooks as application/webhook+json; the signature covers the exact bytes, so keep them raw (before the JSON parser).
+  app.post('/api/v1/calls/livekit-webhook', express.raw({ type: '*/*', limit: '64kb' }), async (req, res, next) => {
+    try { res.json(await container.calls.onWebhook(req.body, req.get('authorization'))); } catch (error) { next(error); }
+  });
   app.use(express.json({ limit: '100kb' }));
   // Successful requests are not logged by default (at thousands/second the log line costs more than the response);
   // 4xx/5xx always are, and LOG_ACCESS=true restores full access logs.

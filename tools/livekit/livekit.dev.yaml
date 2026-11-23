@@ -1,0 +1,19 @@
+# Local LiveKit for development: `npm run dev:livekit` (needs `brew install livekit` on macOS, or the livekit-server binary on Linux).
+# Browsers on the same machine connect over loopback; nothing here is meant for production.
+port: 7880
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: false
+keys:
+  devkey: cloudbase-dev-livekit-secret-0123456789abcdef
+# LiveKit tells the API when a room finishes (everyone gone, even without a clean hang-up) so the call is closed in the conversation.
+webhook:
+  api_key: devkey
+  urls:
+    - http://localhost:4000/api/v1/calls/livekit-webhook
+logging:
+  level: info

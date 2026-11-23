@@ -62,19 +62,19 @@ two-term/prefix search across 300–500 conversations **~110–130 ms** · a sin
 Known trade-offs: `chat_conversations.last_message_*` is a hot row in extremely busy groups (one UPDATE per message); attachments (Documents
 `Chat/<conversation>` folders) and retention partition drops are not built yet.
 
-## 3. Meet (Teams style: audio, video, screen share)
+## 3. Calls and meetings (inside Chat — LiveKit)
 
-Media does **not** go through our API. Design: **WebRTC with an SFU** (selective forwarding unit) so a meeting of N people costs each
-client one upload and N downloads instead of a full mesh, plus **TURN** for networks that block UDP.
+Media does **not** go through our API: WebRTC with an SFU (LiveKit). A meeting of N people costs each client one upload and N downloads, plus
+TURN for networks that block UDP. Our API only issues room tokens and carries ring/decline/ended state on the chat socket.
 
-- **SFU:** LiveKit (open-source, Go) is the recommended engine — rooms, simulcast, active-speaker, screen share, recording hooks, SDKs.
-  Our API issues short-lived room tokens only for people allowed in that meeting/conversation.
-- **Signalling/state:** our realtime tier carries "ring", "accepted", "declined", "joined" for calls and scheduled-meeting reminders.
-- **Features:** 1:1 audio/video calls from a chat, group calls, scheduled meetings with a link, lobby/admit, mute/camera, screen share,
-  raise hand, in-meeting chat (the conversation), recording (to Documents), background blur (client-side), device selection.
-
-**What can be verified where we build:** the sandbox has no camera/microphone, no TURN and no UDP route to outside, so call media cannot
-be exercised end to end here; the signalling, tokens, permissions and UI states can. Real verification needs a staging box with LiveKit + TURN.
+**Built and verified (Phase 2b):** start an audio/video call from any conversation (DM or group), ring the other members (card with Accept/Decline,
+ringtone, auto-dismiss), join with a member-only 1-hour token, call screen (participant grid, active speaker, mic / camera / screen share / leave /
+end for everyone), "call in progress — Join" banner, call lines in the conversation ("started a video call", "Video call ended · 4 min",
+"Missed video call"), webhook-verified end-of-call when a room finishes, config flag (`LIVEKIT_*` unset ⇒ no call buttons). Tested against a real
+LiveKit 1.9 server; setup for macOS in `docs/calls-local-dev.md` (`npm run dev:livekit`).
+**Not verified:** audio/video flowing between browsers (the sandbox cannot establish WebRTC) — needs your first Mac test.
+**Not built yet:** scheduled meetings UI (the `meeting_at` field exists), join link for outsiders / lobby, device picker, raise hand, in-call chat panel,
+recording to Documents, background blur, per-device identities (a second tab of the same person replaces the first).
 
 ## Decisions (owner)
 - **File storage:** S3-compatible object storage in production (S3, R2 or MinIO). Next step: an S3 `StorageDriver` with presigned direct upload/download.
