@@ -47,7 +47,7 @@ export function OtpInput({ value = '', onChange, length = 6, error, autoFocus = 
             onFocus={(e) => e.target.select()}
             className={cn(
               'h-13 w-11 rounded-lg border bg-surface text-center text-2xl text-ink outline-none transition focus:border-link focus:ring-4 focus:ring-ring sm:w-12',
-              error ? 'border-danger' : 'border-line',
+              error ? 'border-danger' : 'border-line-strong',
             )}
           />
         ))}

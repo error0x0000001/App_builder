@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 const SidebarContext = createContext(null);
 
 /**
- * Navigation state. Layout (sidebar | top bar) and style (inset | floating) are the workspace owner's choice
+ * Navigation state. Layout (rail | sidebar | top bar) and style (inset | floating) are the workspace owner's choice
  * (Customize, saved in the database); phones always use the drawer. Icon-collapse is personal (this browser).
  * Cmd/Ctrl+B toggles the sidebar; Escape closes the mobile drawer.
  */
@@ -18,7 +18,7 @@ export function SidebarProvider({ children }) {
   const { variant } = ui;
   const layout = isMobile ? 'sidebar' : ui.layout; // the top bar is a desktop layout; phones keep the drawer
 
-  const toggle = useCallback(() => (isMobile ? setMobileOpen((open) => !open) : layout === 'sidebar' ? setCollapsed((c) => !c) : undefined), [isMobile, layout, setCollapsed]);
+  const toggle = useCallback(() => (isMobile ? setMobileOpen((open) => !open) : layout !== 'topbar' ? setCollapsed((c) => !c) : undefined), [isMobile, layout, setCollapsed]);
 
   useEffect(() => {
     const onKey = (event) => {

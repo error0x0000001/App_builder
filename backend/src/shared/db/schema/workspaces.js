@@ -12,7 +12,7 @@ export const workspaces = pgTable(
     teamSize: text('team_size'),
     timezone: text('timezone'),
     uiSettings: jsonb('ui_settings').notNull().default({}), // owner's UI customization (see shared UI_OPTIONS)
-    theme: text('theme').notNull().default('graphite'), // tenant colour theme, chosen by admins (see TENANT_THEMES)
+    theme: text('theme').notNull().default('untitled'), // tenant colour theme, chosen by admins (see TENANT_THEMES)
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     onboardedAt: tz('onboarded_at'),
     createdAt: createdAt(),

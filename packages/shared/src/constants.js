@@ -4,8 +4,9 @@ export const ASSIGNABLE_ROLES = Object.freeze(['viewer', 'member', 'admin']);
 export const ROLE_LABELS = Object.freeze({ viewer: 'Viewer', member: 'Member', admin: 'Admin', owner: 'Owner' });
 
 /** Tenant (workspace) colour themes. `colors` = [primary, sidebar] preview swatches; the real tokens live in frontend/src/index.css. */
-export const DEFAULT_TENANT_THEME = 'graphite';
+export const DEFAULT_TENANT_THEME = 'untitled';
 export const TENANT_THEMES = Object.freeze([
+  { id: 'untitled', label: 'Untitled', colors: ['#7f56d9', '#f9fafb'] },
   { id: 'graphite', label: 'Graphite', colors: ['#18181b', '#eef1f5'] },
   { id: 'indigo', label: 'Indigo', colors: ['#4f46e5', '#eef1f5'] },
   { id: 'emerald', label: 'Emerald', colors: ['#059669', '#eef1f5'] },

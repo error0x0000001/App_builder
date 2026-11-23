@@ -289,7 +289,7 @@ describe('tenant theme', () => {
   it('lets admins pick a workspace theme that every member sees; members and bad values are rejected', async () => {
     const { client: owner } = await registerUser(server);
     const ws = (await owner.get('/me')).body.activeWorkspaceId;
-    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'graphite');
+    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'untitled');
 
     const bad = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'neon' });
     assert.equal(bad.status, 400);

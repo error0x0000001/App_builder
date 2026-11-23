@@ -4,6 +4,7 @@ import { pageFor } from './navigation.js';
 import { SidebarInset } from '../components/sidebar/Sidebar.jsx';
 import { SidebarProvider, useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { AppSidebar } from './AppSidebar.jsx';
+import { RailSidebar } from './RailSidebar.jsx';
 import { CustomizeProvider } from './CustomizeContext.jsx';
 import { CustomizeSheet } from './CustomizeSheet.jsx';
 import { GlobalSearch } from './GlobalSearch.jsx';
@@ -12,7 +13,7 @@ import { ImpersonationBanner } from './ImpersonationBanner.jsx';
 import { PageHeader, PageHeaderProvider } from './PageHeader.jsx';
 import { TopBar } from './TopBar.jsx';
 
-/** Sidebar or top bar (the person's choice; phones always get the drawer), then the content card. */
+/** Rail, sidebar or top bar (the owner's choice; phones always get the drawer), then the content card. */
 function Shell({ bleed }) {
   const { layout } = useSidebar();
   const content = (
@@ -24,7 +25,8 @@ function Shell({ bleed }) {
       </main>
     </SidebarInset>
   );
-  return layout === 'topbar' ? <><TopBar />{content}</> : <><AppSidebar />{content}</>;
+  const NAVIGATION = { topbar: TopBar, rail: RailSidebar, sidebar: AppSidebar }[layout];
+  return <><NAVIGATION />{content}</>;
 }
 
 /**

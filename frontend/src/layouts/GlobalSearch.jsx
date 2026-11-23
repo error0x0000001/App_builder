@@ -7,7 +7,6 @@ import { Icon } from '../components/ui/Icon.jsx';
 import { Spinner } from '../components/ui/Spinner.jsx';
 import { Tabs } from '../components/ui/Tabs.jsx';
 import { useGlobalSearch } from '../hooks/useGlobalSearch.js';
-import { hueOf, KIND_HUE } from '../lib/hue.js';
 import { readRecent, rememberRecent } from '../lib/recentSearch.js';
 import { NAV_ITEMS } from './navigation.js';
 import { EmptyState, FilterChip, Footer, ResultRow, RoundButton, SectionLabel } from './GlobalSearchParts.jsx';
@@ -81,7 +80,7 @@ export function GlobalSearch() {
     else if (mod && event.shiftKey && event.key.toLowerCase() === 'l' && flat[active]) { event.preventDefault(); copyLink(flat[active]); }
   };
 
-  const tabs = [{ id: 'all', label: 'All', hue: KIND_HUE.all }, { id: 'records', label: 'Records', icon: 'users', hue: KIND_HUE.record, iconOnly: true }, { id: 'people', label: 'People', icon: 'user', hue: KIND_HUE.person, iconOnly: true }, { id: 'pages', label: 'Pages', icon: 'home', hue: KIND_HUE.page, iconOnly: true }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders', hue: KIND_HUE.config, iconOnly: true }] : [])];
+  const tabs = [{ id: 'all', label: 'All' }, { id: 'records', label: 'Records', icon: 'users', iconOnly: true }, { id: 'people', label: 'People', icon: 'user', iconOnly: true }, { id: 'pages', label: 'Pages', icon: 'home', iconOnly: true }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders', iconOnly: true }] : [])];
   const nothing = searching && !flat.length && !server.loading && (type === 'pages' || server.searched);
   const filtered = type !== 'all' || Boolean(activeTag);
   const clear = () => { setType('all'); setTag(null); input.current?.focus(); };
@@ -107,8 +106,8 @@ export function GlobalSearch() {
         <div className="flex items-center gap-2 border-b border-line px-4 py-2">
           <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
             {tags.length > 1 && (type === 'all' || type === 'records')
-              ? tags.map((t) => <FilterChip key={t} hue={hueOf(t)} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
-              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} hue={t.hue} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
+              ? tags.map((t) => <FilterChip key={t} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
+              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
           </div>
           <RoundButton icon="sliders" label="Clear filters" onClick={clear} active={filtered} />
           <RoundButton icon="chevrons-up-down" label={sort === 'name' ? 'Sorted by name' : 'Sorted by relevance'} onClick={() => setSort((v) => (v === 'name' ? 'relevance' : 'name'))} active={sort === 'name'} />

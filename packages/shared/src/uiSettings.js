@@ -7,9 +7,9 @@ import { z } from 'zod';
  */
 export const UI_OPTIONS = Object.freeze([
   {
-    key: 'layout', group: 'Navigation', label: 'Layout', type: 'choice', default: 'sidebar',
-    description: 'Side navigation, or a bar along the top (phones always use the slide-out menu).',
-    options: [{ value: 'sidebar', label: 'Sidebar' }, { value: 'topbar', label: 'Top bar' }],
+    key: 'layout', group: 'Navigation', label: 'Layout', type: 'choice', default: 'rail',
+    description: 'Icon rail with a section panel, a classic sidebar, or a bar along the top (phones always use the slide-out menu).',
+    options: [{ value: 'rail', label: 'Rail' }, { value: 'sidebar', label: 'Sidebar' }, { value: 'topbar', label: 'Top bar' }],
   },
   {
     key: 'variant', group: 'Navigation', label: 'Style', type: 'choice', default: 'inset',
@@ -20,7 +20,7 @@ export const UI_OPTIONS = Object.freeze([
     key: 'navColor', group: 'Colors', label: 'Navigation colour', type: 'swatch', default: 'default',
     description: 'Colour of the sidebar or top bar.',
     options: [
-      { value: 'default', label: 'Default', colors: ['#fafafa', '#18181b'] },
+      { value: 'default', label: 'Default', colors: ['#f9fafb', '#101828'] },
       { value: 'navy', label: 'Navy', colors: ['#00072d', '#eaf0ff'] },
       { value: 'slate', label: 'Slate', colors: ['#1e293b', '#e2e8f0'] },
       { value: 'accent', label: 'Accent', colors: ['#18181b', '#ffffff'] },

@@ -41,7 +41,7 @@ function UserMenuContent({ side, align, className }) {
 }
 
 /** Top bar: just the avatar, same menu. */
-export function NavUserCompact() {
+export function NavUserCompact({ side = 'bottom', align = 'end' }) {
   const { user } = useAuth();
   const fullName = `${user.firstName} ${user.lastName}`;
   return (
@@ -53,7 +53,7 @@ export function NavUserCompact() {
           </button>
         )}
       </DropdownMenuTrigger>
-      <UserMenuContent side="bottom" align="end" className="w-64" />
+      <UserMenuContent side={side} align={align} className="w-64" />
     </DropdownMenu>
   );
 }

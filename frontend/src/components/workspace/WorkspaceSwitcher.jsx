@@ -32,8 +32,8 @@ function WorkspaceMenuContent({ side, align, className }) {
   );
 }
 
-/** Top bar: the cloudbase mark IS the workspace switcher — click it to see, switch or add a workspace. */
-export function WorkspaceSwitcherLogo() {
+/** The cloudbase mark IS the workspace switcher — click it to see, switch or add a workspace. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
+export function WorkspaceSwitcherLogo({ compact = false }) {
   const { activeWorkspace } = useAuth();
   const name = activeWorkspace?.name ?? 'No workspace';
   return (
@@ -41,12 +41,12 @@ export function WorkspaceSwitcherLogo() {
       <DropdownMenuTrigger>
         {(props) => (
           <button type="button" aria-label={`Workspace: ${name}. Switch workspace`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
-            <Logo size="sm" tone="sidebar" />
-            <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />
+            <Logo size="sm" tone="sidebar" markOnly={compact} />
+            {!compact && <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />}
           </button>
         )}
       </DropdownMenuTrigger>
-      <WorkspaceMenuContent side="bottom" align="start" className="w-64" />
+      <WorkspaceMenuContent side={compact ? 'right' : 'bottom'} align="start" className="w-64" />
     </DropdownMenu>
   );
 }
