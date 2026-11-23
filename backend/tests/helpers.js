@@ -10,9 +10,10 @@ export async function startServer() {
   const boss = { send: async (queue, payload) => outbox.push(payload) };
   const container = createContainer({ boss });
   const server = createApp(container).listen(0);
+  container.realtime.attach(server);
   const base = `http://127.0.0.1:${server.address().port}/api/v1`;
   return {
-    base, outbox, container,
+    base, outbox, container, wsUrl: `ws://127.0.0.1:${server.address().port}/api/v1/realtime`,
     mailTo: (to, template) => [...outbox].reverse().find((m) => m.to === to && (!template || m.template === template)),
     stop: async () => { server.close(); await container.close(); await pool.end(); },
   };
@@ -70,6 +71,7 @@ export class Client {
   get = (p) => this.request('GET', p);
   post = (p, b = {}) => this.request('POST', p, b);
   patch = (p, b = {}) => this.request('PATCH', p, b);
+  put = (p, b = {}) => this.request('PUT', p, b);
   delete = (p) => this.request('DELETE', p);
 }
 

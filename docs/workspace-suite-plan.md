@@ -50,6 +50,18 @@ keep every read a single-partition range scan; push, don't poll; make the realti
   images/files (via Documents), link previews, disappearing messages, polls, broadcast lists.
 - **Ordering & idempotency:** client-generated message ids (UUIDv7) make send retries idempotent; server timestamp ordering within a conversation.
 
+### Chat — built and measured (Phase 2a)
+Built: DMs (idempotent), groups (admins, add/remove/leave, last-admin promotion, invite links, up to 1024 members), send with client UUIDv7 ids
+(retries never double-post), keyset paging, reply/forward/edit/delete/reactions/pins, read cursors + capped unread counts, typing, presence
+(Redis TTL keys, polled for visible people), full-text search scoped to your conversations, legal hold (blocks edit/delete), WebSocket tier
+(`/api/v1/realtime`, first-frame token auth, Redis pub/sub per conversation with ref-counted subscriptions, live (un)subscribe on membership change).
+Measured on 3 000 000 messages in 500 conversations (32 hash partitions, one dev Postgres):
+open a conversation (latest 50) **0.2 ms** · unread count 2 ms · selective search across all 500 conversations **~40 ms** ·
+two-term/prefix search across 300–500 conversations **~110–130 ms** · a single very common word across 300–500 conversations **~400–530 ms**
+(worst case: every 8th message matches). Past that scale, or for typo-tolerant search, swap the search interface for Meilisearch/OpenSearch.
+Known trade-offs: `chat_conversations.last_message_*` is a hot row in extremely busy groups (one UPDATE per message); attachments (Documents
+`Chat/<conversation>` folders) and retention partition drops are not built yet.
+
 ## 3. Meet (Teams style: audio, video, screen share)
 
 Media does **not** go through our API. Design: **WebRTC with an SFU** (selective forwarding unit) so a meeting of N people costs each

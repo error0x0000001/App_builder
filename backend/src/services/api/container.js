@@ -39,6 +39,10 @@ import { IntakeService } from '../../modules/automation/intake.service.js';
 import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
+import { ChatService } from '../../modules/chat/chat.service.js';
+import { createBus } from '../../modules/chat/bus.js';
+import { PresenceStore } from '../../modules/chat/presence.js';
+import { RealtimeHub } from '../../modules/chat/hub.js';
 import { LocalStorageDriver } from '../../shared/storage/localStorage.js';
 
 const MINUTE_MS = 60_000;
@@ -95,6 +99,10 @@ export function createContainer({ boss }) {
     db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
     limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
   });
+  const bus = createBus(config.REDIS_URL);
+  const presence = new PresenceStore({ redis: cache.redis });
+  const chat = new ChatService({ db, bus, cache, users });
+  const realtime = new RealtimeHub({ tokens, chat, bus, presence, logger }).start();
   const search = new SearchService({ db: readDb, objects, cache, drive });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
   const setup = {
@@ -102,7 +110,7 @@ export function createContainer({ boss }) {
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
     tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
   };
-  const close = async () => { usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
+  const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { chat, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

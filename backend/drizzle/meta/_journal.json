@@ -71,6 +71,13 @@
       "when": 1795453500868,
       "tag": "0009_drive",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795454813065,
+      "tag": "0010_chat",
+      "breakpoints": true
     }
   ]
 }

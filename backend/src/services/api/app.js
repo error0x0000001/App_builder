@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestContext } from './middleware/requestContext.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { driveRoutes } from './routes/drive.routes.js';
+import { chatRoutes } from './routes/chat.routes.js';
 import { invitationRoutes } from './routes/invitations.routes.js';
 import { meRoutes } from './routes/me.routes.js';
 import { objectRoutes } from './routes/objects.routes.js';
@@ -50,6 +51,7 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/objects', objectRoutes(container));
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));
+  app.use('/api/v1/chat', chatRoutes(container));
   app.use('/api/v1/public', publicRoutes(container));
 
   app.use(notFoundHandler);

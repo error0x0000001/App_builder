@@ -13,3 +13,4 @@ export * from './uiSettings.js';
 export * from './palettes.js';
 export * from './color.js';
 export * from './drive.js';
+export * from './chat.js';

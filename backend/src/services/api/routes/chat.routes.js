@@ -1,0 +1,65 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import {
+  addMembersSchema, chatSearchQuerySchema, createDmSchema, createGroupSchema, editMessageSchema, inboxQuerySchema, memberRoleSchema, memberStateSchema,
+  messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
+} from '@app/shared';
+import { TooManyRequestsError } from '../../../shared/errors.js';
+import { authenticate } from '../middleware/authenticate.js';
+import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { validate } from '../middleware/validate.js';
+import { config } from '../../../shared/config.js';
+
+const idParam = z.object({ id: uuidField });
+const messageParams = z.object({ id: uuidField, messageId: uuidField });
+const memberParams = z.object({ id: uuidField, userId: uuidField });
+const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
+
+/** Chat. Any workspace member may call; the service authorises per conversation (membership is the only rule). */
+export function chatRoutes({ tokens, membershipLookup, cache, chat, presence }) {
+  const router = Router();
+  router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
+  router.use((req, res, next) => {
+    try {
+      if (!cache.allow(`chat-api:${req.auth.workspaceId}`, 60, config.SETUP_REQUESTS_PER_MINUTE * 4)) throw new TooManyRequestsError(60);
+      req.chatCtx = { workspaceId: req.auth.workspaceId, userId: req.auth.userId, actor: req.membership };
+      next();
+    } catch (error) { next(error); }
+  });
+  const ctx = (req) => req.chatCtx;
+  const send = (res, data, status = 200) => res.status(status).set('Cache-Control', 'private, no-store').json(data);
+
+  router.get('/conversations', validate({ query: inboxQuerySchema }), async (req, res) => send(res, await chat.inbox(ctx(req), { archived: req.valid.query.archived === '1', limit: req.valid.query.limit })));
+  router.get('/unread', async (req, res) => send(res, await chat.unreadTotal(ctx(req))));
+  router.post('/dm', validate({ body: createDmSchema }), async (req, res) => send(res, await chat.createDm(ctx(req), req.valid.body)));
+  router.post('/groups', validate({ body: createGroupSchema }), async (req, res) => send(res, await chat.createGroup(ctx(req), req.valid.body), 201));
+  router.post('/join/:code', validate({ params: codeParams }), async (req, res) => send(res, await chat.joinByInvite(ctx(req), req.params.code)));
+
+  router.get('/conversations/:id', validate({ params: idParam }), async (req, res) => send(res, await chat.get(ctx(req), req.params.id)));
+  router.patch('/conversations/:id', validate({ params: idParam, body: patchConversationSchema }), async (req, res) => send(res, await chat.update(ctx(req), req.params.id, req.valid.body)));
+  router.patch('/conversations/:id/state', validate({ params: idParam, body: memberStateSchema }), async (req, res) => send(res, await chat.setState(ctx(req), req.params.id, req.valid.body)));
+  router.put('/conversations/:id/legal-hold', validate({ params: idParam, body: z.object({ on: z.boolean() }).strict() }), async (req, res) => send(res, await chat.setLegalHold(ctx(req), req.params.id, req.valid.body.on)));
+  router.post('/conversations/:id/invite', validate({ params: idParam }), async (req, res) => send(res, await chat.createInvite(ctx(req), req.params.id), 201));
+  router.delete('/conversations/:id/invite', validate({ params: idParam }), async (req, res) => send(res, await chat.revokeInvite(ctx(req), req.params.id)));
+
+  router.post('/conversations/:id/members', validate({ params: idParam, body: addMembersSchema }), async (req, res) => send(res, await chat.addMembers(ctx(req), req.params.id, req.valid.body)));
+  router.put('/conversations/:id/members/:userId', validate({ params: memberParams, body: memberRoleSchema }), async (req, res) => send(res, await chat.setRole(ctx(req), req.params.id, req.params.userId, req.valid.body)));
+  router.delete('/conversations/:id/members/:userId', validate({ params: memberParams }), async (req, res) => send(res, await chat.removeMember(ctx(req), req.params.id, req.params.userId)));
+
+  router.get('/conversations/:id/messages', validate({ params: idParam, query: messagesQuerySchema }), async (req, res) => send(res, await chat.messages(ctx(req), req.params.id, req.valid.query)));
+  router.post('/conversations/:id/messages', validate({ params: idParam, body: sendMessageSchema }), async (req, res) => {
+    const result = await chat.send(ctx(req), req.params.id, req.valid.body);
+    send(res, result, result.duplicate ? 200 : 201);
+  });
+  router.patch('/conversations/:id/messages/:messageId', validate({ params: messageParams, body: editMessageSchema }), async (req, res) => send(res, await chat.edit(ctx(req), req.params.id, req.params.messageId, req.valid.body)));
+  router.delete('/conversations/:id/messages/:messageId', validate({ params: messageParams }), async (req, res) => send(res, await chat.remove(ctx(req), req.params.id, req.params.messageId)));
+  router.put('/conversations/:id/messages/:messageId/reactions', validate({ params: messageParams, body: reactionSchema }), async (req, res) => send(res, await chat.react(ctx(req), req.params.id, req.params.messageId, req.valid.body)));
+  router.put('/conversations/:id/messages/:messageId/pin', validate({ params: messageParams }), async (req, res) => send(res, await chat.pin(ctx(req), req.params.id, req.params.messageId)));
+  router.get('/conversations/:id/pins', validate({ params: idParam }), async (req, res) => send(res, await chat.pins(ctx(req), req.params.id)));
+  router.post('/conversations/:id/read', validate({ params: idParam, body: readSchema }), async (req, res) => send(res, await chat.markRead(ctx(req), req.params.id, req.valid.body)));
+
+  router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));
+  router.get('/presence', validate({ query: z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i) }) }), async (req, res) => send(res, { online: await presence.online(req.auth.workspaceId, req.valid.query.ids.split(',')) }));
+
+  return router;
+}

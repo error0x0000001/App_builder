@@ -11,3 +11,4 @@ export * from './rateLimits.js';
 export * from './setup.js';
 export * from './passwordHistory.js';
 export * from './drive.js';
+export * from './chat.js';
