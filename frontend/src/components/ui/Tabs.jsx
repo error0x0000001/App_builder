@@ -6,7 +6,7 @@ const TONES = {
   sidebar: { on: 'border-sidebar-ink text-sidebar-ink', off: 'border-transparent text-sidebar-muted hover:text-sidebar-ink' }, // on the navigation surface, whatever colour the owner picked
 };
 
-/** Underlined tab strip (Untitled UI "underline" tabs; `tone="sidebar"` = the navigation colours). Controlled: `value` + `onChange(id)`; content is rendered by the caller. A tab may have an `icon`; `iconOnly` shows just the icon (label becomes its tooltip). */
+/** Underlined tab strip (Untitled UI "underline" tabs; `tone="sidebar"` = the navigation colours). Controlled: `value` + `onChange(id)`; content is rendered by the caller. A tab may have an `icon` (name from the icon set) or an `iconNode` (any element, e.g. a full-colour glyph); `iconOnly` shows just the icon (label becomes its tooltip). */
 export function Tabs({ tabs, value, onChange, label, className, tone = 'brand' }) {
   return (
     <div role="tablist" aria-label={label} className={cn('flex gap-1 border-b', tone === 'sidebar' ? 'border-sidebar-line' : 'border-line', className)}>
@@ -15,7 +15,7 @@ export function Tabs({ tabs, value, onChange, label, className, tone = 'brand' }
           key={tab.id} type="button" role="tab" aria-label={tab.iconOnly ? tab.label : undefined} title={tab.iconOnly ? tab.label : undefined} aria-selected={tab.id === value} onClick={() => onChange(tab.id)}
           className={cn('-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', tab.id === value ? TONES[tone].on : TONES[tone].off)}
         >
-          {tab.icon && <Icon name={tab.icon} className="size-4" />}{!tab.iconOnly && tab.label}
+          {tab.iconNode ?? (tab.icon && <Icon name={tab.icon} className="size-4" />)}{!tab.iconOnly && tab.label}
         </button>
       ))}
     </div>

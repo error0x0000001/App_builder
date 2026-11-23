@@ -26,9 +26,15 @@ const SETUP_COLLECTIONS = Object.fromEntries(
     .filter(([key]) => !['duplicate-error-logs', 'case-escalations'].includes(key)),
 );
 
+/** Setup list pages whose records are documents (templates, letterheads, files) — searched as "Documents", not as configuration. */
+const DOCUMENT_COLLECTIONS = ['email-templates', 'letterheads', 'mail-merge-templates', 'asset-files', 'post-templates', 'action-link-templates'];
+
+/** Which result groups each scope asks for. "Records" covers the people of the workspace too. */
+const SCOPES = { all: ['records', 'people', 'navigation', 'documents'], records: ['records', 'people'], people: ['people'], navigation: ['navigation'], documents: ['documents'] };
+
 /**
  * One query box for everything the person may see: records of every object (permissions + sharing respected), people,
- * and — for admins — Setup pages, individual settings and Setup records (rules, profiles, …).
+ * and — for admins — Setup pages, individual settings and Setup records (navigation), and document-like Setup records (documents).
  * Each group is looked up in parallel; prefix matches (btree) come first, then substring matches (trigram), both capped.
  */
 export class SearchService {
@@ -44,11 +50,12 @@ export class SearchService {
     const started = Date.now();
     const admin = ctx.actor.role === 'owner' || ctx.actor.role === 'admin';
     const limit = type === 'all' ? 5 : 20;
-    const wants = (t) => type === 'all' || type === t;
+    const wants = (group) => SCOPES[type].includes(group);
     const tasks = {
       records: wants('records') && this.#records(ctx, query, limit),
       people: wants('people') && query.length >= CONTAINS_MIN && this.#people(ctx, query, limit),
-      setup: wants('setup') && admin && this.#setup(ctx, query, limit),
+      navigation: wants('navigation') && admin && this.#navigation(ctx, query, limit),
+      documents: wants('documents') && admin && this.#documents(ctx, query, limit),
     };
     const entries = await Promise.all(Object.entries(tasks).filter(([, p]) => p).map(async ([key, p]) => [key, await timeLimited(p, GROUP_BUDGET_MS)]));
     return {
@@ -92,16 +99,27 @@ export class SearchService {
     return rows.map((r) => ({ id: r.id, kind: 'person', title: `${r.first_name} ${r.last_name}`, subtitle: r.email, tag: r.role, to: '/app/members' }));
   }
 
-  async #setup(ctx, query, limit) {
-    const staticHits = searchSetupIndex(query, limit);
-    const keys = Object.keys(SETUP_COLLECTIONS);
+  async #setupRecords(ctx, query, limit, keys) {
     const find = (pattern, n) => this.db.execute(sql`
       select id, label, status, collection from setup_records
       where workspace_id = ${ctx.workspaceId} and collection = any(${pgArray(keys, 'text')}) and collection not in (${NOISY}) and lower(label) like ${pattern}
       limit ${n}`).then((r) => r.rows);
-    const rows = await this.#twoPhase(find, find, query, limit);
-    const records = rows.map((r) => ({ id: r.id, kind: 'config', title: r.label, subtitle: SETUP_COLLECTIONS[r.collection], to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
+    return this.#twoPhase(find, find, query, limit);
+  }
+
+  /** Setup pages, individual settings and configuration records (rules, profiles …). */
+  async #navigation(ctx, query, limit) {
+    const staticHits = searchSetupIndex(query, limit).map((hit) => ({ ...hit, tag: hit.kind === 'page' ? 'Setup page' : 'Setting' }));
+    const keys = Object.keys(SETUP_COLLECTIONS).filter((key) => !DOCUMENT_COLLECTIONS.includes(key));
+    const rows = await this.#setupRecords(ctx, query, limit, keys);
+    const records = rows.map((r) => ({ id: r.id, kind: 'config', title: r.label, subtitle: SETUP_COLLECTIONS[r.collection], tag: 'Configuration', to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
     return [...staticHits, ...records].slice(0, type_limit(limit));
+  }
+
+  /** Email templates, letterheads, mail-merge templates, files … (Setup records that are documents). */
+  async #documents(ctx, query, limit) {
+    const rows = await this.#setupRecords(ctx, query, limit, DOCUMENT_COLLECTIONS);
+    return rows.map((r) => ({ id: r.id, kind: 'document', title: r.label, subtitle: r.status ?? '', tag: SETUP_COLLECTIONS[r.collection], to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
   }
 }
 

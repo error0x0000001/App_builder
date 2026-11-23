@@ -1,3 +1,4 @@
+import { DocumentColorIcon } from '../components/ui/ColorIcons.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { Kbd, MOD_KEY } from '../components/ui/Kbd.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
@@ -5,8 +6,8 @@ import { Button } from '../components/ui/Button.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/DropdownMenu.jsx';
 import { cn } from '../lib/cn.js';
 import { initials } from '../lib/format.js';
-
-export const KIND_ICON = { page: 'home', record: 'users', person: 'user', setting: 'sliders', config: 'sliders' };
+import { hueOf } from '../lib/hue.js';
+import { chipVisual, visualFor } from '../lib/searchVisuals.js';
 
 /** The matched part of a title in bold. */
 function Highlight({ text, query }) {
@@ -24,9 +25,12 @@ export const SectionLabel = ({ children, count }) => (
 
 /** One result: avatar/tile · title • subtitle ………… tag (or ↵ when highlighted). */
 export function ResultRow({ item, query, id, active, onHover, onOpen }) {
-  const lead = item.kind === 'person'
-    ? <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-link" aria-hidden="true">{initials(item.title)}</span>
-    : <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-surface text-muted"><Icon name={KIND_ICON[item.kind] ?? 'home'} className="size-4" /></span>;
+  const v = visualFor(item);
+  const lead = v.type === 'person'
+    ? <span style={{ '--h': hueOf(item.title) }} className="tint-solid grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold" aria-hidden="true">{initials(item.title)}</span>
+    : v.type === 'document'
+      ? <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-surface" aria-hidden="true"><DocumentColorIcon color={v.color} className="size-5" /></span>
+      : <span style={{ '--h': v.hue }} className="tint grid size-8 shrink-0 place-items-center rounded-lg border" aria-hidden="true"><Icon name={v.icon} className="size-4" /></span>;
   return (
     <button
       id={id} type="button" role="option" aria-selected={active} onMouseMove={onHover} onClick={onOpen}
@@ -44,38 +48,61 @@ export function ResultRow({ item, query, id, active, onHover, onOpen }) {
   );
 }
 
-/** Outlined tag with an optional count ("Accounts 3") — Untitled UI's Tags › Count. */
-export const FilterChip = ({ selected, count, children, ...rest }) => (
-  <button
-    type="button" aria-pressed={selected} {...rest}
-    className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', selected ? 'border-accent/40 bg-accent-soft text-link' : 'border-line-strong text-ink hover:bg-surface-2')}
-  >
-    {children}
-    {count != null && <span className={cn('rounded px-1 text-[11px] leading-4 tabular-nums', selected ? 'bg-accent/15 text-link' : 'bg-surface-2 text-muted')}>{count}</span>}
-  </button>
-);
+/** Outlined chip with a coloured icon and a count ("Accounts 3") — the reference's content-type chips, Untitled UI's Tags › Count. */
+export function FilterChip({ label, selected, count, ...rest }) {
+  const { icon, hue } = chipVisual(label);
+  return (
+    <button
+      type="button" aria-pressed={selected} {...rest}
+      className={cn('inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', selected ? 'border-accent/40 bg-accent-soft text-link' : 'border-line-strong text-ink hover:bg-surface-2')}
+    >
+      <span style={{ '--h': hue }} className="tint-text" aria-hidden="true"><Icon name={icon} className="size-3.5" /></span>
+      {label}
+      {count != null && <span className={cn('rounded px-1 text-[11px] leading-4 tabular-nums', selected ? 'bg-accent/15 text-link' : 'bg-surface-2 text-muted')}>{count}</span>}
+    </button>
+  );
+}
 
-/** The "Filters" button (Untitled UI's Filter bar): a menu to sort the results or clear the filters; shows how many are active. */
-export function FiltersMenu({ sort, onSort, activeCount, onClearFilters }) {
-  const SORTS = [['relevance', 'Relevance'], ['name', 'Name (A–Z)']];
+/** Round 28px icon button that opens a small menu (filter / sort), like the two round buttons in the reference. A dot shows it is active. */
+function RoundMenu({ icon, label, active, children }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
         {(props) => (
-          <Button size="sm" variant="neutral" aria-label={activeCount ? `Filters (${activeCount} active)` : 'Filters'} {...props}>
-            <Icon name="filter" className="size-4" />Filters
-            {activeCount > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] leading-4 text-accent-ink">{activeCount}</span>}
-          </Button>
+          <button type="button" aria-label={label} title={label} {...props} className={cn('relative grid size-7 shrink-0 place-items-center rounded-full border border-line-strong text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring', active && 'bg-surface-2 text-ink')}>
+            <Icon name={icon} className="size-3.5" />
+            {active && <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-surface bg-accent" />}
+          </button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-        {SORTS.map(([value, label]) => (
-          <DropdownMenuItem key={value} onSelect={() => onSort(value)}>{label}{sort === value && <Icon name="check" className="ml-auto size-4 text-link" />}</DropdownMenuItem>
-        ))}
-        {activeCount > 0 && <><DropdownMenuSeparator /><DropdownMenuItem icon="x" onSelect={onClearFilters}>Clear filters</DropdownMenuItem></>}
-      </DropdownMenuContent>
+      <DropdownMenuContent align="end" className="w-52">{children}</DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+const Choice = ({ selected, onSelect, children }) => (
+  <DropdownMenuItem onSelect={onSelect}>{children}{selected && <Icon name="check" className="ml-auto size-4 text-link" />}</DropdownMenuItem>
+);
+
+/** Filter button: pick one kind to show (the same kinds as the chips) or clear. */
+export function FilterMenu({ options, value, onChange }) {
+  return (
+    <RoundMenu icon="filter" label={value ? `Filter: ${value}` : 'Filter'} active={Boolean(value)}>
+      <DropdownMenuLabel>Show only</DropdownMenuLabel>
+      {options.map((o) => <Choice key={o} selected={o === value} onSelect={() => onChange(o === value ? null : o)}>{o}</Choice>)}
+      {value && <><DropdownMenuSeparator /><DropdownMenuItem icon="x" onSelect={() => onChange(null)}>Clear filter</DropdownMenuItem></>}
+    </RoundMenu>
+  );
+}
+
+/** Sort button: relevance (the server's order) or name A–Z. */
+export function SortMenu({ value, onChange }) {
+  return (
+    <RoundMenu icon="sort" label={value === 'name' ? 'Sorted by name' : 'Sort'} active={value !== 'relevance'}>
+      <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+      <Choice selected={value === 'relevance'} onSelect={() => onChange('relevance')}>Relevance</Choice>
+      <Choice selected={value === 'name'} onSelect={() => onChange('name')}>Name (A–Z)</Choice>
+    </RoundMenu>
   );
 }
 

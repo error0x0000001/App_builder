@@ -20,12 +20,13 @@ export function DropdownMenu({ children, className }) {
     const onPointer = (event) => { if (!root.current?.contains(event.target)) close(); };
     const onKey = (event) => {
       if (event.key !== 'Escape') return;
+      event.stopPropagation(); // captured: a menu inside a dialog or sheet closes first, the dialog stays open
       close();
       root.current?.querySelector('[aria-haspopup="menu"]')?.focus();
     };
     document.addEventListener('mousedown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onPointer); document.removeEventListener('keydown', onKey); };
+    document.addEventListener('keydown', onKey, true);
+    return () => { document.removeEventListener('mousedown', onPointer); document.removeEventListener('keydown', onKey, true); };
   }, [open, close]);
 
   return (

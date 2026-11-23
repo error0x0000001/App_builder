@@ -4,22 +4,32 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { Dialog } from '../components/ui/Dialog.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
+import { AppsColorIcon, CompassColorIcon, DocumentColorIcon, RecordsColorIcon } from '../components/ui/ColorIcons.jsx';
 import { Spinner } from '../components/ui/Spinner.jsx';
 import { Tabs } from '../components/ui/Tabs.jsx';
 import { useGlobalSearch } from '../hooks/useGlobalSearch.js';
 import { readRecent, rememberRecent } from '../lib/recentSearch.js';
 import { NAV_ITEMS } from './navigation.js';
-import { EmptyState, FilterChip, FiltersMenu, Footer, ResultRow, SectionLabel } from './GlobalSearchParts.jsx';
+import { EmptyState, FilterChip, FilterMenu, Footer, ResultRow, SectionLabel, SortMenu } from './GlobalSearchParts.jsx';
 import { useSearch } from './SearchContext.jsx';
 
-const GROUP_TITLES = { pages: 'Pages', records: 'Records', people: 'People', setup: 'Setup' };
-const GROUP_ORDER = ['pages', 'records', 'people', 'setup'];
+const GROUP_TITLES = { pages: 'Pages', navigation: 'Setup', records: 'Records', people: 'People', documents: 'Documents' };
+const GROUP_ORDER = ['pages', 'navigation', 'records', 'people', 'documents'];
+/** Which result groups each tab shows (Records includes the workspace's people). */
+const SCOPE_GROUPS = { all: GROUP_ORDER, navigation: ['pages', 'navigation'], records: ['records', 'people'], documents: ['documents'] };
+const FILTER_BY_TAB = {
+  all: (item) => ({ record: 'Records', person: 'People', document: 'Documents' }[item.kind] ?? 'Navigation'),
+  navigation: (item) => (item.kind === 'page' ? (item.tag === 'Page' ? 'Pages' : 'Setup pages') : item.kind === 'setting' ? 'Settings' : 'Configuration'),
+  records: (item) => (item.kind === 'person' ? 'People' : item.tag),
+  documents: (item) => item.tag,
+};
 const QUICK_ACTIONS = 5;
 
 /**
- * Global search (Ctrl/⌘ K). Navigation pages are matched instantly in the browser; records, people and Setup come from
+ * Global search (Ctrl/⌘ K). Navigation pages are matched instantly in the browser; records, people, Setup and documents come from
  * one server endpoint (permission-aware, indexed). ↑↓ move, Enter opens, ⌘/Ctrl+Enter opens in a new tab, ⌘/Ctrl+⇧+L copies the link,
- * Esc closes. Tabs choose the scope; chips narrow the records by object. Without a query: recent results and quick actions.
+ * Esc closes. Colourful tabs choose the scope (All · Navigation · Records · Documents); chips with counts narrow within it, the round buttons
+ * filter and sort. Without a query: recent results and quick actions.
  */
 export function GlobalSearch() {
   const { open, close } = useSearch();
@@ -28,14 +38,14 @@ export function GlobalSearch() {
   const isAdmin = Boolean(activeWorkspace && hasRole(activeWorkspace.role, 'admin'));
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
-  const [tag, setTag] = useState(null);
+  const [chip, setChip] = useState(null);
   const [sort, setSort] = useState('relevance');
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState([]);
   const list = useRef(null);
   const input = useRef(null);
 
-  useEffect(() => { if (open) { setQuery(''); setType('all'); setTag(null); setSort('relevance'); setActive(0); setRecent(readRecent()); } }, [open]);
+  useEffect(() => { if (open) { setQuery(''); setType('all'); setChip(null); setSort('relevance'); setActive(0); setRecent(readRecent()); } }, [open]);
 
   const server = useGlobalSearch(query, type, open);
   const needle = query.trim().toLowerCase();
@@ -44,26 +54,33 @@ export function GlobalSearch() {
   const navItems = useMemo(() => NAV_ITEMS.filter((i) => !i.minRole || isAdmin), [isAdmin]);
   const localPages = useMemo(() => navItems.filter((i) => !needle || i.label.toLowerCase().includes(needle)).map(toItem), [navItems, needle]);
 
-  const tags = useMemo(() => [...new Set((server.groups.records ?? []).map((r) => r.tag).filter(Boolean))], [server.groups.records]);
-  const activeTag = tags.includes(tag) ? tag : null;
+  // Results of the current tab (before the chip filter): the local pages plus the server's groups for this scope.
+  const scopeGroups = useMemo(() => {
+    const out = {};
+    for (const key of SCOPE_GROUPS[type]) {
+      const items = key === 'pages' ? localPages.slice(0, type === 'all' ? 4 : 20) : server.groups[key];
+      if (items?.length) out[key] = items;
+    }
+    return out;
+  }, [type, localPages, server.groups]);
+  const kindOf = FILTER_BY_TAB[type];
+  const chips = useMemo(() => {
+    const counts = new Map();
+    for (const item of Object.values(scopeGroups).flat()) counts.set(kindOf(item), (counts.get(kindOf(item)) ?? 0) + 1);
+    return [...counts];
+  }, [scopeGroups, kindOf]);
+  const activeChip = chips.some(([name]) => name === chip) ? chip : null;
 
   const groups = useMemo(() => {
     if (!searching) {
       return [recent.length && ['recent', recent], ['actions', navItems.slice(0, QUICK_ACTIONS).map(toItem)]].filter(Boolean);
     }
-    const out = {};
-    if (type === 'all' || type === 'pages') out.pages = localPages.slice(0, type === 'pages' ? 20 : 4);
-    for (const key of ['records', 'people', 'setup']) {
-      let items = server.groups[key];
-      if (key === 'records' && activeTag) items = items?.filter((r) => r.tag === activeTag);
-      if (items?.length && (type === 'all' || type === key)) out[key] = items;
-    }
     const order = (items) => (sort === 'name' ? [...items].sort((x, y) => x.title.localeCompare(y.title)) : items);
-    return GROUP_ORDER.filter((k) => out[k]?.length).map((k) => [k, order(out[k])]);
-  }, [searching, recent, navItems, type, localPages, server.groups, activeTag, sort]);
+    return GROUP_ORDER.filter((key) => scopeGroups[key]).map((key) => [key, order(activeChip ? scopeGroups[key].filter((item) => kindOf(item) === activeChip) : scopeGroups[key])]).filter(([, items]) => items.length);
+  }, [searching, recent, navItems, scopeGroups, activeChip, kindOf, sort]);
   const flat = groups.flatMap(([, items]) => items);
 
-  useEffect(() => setActive(0), [query, type, activeTag]);
+  useEffect(() => setActive(0), [query, type, activeChip]);
   useEffect(() => { list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [active, flat.length]);
 
   const go = (item, { newTab = false } = {}) => {
@@ -80,13 +97,15 @@ export function GlobalSearch() {
     else if (mod && event.shiftKey && event.key.toLowerCase() === 'l' && flat[active]) { event.preventDefault(); copyLink(flat[active]); }
   };
 
-  const tabs = [{ id: 'all', label: 'All' }, { id: 'records', label: 'Records', icon: 'users', iconOnly: true }, { id: 'people', label: 'People', icon: 'user', iconOnly: true }, { id: 'pages', label: 'Pages', icon: 'home', iconOnly: true }, ...(isAdmin ? [{ id: 'setup', label: 'Setup', icon: 'sliders', iconOnly: true }] : [])];
-  const nothing = searching && !flat.length && !server.loading && (type === 'pages' || server.searched);
-  const filtered = type !== 'all' || Boolean(activeTag);
-  const activeFilters = Number(type !== 'all') + Number(Boolean(activeTag)) + Number(sort !== 'relevance');
-  const tagCounts = useMemo(() => (server.groups.records ?? []).reduce((n, r) => ({ ...n, [r.tag]: (n[r.tag] ?? 0) + 1 }), {}), [server.groups.records]);
-  const kindCounts = { records: server.groups.records?.length, people: server.groups.people?.length, setup: server.groups.setup?.length, pages: localPages.length };
-  const clear = () => { setType('all'); setTag(null); input.current?.focus(); };
+  const tabs = [
+    { id: 'all', label: 'All', iconNode: <AppsColorIcon /> },
+    { id: 'navigation', label: 'Navigation', iconNode: <CompassColorIcon /> },
+    { id: 'records', label: 'Records', iconNode: <RecordsColorIcon /> },
+    ...(isAdmin ? [{ id: 'documents', label: 'Documents', iconNode: <DocumentColorIcon /> }] : []),
+  ];
+  const nothing = searching && !flat.length && !server.loading && (type === 'navigation' ? server.searched || !isAdmin : server.searched);
+  const filtered = Boolean(activeChip);
+  const clear = () => { setChip(null); input.current?.focus(); };
   const label = { recent: 'Recent', actions: 'Quick actions', ...GROUP_TITLES };
 
   return (
@@ -103,21 +122,20 @@ export function GlobalSearch() {
         <button type="button" aria-label="Close search" onClick={close} className="hidden h-6 shrink-0 items-center rounded-md border border-line px-1.5 text-[10px] font-medium text-muted hover:bg-surface-2 hover:text-ink sm:flex">Esc</button>
       </div>
 
-      <Tabs tabs={tabs} value={type} onChange={(id) => { setType(id); setTag(null); input.current?.focus(); }} label="Search in" className="overflow-x-auto border-t px-2" />
+      <Tabs tabs={tabs} value={type} onChange={(id) => { setType(id); setChip(null); input.current?.focus(); }} label="Search in" className="overflow-x-auto border-t px-2" />
 
       {searching && (
         <div className="flex items-center gap-2 border-b border-line px-4 py-2">
           <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
-            {tags.length > 1 && (type === 'all' || type === 'records')
-              ? tags.map((t) => <FilterChip key={t} count={tagCounts[t]} selected={t === activeTag} onClick={() => { setTag(t === activeTag ? null : t); input.current?.focus(); }}>{t}</FilterChip>)
-              : tabs.filter((t) => t.id !== 'all').map((t) => <FilterChip key={t.id} count={kindCounts[t.id]} selected={t.id === type} onClick={() => { setType(t.id === type ? 'all' : t.id); input.current?.focus(); }}>{t.label}</FilterChip>)}
+            {chips.map(([name, count]) => <FilterChip key={name} label={name} count={count} selected={name === activeChip} onClick={() => { setChip(name === activeChip ? null : name); input.current?.focus(); }} />)}
           </div>
-          <FiltersMenu sort={sort} onSort={setSort} activeCount={activeFilters} onClearFilters={() => { clear(); setSort('relevance'); }} />
+          <FilterMenu options={chips.map(([name]) => name)} value={activeChip} onChange={setChip} />
+          <SortMenu value={sort} onChange={setSort} />
         </div>
       )}
 
       <div ref={list} id="global-search-results" role="listbox" aria-label="Results" className="h-[min(46vh,330px)] overflow-y-auto px-2 pb-2">
-        {nothing ? <EmptyState variant={type === 'people' ? 'people' : 'generic'} title="No matches found" hint={`We couldn’t find anything matching “${query.trim()}”. Try adjusting your keywords, filters, or check for typos.`} filtered={filtered} onClearSearch={() => { setQuery(''); input.current?.focus(); }} onClearFilters={clear} /> : (() => {
+        {nothing ? <EmptyState variant={type === 'records' ? 'people' : 'generic'} title="No matches found" hint={`We couldn’t find anything matching “${query.trim()}”. Try adjusting your keywords, filters, or check for typos.`} filtered={filtered} onClearSearch={() => { setQuery(''); input.current?.focus(); }} onClearFilters={clear} /> : (() => {
           let index = -1;
           return groups.map(([key, items]) => (
             <div key={key}>

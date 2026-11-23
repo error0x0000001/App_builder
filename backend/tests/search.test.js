@@ -43,8 +43,9 @@ describe('global search', () => {
     const all = await find(client, 'searchy');
     assert.equal(all.groups.records.length, 5, '"All" shows the top 5 per group');
     const only = await find(client, 'searchy', 'records');
-    assert.deepEqual(Object.keys(only.groups), ['records']);
+    assert.deepEqual(Object.keys(only.groups).sort(), ['people', 'records'], 'the Records scope is records + people');
     assert.equal(only.groups.records.length, 8);
+    assert.deepEqual(Object.keys((await find(client, 'searchy', 'people')).groups), ['people']);
   });
 
   it('respects sharing and permissions: nobody finds what they cannot open', async () => {
@@ -76,10 +77,32 @@ describe('global search', () => {
 
     await boss.get(`${S}/pages/profiles/records`); // sample profiles are created the first time that page is opened
     const adminHit = await find(boss, 'minimum password');
-    assert.ok(adminHit.groups.setup.some((s) => s.kind === 'setting' && s.title === 'Minimum password length' && /password-policies/.test(s.to)), 'admins find individual settings');
-    assert.ok((await find(boss, 'password pol')).groups.setup.some((s) => s.kind === 'page' && s.to === '/app/setup/password-policies'), 'and Setup pages');
-    assert.ok((await find(boss, 'read only')).groups.setup.some((s) => s.kind === 'config' && s.subtitle === 'Profiles'), 'and Setup records such as profiles');
-    assert.equal((await find(member, 'password')).groups.setup, undefined, 'members get no Setup results');
+    assert.ok(adminHit.groups.navigation.some((s) => s.kind === 'setting' && s.title === 'Minimum password length' && /password-policies/.test(s.to)), 'admins find individual settings');
+    assert.ok((await find(boss, 'password pol')).groups.navigation.some((s) => s.kind === 'page' && s.to === '/app/setup/password-policies'), 'and Setup pages');
+    assert.ok((await find(boss, 'read only')).groups.navigation.some((s) => s.kind === 'config' && s.subtitle === 'Profiles'), 'and Setup records such as profiles');
+    assert.equal((await find(member, 'password')).groups.navigation, undefined, 'members get no Setup results');
+  });
+
+  it('has Navigation and Documents scopes; Records covers people; documents are admin-only', async () => {
+    const { client: boss } = await registerUser(server);
+    const { person: member } = await join(boss, 'member');
+    const tpl = await boss.post(`${S}/pages/email-templates/records`, { email_template_name: 'Quarterly Welcome Pack' });
+    assert.equal(tpl.status, 201, JSON.stringify(tpl.body));
+    await boss.post(`${S}/pages/profiles/records`, { profile_name: 'Quarterly Reviewer' });
+
+    const docs = await find(boss, 'quarterly', 'documents');
+    assert.deepEqual(Object.keys(docs.groups), ['documents'], 'the Documents scope asks for nothing else');
+    assert.deepEqual(docs.groups.documents.map((d) => [d.kind, d.title, d.tag]), [['document', 'Quarterly Welcome Pack', 'Email Templates']]);
+    assert.match(docs.groups.documents[0].to, /^\/app\/setup\/email-templates\?q=/);
+
+    const nav = await find(boss, 'quarterly', 'navigation');
+    assert.deepEqual(Object.keys(nav.groups), ['navigation']);
+    assert.ok(nav.groups.navigation.some((n) => n.title === 'Quarterly Reviewer' && n.tag === 'Configuration'), 'configuration records are navigation');
+    assert.ok(!nav.groups.navigation.some((n) => n.title === 'Quarterly Welcome Pack'), 'documents are not repeated under navigation');
+
+    assert.ok(docs.groups.documents && (await find(boss, 'quarterly')).groups.documents.length === 1, '"All" includes documents');
+    assert.equal((await find(member, 'quarterly', 'documents')).groups.documents, undefined, 'members never see Setup documents');
+    assert.deepEqual(Object.keys((await find(boss, 'Meera', 'records')).groups).sort(), ['people', 'records'], 'the Records scope includes people');
   });
 
   it('is isolated per workspace and exposes the matching record by id', async () => {

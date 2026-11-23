@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
-const query = z.object({ q: z.string().max(100).default(''), type: z.enum(['all', 'records', 'people', 'setup']).default('all') });
+const query = z.object({ q: z.string().max(100).default(''), type: z.enum(['all', 'records', 'people', 'navigation', 'documents']).default('all') });
 
 /** Global search (⌘K). Any workspace member; what comes back is limited by their own permissions. */
 export function searchRoutes({ tokens, membershipLookup, cache, search, users }) {
