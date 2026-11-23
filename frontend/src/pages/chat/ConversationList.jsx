@@ -73,7 +73,7 @@ export function ConversationList({ activeId, onOpen }) {
         <div className="flex items-center gap-2">
           <SearchInput label="Search chats and messages" placeholder="Search chats and messages" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} className="h-10 min-w-0 flex-1" />
           <DropdownMenu>
-            <DropdownMenuTrigger>{(props) => <Button {...props} size="icon" className="size-10" aria-label="New chat"><Icon name="plus" className="size-5" /></Button>}</DropdownMenuTrigger>
+            <DropdownMenuTrigger>{(props) => <Button {...props} size="icon" shape="round" className="size-10" aria-label="New chat"><Icon name="plus" className="size-5" /></Button>}</DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
               <DropdownMenuItem icon="chat" onSelect={() => onNew('dm')}>New message</DropdownMenuItem>
               <DropdownMenuItem icon="users" onSelect={() => onNew('group')}>New group</DropdownMenuItem>

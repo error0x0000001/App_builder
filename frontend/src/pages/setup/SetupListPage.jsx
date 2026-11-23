@@ -10,8 +10,9 @@ import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
+import { DropdownMenuLabel } from '../../components/ui/DropdownMenu.jsx';
+import { MenuChoice, RoundMenu } from '../../components/ui/RoundMenu.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
-import { Select } from '../../components/ui/Select.jsx';
 import { formatDateTime } from '../../lib/format.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from './QueryState.jsx';
@@ -87,7 +88,12 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {searchable && <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${page.name.toLowerCase()}`} label={`Search ${page.name}`} className="w-full sm:w-72" />}
-        {views?.length > 1 && <Select aria-label="List view" value={view} onChange={setView} options={views} size="sm" />}
+        {views?.length > 1 && (
+          <RoundMenu icon="filter" label="List view" size="md" active={view !== views[0].value}>
+            <DropdownMenuLabel>List view</DropdownMenuLabel>
+            {views.map((v) => <MenuChoice key={v.value} selected={v.value === view} onSelect={() => setView(v.value)}>{v.label}</MenuChoice>)}
+          </RoundMenu>
+        )}
         {embedded && canCreate === false && total !== undefined && <span className="text-sm text-muted">{total} items</span>}
         {!embedded && total !== undefined && <span className="text-sm text-muted">{total} {total === '1' ? 'item' : 'items'}</span>}
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />{deleteLabel} ({selected.size})</Button>}

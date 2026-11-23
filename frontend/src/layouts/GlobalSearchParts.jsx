@@ -3,6 +3,7 @@ import { Icon } from '../components/ui/Icon.jsx';
 import { Kbd, MOD_KEY } from '../components/ui/Kbd.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
 import { Button } from '../components/ui/Button.jsx';
+import { MenuChoice as Choice, RoundMenu } from '../components/ui/RoundMenu.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/DropdownMenu.jsx';
 import { cn } from '../lib/cn.js';
 import { initials } from '../lib/format.js';
@@ -62,27 +63,6 @@ export function FilterChip({ label, selected, count, ...rest }) {
     </button>
   );
 }
-
-/** Round 28px icon button that opens a small menu (filter / sort), like the two round buttons in the reference. A dot shows it is active. */
-function RoundMenu({ icon, label, active, children }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger>
-        {(props) => (
-          <button type="button" aria-label={label} title={label} {...props} className={cn('relative grid size-7 shrink-0 place-items-center rounded-full border border-line-strong text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring', active && 'bg-surface-2 text-ink')}>
-            <Icon name={icon} className="size-3.5" />
-            {active && <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-surface bg-accent" />}
-          </button>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">{children}</DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-const Choice = ({ selected, onSelect, children }) => (
-  <DropdownMenuItem onSelect={onSelect}>{children}{selected && <Icon name="check" className="ml-auto size-4 text-link" />}</DropdownMenuItem>
-);
 
 /** Filter button: pick one kind to show (the same kinds as the chips) or clear. */
 export function FilterMenu({ options, value, onChange }) {

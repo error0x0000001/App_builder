@@ -1,6 +1,6 @@
 import { formatBytes } from '@app/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { driveApi, download } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
@@ -8,30 +8,27 @@ import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/DropdownMenu.jsx';
+import { DropdownMenuLabel } from '../../components/ui/DropdownMenu.jsx';
 import { DropZone, useFilePicker } from '../../components/ui/FilePicker.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
-import { SearchInput } from '../../components/ui/SearchInput.jsx';
-import { SegmentedControl } from '../../components/ui/SegmentedControl.jsx';
-import { Select } from '../../components/ui/Select.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { useNavPanel } from '../../hooks/useNavPanel.js';
 import { useLocalStorageState } from '../../hooks/useLocalStorageState.js';
 import { cn } from '../../lib/cn.js';
-import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { DriveGrid, DriveList, keyOf } from './DriveItems.jsx';
 import { MoveDialog } from './MoveDialog.jsx';
 import { NameDialog } from './NameDialog.jsx';
 import { PreviewDialog } from './PreviewDialog.jsx';
 import { ShareDialog } from './ShareDialog.jsx';
 import { Pane, PaneGroup } from '../../components/ui/Panes.jsx';
-import { DocumentsNav } from './DocumentsNav.jsx';
+import { DocumentsNav, DriveNewMenu } from './DocumentsNav.jsx';
+import { driveActions } from './driveActions.js';
+import { MenuChoice, RoundButton, RoundMenu } from '../../components/ui/RoundMenu.jsx';
 import { UploadTray } from './UploadTray.jsx';
 import { useUploads } from './useUploads.js';
 
 const SORTS = [{ value: 'name', label: 'Name' }, { value: 'modified', label: 'Last modified' }];
-const LAYOUTS = [{ value: 'list', label: 'List' }, { value: 'grid', label: 'Grid' }];
 const TITLES = { shared: 'Shared with me', recent: 'Recent', starred: 'Starred', trash: 'Trash', all: 'All folders' };
 
 /** Documents: the workspace Drive. State lives in the URL (?view, ?folder, ?file) so every place can be linked, shared and reloaded. */
@@ -45,13 +42,12 @@ export default function DocumentsPage() {
   const fileId = params.get('file');
   const [layout, setLayout] = useLocalStorageState('drive:layout', 'list');
   const [sort, setSort] = useLocalStorageState('drive:sort', 'name');
-  const [search, setSearch] = useState('');
-  const q = useDebouncedValue(search.trim(), 250);
+  const q = (params.get('q') ?? '').trim(); // set by the search box in the sidebar (DocumentsNav)
   const [selected, setSelected] = useState(() => new Set());
   const [notice, setNotice] = useState(null);
   const [dialog, setDialog] = useState(null); // { type: 'newFolder' | 'rename' | 'move' | 'share' | 'delete', ... }
 
-  const go = useCallback((next) => { setSelected(new Set()); setSearch(''); setParams(next, { replace: false }); }, [setParams]);
+  const go = useCallback((next) => { setSelected(new Set()); setParams(next, { replace: false }); }, [setParams]);
   const openFolder = (id) => go({ folder: id });
   const goView = (v) => go(v === 'my' ? {} : { view: v });
 
@@ -79,6 +75,12 @@ export default function DocumentsPage() {
   const uploads = useUploads({ onDone: refresh });
   const startUpload = (picked) => { if (!canUploadHere) { setNotice('Open a folder you can edit to upload files.'); return; } uploads.add(picked, (file, options) => driveApi.upload(folderId, file, options)); };
   const picker = useFilePicker({ onPick: startUpload });
+
+  useEffect(() => { // the sidebar's "+" menu: New folder / File upload
+    const offFolder = driveActions.on('newFolder', () => setDialog({ type: 'newFolder' }));
+    const offUpload = driveActions.on('upload', () => (canUploadHere ? picker.open() : setNotice('Open a folder you can upload to first.')));
+    return () => { offFolder(); offUpload(); };
+  }, [canUploadHere, picker]);
 
   const handlers = {
     open: (item) => (item.type === 'folder' ? openFolder(item.id) : setParams({ ...(folderId ? { folder: item.folderId } : { folder: item.folderId }), file: item.id })),
@@ -127,16 +129,12 @@ export default function DocumentsPage() {
               </>
             ) : <h2 className="px-1 font-semibold text-ink">{q ? `Results for “${q}”` : TITLES[view] ?? 'My Drive'}</h2>}
           </nav>
-          <DropdownMenu>
-            <DropdownMenuTrigger>{(props) => <Button {...props} size="sm"><Icon name="plus" className="size-4" />New</Button>}</DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem icon="folder-plus" onSelect={() => setDialog({ type: 'newFolder' })}>New folder</DropdownMenuItem>
-              {canUploadHere && <DropdownMenuItem icon="upload" onSelect={picker.open}>File upload</DropdownMenuItem>}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <SearchInput label="Search Documents" placeholder="Search in Documents" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} className="h-9 w-full sm:w-64" />
-          <div className="w-36"><Select aria-label="Sort by" size="sm" options={SORTS} value={sort} onChange={setSort} /></div>
-          <SegmentedControl label="Layout" options={LAYOUTS} value={layout} onChange={setLayout} />
+          {!navPanel && <div className="md:hidden"><DriveNewMenu /></div>}
+          <RoundMenu icon="sort" label={sort === 'name' ? 'Sorted by name' : 'Sorted by last modified'} size="md" active={sort !== 'name'}>
+            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+            {SORTS.map((o) => <MenuChoice key={o.value} selected={sort === o.value} onSelect={() => setSort(o.value)}>{o.label}</MenuChoice>)}
+          </RoundMenu>
+          <RoundButton icon={layout === 'list' ? 'grid' : 'list'} label={layout === 'list' ? 'Switch to grid view' : 'Switch to list view'} onClick={() => setLayout(layout === 'list' ? 'grid' : 'list')} />
         </div>
 
         {chosen.length > 0 && (
