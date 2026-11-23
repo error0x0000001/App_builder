@@ -27,7 +27,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('relative h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-66')}>
+    <aside aria-label={label} data-collapsed={iconOnly} className={cn('relative h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-66', variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>
@@ -39,10 +39,14 @@ export function Sidebar({ label = 'Sidebar', children }) {
   );
 }
 
-/** The main content area: a fixed-height bordered floating card in every variant — its content scrolls inside, it never grows. */
+/**
+ * The main content area, always exactly the remaining viewport — its content scrolls inside, it never grows. Flat: flush with the
+ * navigation (the navigation draws the divider). Inset and floating: a rounded bordered card with a small margin.
+ */
 export function SidebarInset({ children }) {
-  const { layout } = useSidebar();
-  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-inset', layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0')}>{children}</div>;
+  const { layout, variant } = useSidebar();
+  const card = variant !== 'flat';
+  return <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-inset', card && 'rounded-xl border border-line', card && (layout === 'topbar' ? 'm-2 mt-0' : 'm-2 md:ml-0'))}>{children}</div>;
 }
 
 const TRIGGER_TONES = {

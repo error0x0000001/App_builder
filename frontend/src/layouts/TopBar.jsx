@@ -79,15 +79,15 @@ function MoreEntry({ hidden }) {
 
 /**
  * Top navigation (desktop): cloudbase mark (opens the workspace switcher) · text entries (groups are dropdowns, the rest
- * collapse into "More") · account. Search stays on Ctrl/⌘ K. Inset sits flush on the page; floating is a bordered card
+ * collapse into "More") · account. Search stays on Ctrl/⌘ K. Flat is a full-width bar with a bottom border; inset sits flush on the navigation colour; floating is a bordered card
  * with a small gap above the content card. Entries come from navigation.js, like the sidebar. Navy = the Midnight theme.
  */
 export function TopBar() {
   const { variant } = useSidebar();
   const entries = useEntries();
   return (
-    <header className={cn('shrink-0 p-2', variant === 'floating' ? 'pb-2' : 'pb-0')}>
-      <div className={cn('flex h-12 items-center gap-2 rounded-xl px-2 text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
+    <header className={cn('shrink-0', variant === 'flat' ? 'border-b border-sidebar-line bg-sidebar px-2' : variant === 'floating' ? 'p-2' : 'p-2 pb-0')}>
+      <div className={cn('flex h-12 items-center gap-2 px-2 text-sidebar-ink', variant !== 'flat' && 'rounded-xl', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         <WorkspaceSwitcherLogo />
         <span aria-hidden="true" className="h-5 w-px shrink-0 bg-sidebar-line" />
         <nav aria-label="Main" className="flex min-w-0 flex-1">

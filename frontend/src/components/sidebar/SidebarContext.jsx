@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 const SidebarContext = createContext(null);
 
 /**
- * Navigation state. Layout (rail | sidebar | top bar) and style (inset | floating) are the workspace owner's choice
+ * Navigation state. Layout (rail | sidebar | top bar) and style (flat | inset | floating) are the workspace owner's choice
  * (Customize, saved in the database); phones always use the drawer. Icon-collapse is personal (this browser).
  * Cmd/Ctrl+B toggles the sidebar; Escape closes the mobile drawer.
  */
@@ -36,7 +36,7 @@ export function SidebarProvider({ children }) {
 
   return (
     <SidebarContext.Provider value={value}>
-      <div data-variant={variant} data-layout={layout} className={`flex h-svh w-full overflow-hidden ${layout === 'topbar' ? 'flex-col' : ''} ${variant === 'inset' ? 'bg-sidebar' : 'bg-bg'}`}>{children}</div>
+      <div data-variant={variant} data-layout={layout} className={`flex h-svh w-full overflow-hidden ${layout === 'topbar' ? 'flex-col' : ''} ${variant === 'floating' ? 'bg-bg' : 'bg-sidebar'}`}>{children}</div>
     </SidebarContext.Provider>
   );
 }

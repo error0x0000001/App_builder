@@ -12,9 +12,9 @@ export const UI_OPTIONS = Object.freeze([
     options: [{ value: 'rail', label: 'Rail' }, { value: 'sidebar', label: 'Sidebar' }, { value: 'topbar', label: 'Top bar' }],
   },
   {
-    key: 'variant', group: 'Navigation', label: 'Style', type: 'choice', default: 'inset',
-    description: 'Inset sits flush with the page; floating is a bordered card with a gap.',
-    options: [{ value: 'inset', label: 'Inset' }, { value: 'floating', label: 'Floating' }],
+    key: 'variant', group: 'Navigation', label: 'Style', type: 'choice', default: 'flat',
+    description: 'Flat: navigation and page side by side, divided by a border. Inset: the page is a rounded card on the navigation colour. Floating: both are separate rounded cards with a gap.',
+    options: [{ value: 'flat', label: 'Flat' }, { value: 'inset', label: 'Inset' }, { value: 'floating', label: 'Floating' }],
   },
   {
     key: 'navColor', group: 'Colors', label: 'Navigation colour', type: 'swatch', default: 'default',
