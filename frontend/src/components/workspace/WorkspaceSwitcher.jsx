@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ROLE_LABELS } from '@app/shared';
 import { useAuth } from '../../auth/AuthProvider.jsx';
-import { useSidebar } from '../sidebar/SidebarContext.jsx';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '../sidebar/SidebarParts.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu.jsx';
@@ -54,7 +53,6 @@ export function WorkspaceSwitcherLogo({ compact = false }) {
 /** Sidebar header: the active workspace (tile, name, role) — opens a menu to switch or add one. */
 export function WorkspaceSwitcher() {
   const { activeWorkspace } = useAuth();
-  const { iconOnly } = useSidebar();
   const name = activeWorkspace?.name ?? 'No workspace';
 
   return (
@@ -78,7 +76,7 @@ export function WorkspaceSwitcher() {
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
-          <WorkspaceMenuContent side={iconOnly ? 'right' : 'bottom'} className={iconOnly ? undefined : 'w-full'} />
+          <WorkspaceMenuContent side="bottom" className="w-full" />
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>

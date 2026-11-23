@@ -30,7 +30,7 @@ export function SidebarProvider({ children }) {
   }, [toggle]);
 
   const value = useMemo(
-    () => ({ variant, layout, isMobile, iconOnly: layout === 'sidebar' && collapsed && !isMobile, collapsed, expand: () => setCollapsed(false), mobileOpen, setMobileOpen, toggle }),
+    () => ({ variant, layout, isMobile, collapsed, expand: () => setCollapsed(false), mobileOpen, setMobileOpen, toggle }),
     [variant, layout, isMobile, collapsed, setCollapsed, mobileOpen, toggle],
   );
 

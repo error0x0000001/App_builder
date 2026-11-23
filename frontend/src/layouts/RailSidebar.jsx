@@ -96,7 +96,7 @@ function Rows({ items }) {
 function SearchField() {
   const { show } = useSearch();
   return (
-    <button type="button" onClick={show} className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3.5 text-[15px] text-muted outline-none hover:bg-surface-2 focus-visible:ring-4 focus-visible:ring-ring">
+    <button type="button" onClick={show} className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-sidebar-muted/40 px-3.5 text-[15px] text-sidebar-muted outline-none hover:bg-sidebar-accent focus-visible:ring-4 focus-visible:ring-ring">
       <Icon name="search" className="size-5 shrink-0" />
       <span className="flex-1 text-left">Search</span>
     </button>
@@ -125,7 +125,7 @@ function Panel({ section, sections }) {
         <button type="button" aria-label="Hide panel" onClick={toggle} className={ROW_ACTION}><Icon name="panel-left" className="size-5" /></button>
       </div>
       <SearchField />
-      <Tabs tone="ink" label="Navigation" value={tab} onChange={setTab} tabs={[{ id: 'menu', label: 'Menu' }, { id: 'recent', label: 'Recent' }]} />
+      <Tabs tone="sidebar" label="Navigation" value={tab} onChange={setTab} tabs={[{ id: 'menu', label: 'Menu' }, { id: 'recent', label: 'Recent' }]} />
       <nav aria-label={section.label} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
         <ul className="flex flex-col gap-0.5"><Rows items={items} /></ul>
         {!items.length && <p className="px-3 py-2 text-sm text-sidebar-muted">Pages you open will show up here.</p>}
@@ -143,7 +143,7 @@ function Panel({ section, sections }) {
 export function RailSidebar() {
   const sections = useSections();
   const { pathname } = useLocation();
-  const { variant, collapsed, toggle } = useSidebar();
+  const { variant, layout, collapsed, toggle } = useSidebar();
   const { show: showSearch } = useSearch();
   const { activeWorkspace } = useAuth();
   const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
@@ -160,7 +160,7 @@ export function RailSidebar() {
         <div className="mt-auto flex flex-col items-center gap-1.5">
           {bottom.map((item) => <RailLink key={item.to} to={item.to} icon={item.icon} label={item.label} active={matches({ ...item, end: !item.prefix }, pathname)} />)}
           <RailButton icon="search" label="Search" onClick={showSearch} />
-          {current && <RailButton icon="panel-left" label={collapsed ? 'Show panel' : 'Hide panel'} onClick={toggle} />}
+          {(current || layout === 'sidebar') && <RailButton icon="panel-left" label={collapsed ? 'Show panel' : 'Hide panel'} onClick={toggle} />}
           <div className="mt-3"><NavUserCompact side="right" align="end" rail /></div>
         </div>
       </div>

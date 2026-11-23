@@ -9,7 +9,7 @@ import { useSidebar } from './SidebarContext.jsx';
  * Mobile: off-canvas drawer with a backdrop.
  */
 export function Sidebar({ label = 'Sidebar', children }) {
-  const { variant, iconOnly, isMobile, mobileOpen, setMobileOpen, toggle } = useSidebar();
+  const { variant, isMobile, mobileOpen, setMobileOpen, toggle } = useSidebar();
 
   if (isMobile) {
     return (
@@ -27,7 +27,7 @@ export function Sidebar({ label = 'Sidebar', children }) {
   }
 
   return (
-    <aside aria-label={label} data-collapsed={iconOnly} className={cn('relative h-full shrink-0 p-2 transition-[width] duration-200', iconOnly ? 'w-16' : 'w-66', variant === 'flat' && 'border-r border-sidebar-line')}>
+    <aside aria-label={label} className={cn('relative h-full w-66 shrink-0 p-2', variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className={cn('relative flex h-full flex-col rounded-xl text-sidebar-ink', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
         {children}
       </div>

@@ -62,7 +62,7 @@
 
 /* midnight: navy accent + dark navy sidebar in both modes */
 :root[data-tenant-theme="midnight"], :root[data-theme="dark"][data-tenant-theme="midnight"] {
-  --rail: #00072d; --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+  --rail: #000521; --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
 }
 :root[data-tenant-theme="midnight"] { --accent: #1b3a6b; --accent-hover: #122a50; --accent-soft: #e8eef9; --accent-ink: #ffffff; --link: #1f56c4; --ring: rgba(31, 86, 196, 0.22); }
 :root[data-theme="dark"][data-tenant-theme="midnight"] { --accent: #6b9bff; --accent-hover: #5788ec; --accent-soft: #141b2b; --accent-ink: #0a1120; --link: #8ab4ff; --ring: rgba(107, 155, 255, 0.28); }
@@ -88,14 +88,14 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 }
 /* Owner's navigation colour (Customize › Colors): overrides the sidebar / top-bar tokens in light and dark. */
 :root[data-nav-color="navy"], :root[data-theme="dark"][data-nav-color="navy"] {
-  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d;
+  --sidebar: #00072d; --sidebar-ink: #eaf0ff; --sidebar-muted: #8f9fd6; --sidebar-line: #19266b; --sidebar-accent: #0f1d5c; --sidebar-primary: #8fb4ff; --sidebar-primary-ink: #00072d; --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="slate"], :root[data-theme="dark"][data-nav-color="slate"] {
-  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a;
+  --sidebar: #1e293b; --sidebar-ink: #e2e8f0; --sidebar-muted: #94a3b8; --sidebar-line: #334155; --sidebar-accent: #2a3a52; --sidebar-primary: #7dd3fc; --sidebar-primary-ink: #0f172a; --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 :root[data-nav-color="accent"], :root[data-theme="dark"][data-nav-color="accent"] {
   --sidebar: var(--accent); --sidebar-ink: var(--accent-ink); --sidebar-muted: color-mix(in srgb, var(--accent-ink) 70%, transparent); --sidebar-line: color-mix(in srgb, var(--accent-ink) 22%, transparent);
-  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent);
+  --sidebar-accent: color-mix(in srgb, var(--accent-ink) 16%, transparent); --sidebar-primary: var(--accent-ink); --sidebar-primary-ink: var(--accent); --rail: color-mix(in srgb, var(--sidebar) 78%, #000);
 }
 
 @keyframes sheet-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }

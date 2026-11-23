@@ -15,7 +15,7 @@ import { TopBar } from './TopBar.jsx';
 
 /** Rail, sidebar or top bar (the owner's choice; phones always get the drawer), then the content card. */
 function Shell({ bleed }) {
-  const { layout } = useSidebar();
+  const { layout, collapsed } = useSidebar();
   const content = (
     <SidebarInset>
       <ImpersonationBanner />
@@ -25,7 +25,8 @@ function Shell({ bleed }) {
       </main>
     </SidebarInset>
   );
-  const NAVIGATION = { topbar: TopBar, rail: RailSidebar, sidebar: AppSidebar }[layout];
+  // Collapsing the classic sidebar leaves the icon rail (same component and icons as the Rail layout).
+  const NAVIGATION = { topbar: TopBar, rail: RailSidebar, sidebar: collapsed ? RailSidebar : AppSidebar }[layout];
   return <><NAVIGATION />{content}</>;
 }
 

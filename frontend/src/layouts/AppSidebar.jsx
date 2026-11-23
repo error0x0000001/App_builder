@@ -8,7 +8,7 @@ import { NavBottom, NavMain } from './NavMain.jsx';
 import { NavUser } from './NavUser.jsx';
 
 export function AppSidebar() {
-  const { iconOnly, setMobileOpen } = useSidebar();
+  const { setMobileOpen } = useSidebar();
   const { pathname } = useLocation();
   useEffect(() => setMobileOpen(false), [pathname, setMobileOpen]); // close the drawer after navigating
 
@@ -17,7 +17,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-1 pb-1">
           <div className="min-w-0 flex-1"><WorkspaceSwitcher /></div>
-          {!iconOnly && <SidebarTrigger tone="sidebar" className="-mr-1" />}
+          <SidebarTrigger tone="sidebar" className="-mr-1" />
         </div>
       </SidebarHeader>
       <SidebarContent><NavMain /></SidebarContent>
