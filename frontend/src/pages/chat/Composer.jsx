@@ -3,6 +3,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { chatApi } from '../../api/endpoints.js';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { Button } from '../../components/ui/Button.jsx';
+import { UtilityButton } from '../../components/ui/UtilityButton.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/DropdownMenu.jsx';
 import { EmojiPicker } from '../../components/ui/EmojiPicker.jsx';
 import { useFilePicker } from '../../components/ui/FilePicker.jsx';
@@ -161,23 +162,26 @@ export const Composer = forwardRef(function Composer({ conversationId, replyTo, 
           <Button size="icon" className="size-9" aria-label="Send voice note" onClick={sendVoice}><Icon name="send" className="size-4" /></Button>
         </div>
       ) : (
-        <div className="flex items-end gap-1 rounded-xl border border-line-strong bg-surface p-1.5 focus-within:border-accent focus-within:ring-4 focus-within:ring-ring">
-          <button ref={pickerButton} type="button" aria-label="Emoji" onClick={() => setPicker((o) => !o)} className="grid size-9 shrink-0 place-items-center rounded-lg text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"><Icon name="smile" className="size-5" /></button>
-          <DropdownMenu>
-            <DropdownMenuTrigger>{(props) => <button {...props} type="button" aria-label="Attach" disabled={Boolean(editing)} className="grid size-9 shrink-0 place-items-center rounded-lg text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"><Icon name="paperclip" className="size-5" /></button>}</DropdownMenuTrigger>
-            <DropdownMenuContent side="top" className="min-w-48">
-              <DropdownMenuItem icon="file-plus" onSelect={openPicker}>Photos, videos and files</DropdownMenuItem>
-              <DropdownMenuItem icon="poll" onSelect={onPoll}>Poll</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="relative rounded-lg border border-line-strong bg-surface focus-within:border-accent focus-within:ring-4 focus-within:ring-ring">
           <textarea
-            ref={box} rows={1} value={text} maxLength={CHAT_MAX_BODY} aria-label="Message" placeholder="Write a message" disabled={disabled}
+            ref={box} rows={2} value={text} maxLength={CHAT_MAX_BODY} aria-label="Message" placeholder="Message" disabled={disabled}
             onChange={(e) => { setText(e.target.value); updateMention(e.target.value, e.target.selectionStart); if (e.target.value) onTyping?.(); }} onKeyDown={onKeyDown} onPaste={onPaste} onClick={(e) => updateMention(text, e.target.selectionStart)}
-            className="max-h-44 min-h-9 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-ink outline-none placeholder:text-muted"
+            className="block max-h-52 min-h-[5.5rem] w-full resize-none rounded-lg bg-transparent px-3.5 pb-11 pt-3 pr-10 text-[15px] text-ink outline-none placeholder:text-placeholder"
           />
-          {showMic
-            ? <Button size="icon" variant="ghost" className="size-9" aria-label="Record a voice note" onClick={voice.start}><Icon name="mic" className="size-5" /></Button>
-            : <Button size="icon" className="size-9" aria-label={editing ? 'Save edit' : 'Send message'} onClick={submit} disabled={!canSend}><Icon name="send" className="size-4" /></Button>}
+          {showMic && <UtilityButton icon="mic" label="Record a voice note" onClick={voice.start} className="absolute right-2 top-2" />}
+          <div className="absolute bottom-2 right-3 flex items-center gap-2">
+            <div className="flex items-center gap-0.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger>{(props) => <UtilityButton {...props} icon="paperclip" label="Attach" disabled={Boolean(editing)} />}</DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="end" className="min-w-48">
+                  <DropdownMenuItem icon="file-plus" onSelect={openPicker}>Photos, videos and files</DropdownMenuItem>
+                  <DropdownMenuItem icon="poll" onSelect={onPoll}>Poll</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <UtilityButton ref={pickerButton} icon="smile" label="Emoji" onClick={() => setPicker((o) => !o)} />
+            </div>
+            <UtilityButton tone="brand" label={editing ? 'Save edit' : 'Send message'} onClick={submit} disabled={!canSend}>{editing ? 'Save' : 'Send'}</UtilityButton>
+          </div>
         </div>
       )}
       {input}

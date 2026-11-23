@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { chatApi, download } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
+import { Avatar } from '../../components/ui/Avatar.jsx';
 import { DropZone } from '../../components/ui/FilePicker.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
@@ -174,6 +175,8 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
             const firstOfRun = newDay || prev.kind === 'system' || prev.senderId !== m.senderId || new Date(m.createdAt) - new Date(prev.createdAt) > RUN_GAP_MS;
             const showUnread = !unreadMarked && m.kind === 'text' && m.senderId !== myId && initialRead.current != null ? m.id > initialRead.current : false;
             if (showUnread) unreadMarked = true;
+            const next = messages[i + 1];
+            const lastOfRun = !next || next.kind === 'system' || next.kind === 'call' || next.senderId !== m.senderId || new Date(next.createdAt) - new Date(m.createdAt) > RUN_GAP_MS || !sameDay(next.createdAt, m.createdAt);
             return (
               <div key={m.id} id={`msg-${m.id}`}>
                 {newDay && <div className="my-3 flex justify-center"><span className="rounded-full border border-line bg-surface px-3 py-0.5 text-xs font-medium text-muted">{formatDayLabel(m.createdAt)}</span></div>}
@@ -182,7 +185,7 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
                   ? <p className="my-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted">{m.kind === 'call' && <Icon name={m.body.endsWith('video') ? 'video' : 'phone'} className="size-3.5" />}{m.kind === 'call' ? callText(m, people, myId) : systemText(m, people, myId)}</p>
                   : (
                     <MessageBubble
-                      message={m} mine={m.senderId === myId} people={people} group={conversation?.kind === 'group'} showSender={conversation?.kind === 'group'} firstOfRun={firstOfRun}
+                      message={m} mine={m.senderId === myId} people={people} group={conversation?.kind === 'group'} firstOfRun={firstOfRun} lastOfRun={lastOfRun}
                       peerRead={Boolean(peerReadId) && peerReadId >= m.id} flipMenu={i >= messages.length - 3} canDeleteOthers={canDeleteOthers}
                       onReply={setReplyTo} onReact={react} onEdit={(msg) => { setReplyTo(null); setEditing(msg); }} onDelete={setDeleting} onForward={setForwarding} onPin={pin} onRetry={retry} onJumpTo={jumpTo} onOpenAttachment={setPreview} onStar={star} onHide={hide} onInfo={(msg) => setInfoFor({ id: msg.id, conversationId: id })} myId={myId} conversationId={id}
                     />
@@ -190,6 +193,12 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
               </div>
             );
           })}
+          {typers.length > 0 && (
+            <div className="mt-4 flex gap-3" role="status" aria-label={`${typers.map((u) => nameOf(people, u)).join(', ')} typing`}>
+              <Avatar name={nameOf(people, typers[0])} src={people[typers[0]]?.avatar} size="size-10" />
+              <div className="flex flex-col gap-1.5"><span className="text-sm font-medium text-ink">{nameOf(people, typers[0])}</span><span className="flex w-fit items-center gap-1 rounded-lg border border-line bg-surface-2 px-3.5 py-3">{[0, 150, 300].map((d) => <span key={d} className="size-1.5 animate-bounce rounded-full bg-placeholder" style={{ animationDelay: `${d}ms` }} />)}</span></div>
+            </div>
+          )}
         </div>
         {unseen > 0 && <Button size="sm" onClick={() => toBottom(true)} className="absolute bottom-3 left-1/2 -translate-x-1/2"><Icon name="arrow-down" className="size-4" />{unseen} new {unseen === 1 ? 'message' : 'messages'}</Button>}
       </div>

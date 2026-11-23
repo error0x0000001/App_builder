@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { driveApi } from '../../api/endpoints.js';
 import { cn } from '../../lib/cn.js';
 import { FileTypeIcon } from '../documents/FileTypeIcon.jsx';
+import { VoiceNote } from './VoiceNote.jsx';
 
 /** Adds the fields the Documents components expect (`type`, `kind`) to the small record a message stores for each attachment. */
 export const asDriveFile = (a) => ({ type: 'file', kind: fileKindOf(a.name, a.mime), ...a });
@@ -17,34 +18,32 @@ export function ImageThumb({ file, className, onClick }) {
   );
 }
 
-/** A voice note or audio file: plays in place through the same short-lived link. */
-export function AudioAttachment({ file, mine }) {
-  const { data } = useQuery({ queryKey: ['drive', 'link', file.id], queryFn: () => driveApi.link(file.id), staleTime: 4 * 60_000 });
-  return (
-    <div className={cn('flex min-w-56 items-center gap-2 rounded-lg border px-2 py-1.5', mine ? 'border-accent-ink/30 bg-black/10' : 'border-line bg-surface')}>
-      <audio controls preload="metadata" src={data?.url} aria-label={file.name} className="h-9 w-full min-w-0" />
-    </div>
-  );
-}
-
-/** What a message carries: pictures as a grid, audio as a player, everything else as file cards. Clicking opens the preview. */
-export function MessageAttachments({ attachments, mine, onOpen }) {
+/**
+ * What a message carries, in Untitled UI's message styles: pictures large with a "name · size" caption, voice notes as the waveform player, other files as a white bordered
+ * card with the file-type icon. Clicking a picture or file opens the preview.
+ */
+export function MessageAttachments({ attachments, onOpen }) {
   const files = attachments.map(asDriveFile);
   const images = files.filter((f) => f.kind === 'image');
   const audio = files.filter((f) => f.kind === 'audio');
   const others = files.filter((f) => f.kind !== 'image' && f.kind !== 'audio');
   return (
-    <div className="mb-1.5 space-y-1.5">
+    <div className="space-y-2">
       {images.length > 0 && (
-        <div className={cn('grid gap-1', images.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
-          {images.map((f) => <ImageThumb key={f.id} file={f} onClick={() => onOpen(f)} className={images.length === 1 ? 'aspect-[4/3] w-64 max-w-full' : 'aspect-square'} />)}
+        <div className={cn('grid gap-1.5', images.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+          {images.map((f) => (
+            <figure key={f.id} className="min-w-0">
+              <ImageThumb file={f} onClick={() => onOpen(f)} className={images.length === 1 ? 'aspect-[4/3] w-72 max-w-full' : 'aspect-square w-full'} />
+              <figcaption className="mt-1 flex items-baseline justify-between gap-3 text-sm text-ink"><span className="min-w-0 truncate">{f.name}</span><span className="shrink-0 text-xs text-muted">{formatBytes(f.size)}</span></figcaption>
+            </figure>
+          ))}
         </div>
       )}
-      {audio.map((f) => <AudioAttachment key={f.id} file={f} mine={mine} />)}
+      {audio.map((f) => <VoiceNote key={f.id} file={f} />)}
       {others.map((f) => (
-        <button key={f.id} type="button" onClick={() => onOpen(f)} className={cn('flex w-full min-w-48 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring', mine ? 'border-accent-ink/30 bg-black/10' : 'border-line bg-surface')}>
-          <FileTypeIcon item={f} className="size-8" />
-          <span className="min-w-0"><span className="block truncate text-sm font-medium">{f.name}</span><span className="block text-xs opacity-75">{formatBytes(f.size)}</span></span>
+        <button key={f.id} type="button" onClick={() => onOpen(f)} className="flex w-72 max-w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 text-left outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-ring">
+          <FileTypeIcon item={f} className="size-9" />
+          <span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{f.name}</span><span className="block text-sm text-muted">{formatBytes(f.size)}</span></span>
         </button>
       ))}
     </div>

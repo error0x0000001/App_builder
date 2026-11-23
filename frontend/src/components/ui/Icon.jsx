@@ -1,7 +1,7 @@
 import {
   AlertTriangle, ArrowDown, Clock, Folder, FolderPlus, FilePlus02, HardDrive, Link01, List, Move, Paperclip, ReverseLeft, Star01, Upload01, UserPlus01, Globe01, ArrowUp, Announcement01, Briefcase01, Building02, Calendar, CheckSquare, Cloud01, Code01, CornerDownLeft, Cube01, Database01, Grid01, Key01, LifeBuoy01, Minus, Palette, Settings01, Stars01, Target01, TrendUp01, Zap, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronSelectorVertical, Copy01, DotsHorizontal, Download01, Edit01, Eye, EyeOff, FileSearch02, FilterLines,
   Home02, InfoCircle, LayoutLeft, Lock01, LogOut01, Mail01, Monitor01, Moon01, Plus, RefreshCw01, SearchLg, Sliders01, Sun, SwitchVertical01, Trash01, User01, Users01, XClose, ShieldTick,
-  FaceSmile, CornerUpLeft, CornerUpRight, Pin01, Send01, MessageChatCircle, Bell01, BellOff01, Archive, Phone01, VideoRecorder, UserPlus02, Microphone01, MicrophoneOff01, PhoneX, Airplay, VideoRecorderOff, BarChartSquare02, Hand, Image01, CalendarPlus01, ClockStopwatch, Eye as EyeIcon,
+  FaceSmile, CornerUpLeft, CornerUpRight, Pin01, Send01, MessageChatCircle, Bell01, BellOff01, Archive, Phone01, VideoRecorder, UserPlus02, Microphone01, MicrophoneOff01, PhoneX, Airplay, VideoRecorderOff, BarChartSquare02, Hand, Image01, Play, PauseCircle, CalendarPlus01, ClockStopwatch, Eye as EyeIcon,
 } from '@untitledui/icons';
 
 /**
@@ -16,11 +16,18 @@ const ICONS = {
   'log-out': LogOut01, 'panel-left': LayoutLeft, 'chevrons-up-down': ChevronSelectorVertical, 'chevron-right': ChevronRight, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft,
   'more-horizontal': DotsHorizontal,
   smile: FaceSmile, reply: CornerUpLeft, forward: CornerUpRight, pin: Pin01, send: Send01, chat: MessageChatCircle, bell: Bell01, 'bell-off': BellOff01, archive: Archive,
-  phone: Phone01, video: VideoRecorder, 'user-plus': UserPlus02, mic: Microphone01, 'mic-off': MicrophoneOff01, 'phone-off': PhoneX, 'screen-share': Airplay, 'video-off': VideoRecorderOff, poll: BarChartSquare02, image: Image01, hand: Hand, 'calendar-plus': CalendarPlus01, timer: ClockStopwatch,
+  phone: Phone01, video: VideoRecorder, 'user-plus': UserPlus02, mic: Microphone01, 'mic-off': MicrophoneOff01, 'phone-off': PhoneX, 'screen-share': Airplay, 'video-off': VideoRecorderOff, poll: BarChartSquare02, image: Image01, play: Play, pause: PauseCircle, hand: Hand, 'calendar-plus': CalendarPlus01, timer: ClockStopwatch,
+};
+
+/** Glyphs Untitled UI draws itself in components but does not ship in the icon pack (the double tick of its message status). */
+const CUSTOM = {
+  'check-double': (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M2 12.5 6.5 17 15 8" /><path d="m11 16.5.5.5L20 8" /></svg>
+  ),
 };
 
 export function Icon({ name, className = 'size-4', ...rest }) {
-  const Glyph = ICONS[name];
+  const Glyph = ICONS[name] ?? CUSTOM[name];
   return Glyph ? <Glyph aria-hidden="true" className={className} {...rest} /> : null;
 }
 
