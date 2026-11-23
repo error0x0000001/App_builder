@@ -60,7 +60,7 @@ export const setupApi = {
   page: (key) => get(page(key)),
   settings: (key) => get(page(key, '/settings')),
   saveSettings: (key, version, values) => patch(page(key, '/settings'), { version, values }),
-  records: (key, { after, q, view, parent, sort, dir, total } = {}) => get(`${page(key, '/records')}${qs({ limit: 80, after, q, view, parent, sort, dir, total: total ? 'true' : undefined })}`),
+  records: (key, { limit = 80, after, q, view, parent, sort, dir, total } = {}) => get(`${page(key, '/records')}${qs({ limit, after, q, view, parent, sort, dir, total: total ? 'true' : undefined })}`),
   createRecord: (key, body) => post(page(key, '/records'), body),
   updateRecord: (key, id, body) => patch(page(key, `/records/${id}`), body),
   deleteRecords: (key, ids) => post(page(key, '/records/delete'), { ids }),

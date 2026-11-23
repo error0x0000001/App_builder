@@ -1,14 +1,14 @@
-import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SETUP_LIST } from '@app/shared';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
-import { cursorPagination } from '../../api/queries.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
+import { PaginationBar } from '../../components/ui/PaginationBar.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { DropdownMenuLabel } from '../../components/ui/DropdownMenu.jsx';
 import { MenuChoice, RoundMenu } from '../../components/ui/RoundMenu.jsx';
@@ -64,16 +64,28 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const [sort, setSort] = useState(null);
   const onSort = (key) => setSort((cur) => (cur?.key !== key ? { key, dir: 'asc' } : cur.dir === 'asc' ? { key, dir: 'desc' } : null));
 
-  const records = useInfiniteQuery({
-    queryKey: ['setup', 'records', pageKey, { q, view, parentId, sort: sort?.key, dir: sort?.dir }],
-    queryFn: ({ pageParam }) => setupApi.records(pageKey, { after: pageParam, q, view, parent: parentId, sort: sort?.key, dir: sort?.dir, total: !pageParam }),
-    ...cursorPagination,
+  // Cursor paging with Previous / Next: the cursors of the pages already visited are kept, so "Previous" is a cache hit.
+  // Any change to search / filter / sort / page size starts again from the first page.
+  const [pageSize, setPageSize] = useState(25);
+  const sig = JSON.stringify([pageKey, q, view, parentId, sort?.key, sort?.dir, pageSize]);
+  const [pager, setPager] = useState({ sig, cursors: [undefined] });
+  const cursors = pager.sig === sig ? pager.cursors : [undefined];
+  const index = cursors.length - 1;
+  const records = useQuery({
+    queryKey: ['setup', 'records', pageKey, { q, view, parentId, sort: sort?.key, dir: sort?.dir, size: pageSize, after: cursors[index] }],
+    queryFn: () => setupApi.records(pageKey, { limit: pageSize, after: cursors[index], q, view, parent: parentId, sort: sort?.key, dir: sort?.dir, total: !cursors[index] }),
     placeholderData: keepPreviousData,
   });
+  const [knownTotal, setKnownTotal] = useState({ sig, n: undefined, capped: false });
+  const data = records.data;
+  if (data && index === 0 && data.total !== undefined && (knownTotal.sig !== sig || knownTotal.n !== data.total)) setKnownTotal({ sig, n: data.total, capped: Boolean(data.totalCapped) });
+  const nextCursor = data?.nextCursor ?? null;
+  const goNext = () => nextCursor && setPager({ sig, cursors: [...cursors, nextCursor] });
+  const goPrev = () => index > 0 && setPager({ sig, cursors: cursors.slice(0, -1) });
 
-  const rows = useMemo(() => records.data?.pages.flatMap((p) => p.items) ?? [], [records.data]);
-  const first = records.data?.pages[0];
-  const total = first?.totalCapped ? `${SETUP_LIST.countCap.toLocaleString()}+` : first?.total?.toLocaleString();
+  const rows = useMemo(() => data?.items ?? [], [data]);
+  const totalKnown = knownTotal.sig === sig ? knownTotal : { n: undefined, capped: false };
+  const total = totalKnown.n === undefined ? undefined : `${totalKnown.n.toLocaleString()}${totalKnown.capped ? '+' : ''}`;
 
   const columns = useMemo(() => page.columns.map((c) => {
     const type = adapter?.columnTypes?.[c.key] ?? c.type;
@@ -113,18 +125,22 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
             sort={sort}
             onSort={adapter ? undefined : onSort}
             storageKey={`setup:${pageKey}`}
-            loading={records.isFetching && !records.isFetchingNextPage && !rows.length}
+            loading={records.isFetching && !rows.length}
             selection={canDelete ? { selected, onToggle: toggle, onToggleAll: toggleAll } : undefined}
             onRowClick={onOpen ?? (canEdit ? (record) => setDialog({ mode: 'edit', record }) : undefined)}
             empty={q ? `Nothing matches “${q}”` : `No ${page.name.toLowerCase()} yet`}
-            footer={records.hasNextPage ? (
-              <div className="flex justify-center"><Button size="sm" variant="ghost" loading={records.isFetchingNextPage} onClick={() => records.fetchNextPage()}>Load more</Button></div>
-            ) : rows.length ? <p className="text-center text-xs text-muted">{rows.length.toLocaleString()} shown</p> : null}
+            footer={(
+              <PaginationBar
+                from={index * pageSize + 1} to={index * pageSize + rows.length} total={totalKnown.n} capped={totalKnown.capped}
+                hasPrev={index > 0} hasNext={Boolean(nextCursor)} onPrev={goPrev} onNext={goNext} busy={records.isFetching}
+                pageSize={pageSize} pageSizes={[10, 25, 50, 100]} onPageSize={setPageSize}
+              />
+            )}
           />
         )}
       </QueryState>
 
-      {records.isFetching && !records.isFetchingNextPage && rows.length > 0 && <span className="sr-only" role="status">Updating</span>}
+      {records.isFetching && rows.length > 0 && <span className="sr-only" role="status">Updating</span>}
 
       {dialog && (
         <SetupRecordDialog
