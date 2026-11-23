@@ -82,7 +82,9 @@ export function RailSidebar() {
   const { activeWorkspace } = useAuth();
   const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
   const floating = variant === 'floating';
-  const current = sections.find((s) => s.items.some((item) => isActivePath(item, pathname)));
+  // a bottom item with its own panel (Setup) is a section too: it shows its panel beside the rail
+  const bottomPanel = bottom.find((item) => item.panel && isActivePath({ ...item, end: false }, pathname));
+  const current = sections.find((s) => s.items.some((item) => isActivePath(item, pathname))) ?? (bottomPanel && { id: bottomPanel.to, label: bottomPanel.label, icon: bottomPanel.icon, panel: bottomPanel.panel, items: [bottomPanel] });
   const chatUnread = useChatUnread();
 
   return (

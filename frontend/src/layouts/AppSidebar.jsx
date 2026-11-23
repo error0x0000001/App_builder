@@ -15,7 +15,7 @@ export function AppSidebar() {
   const { setMobileOpen } = useSidebar();
   const { pathname } = useLocation();
   const [view, setView] = useState('chats');
-  const section = NAV.groups.find((g) => g.panel && pathname.startsWith(g.items[0].to));
+  const section = [...NAV.groups, ...NAV.bottom.filter((i) => i.panel).map((i) => ({ label: i.label, panel: i.panel, items: [i] }))].find((g) => g.panel && pathname.startsWith(g.items[0].to));
   const SectionPanel = section && SECTION_PANELS[section.panel];
   useEffect(() => setMobileOpen(false), [pathname, setMobileOpen]); // close the drawer after navigating
 

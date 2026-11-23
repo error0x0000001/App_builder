@@ -5,7 +5,7 @@
  *   main    – top-level rows
  *   groups  – collapsible titled sections: { label, icon (the rail icon), defaultOpen?, action?: { to, label, icon? }, items }
  *   bottom  – rows pinned above the user menu
- * Group `panel: '<key>'` (see sectionPanels.js) – the rail panel / sidebar shows that component (chat list, Documents views…) instead of rows.
+ * Group or bottom item `panel: '<key>'` (see sectionPanels.js) – the rail panel / sidebar shows that component (chat list, Documents views…) instead of rows.
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed?, create?, parent? }
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
  *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
@@ -27,7 +27,7 @@ export const NAV = {
     ] },
   ],
   bottom: [
-    { to: '/app/setup', icon: 'sliders', label: 'Setup', minRole: 'admin', prefix: true, bleed: true, panes: true },
+    { to: '/app/setup', icon: 'sliders', label: 'Setup', minRole: 'admin', prefix: true, bleed: true, panes: true, panel: 'setup' },
   ],
 };
 

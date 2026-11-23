@@ -19,7 +19,7 @@ export default function SetupPage() {
         if (!Template) return <Alert tone="warning">This page type is not available yet.</Alert>;
         return (
           <>
-            <div><h1 className="text-lg font-semibold text-ink">{page.name}</h1>{page.path && <p className="text-sm text-muted">{page.path.at(-1)}</p>}</div>
+            <div><h1 className="text-lg font-semibold text-ink">{page.name}</h1>{page.path && page.path.at(-1) !== page.name && <p className="text-sm text-muted">{page.path.at(-1)}</p>}</div>
             <PageIntro>{page.desc}</PageIntro>
             <StatusBanner status={status} />
             <Suspense fallback={<div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>}><Template key={key} pageKey={key} /></Suspense>

@@ -47,7 +47,8 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const [search, setSearch] = useState(() => params.get('q') ?? ''); // global search deep link
-  const [view, setView] = useState(views?.[0] ?? '');
+  const viewOptions = (views ?? []).map((v) => (typeof v === 'string' ? { value: v, label: v } : v)); // definitions list views as plain strings
+  const [view, setView] = useState(viewOptions[0]?.value ?? '');
   const [selected, setSelected] = useState(() => new Set());
   const [dialog, setDialog] = useState(null); // { mode: 'create' | 'edit', record? }
   const [confirm, setConfirm] = useState(false);
@@ -88,10 +89,10 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {searchable && <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${page.name.toLowerCase()}`} label={`Search ${page.name}`} className="w-full sm:w-72" />}
-        {views?.length > 1 && (
-          <RoundMenu icon="filter" label="List view" size="md" active={view !== views[0].value}>
+        {viewOptions.length > 1 && (
+          <RoundMenu icon="filter" label="List view" size="md" align="start" active={view !== viewOptions[0].value}>
             <DropdownMenuLabel>List view</DropdownMenuLabel>
-            {views.map((v) => <MenuChoice key={v.value} selected={v.value === view} onSelect={() => setView(v.value)}>{v.label}</MenuChoice>)}
+            {viewOptions.map((v) => <MenuChoice key={v.value} selected={v.value === view} onSelect={() => setView(v.value)}>{v.label}</MenuChoice>)}
           </RoundMenu>
         )}
         {embedded && canCreate === false && total !== undefined && <span className="text-sm text-muted">{total} items</span>}
