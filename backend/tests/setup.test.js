@@ -22,7 +22,7 @@ describe('access', () => {
   it('serves the tree and page definitions with ETag/304', async () => {
     const tree = await owner.get(`${S}/tree`);
     assert.equal(tree.status, 200);
-    assert.equal(tree.body.counts.total, 266);
+    assert.equal(tree.body.counts.total, 265);
     const page = await owner.get(`${S}/pages/password-policies`);
     const again = await owner.request('GET', `${S}/pages/password-policies`, undefined, { 'If-None-Match': page.headers.get('etag') });
     assert.equal(again.status, 304);
@@ -151,10 +151,9 @@ describe('platform adapters', () => {
 });
 
 describe('dashboards, health and tools', () => {
-  it('adoption manager reflects real members and logins', async () => {
-    const dash = await owner.get(`${S}/pages/adoption-manager/metrics`);
-    assert.equal(dash.status, 200);
-    assert.equal(dash.body.cards[0].v, '1');
+  it('the removed Adoption Manager page no longer exists', async () => {
+    const gone = await owner.get(`${S}/pages/adoption-manager/metrics`);
+    assert.equal(gone.status, 404);
   });
   it('every dashboard provider responds', async () => {
     for (const key of ['storage-usage', 'platform-cache', 'optimizer', 'readiness-assessor', 'data-integration-metrics', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']) {

@@ -1,4 +1,3 @@
-import { ROLE_LABELS, ROLES } from '@app/shared';
 import { sql } from 'drizzle-orm';
 import { getSetupPage } from '@app/shared/setup-registry';
 import { avatarUrl } from '../../shared/avatar.js';
@@ -18,7 +17,6 @@ export class MetricsService {
   constructor({ repos, db, cache, usage, health }) {
     Object.assign(this, { repos, db, cache, usage, health });
     this.providers = {
-      'adoption-manager': (ws) => this.#adoption(ws),
       'storage-usage': (ws) => this.#storage(ws),
       'platform-cache': () => this.#platformCache(),
       optimizer: (ws) => this.#optimizer(ws),
@@ -44,25 +42,6 @@ export class MetricsService {
       select count(${distinctUsers ? sql`distinct user_id` : sql`*`})::int as n from (
         select user_id from auth_events where workspace_id = ${ws} and id >= ${uuidV7Floor(Date.now() - sinceMs)}::uuid and type in ${LOGIN_TYPES} limit 100000) e`);
     return rows[0].n;
-  }
-
-  async #adoption(ws) {
-    const [members, active7, active30, logins30, roleRows] = await Promise.all([
-      this.repos.memberships.countMembers(ws), this.#countEvents(ws, 7 * DAY_MS, true), this.#countEvents(ws, 30 * DAY_MS, true), this.#countEvents(ws, 30 * DAY_MS),
-      this.db.execute(sql`select role, count(*)::int as n from memberships where workspace_id = ${ws} group by role`),
-    ]);
-    const score = pct(active7, members);
-    const byRole = Object.fromEntries(roleRows.rows.map((r) => [r.role, r.n]));
-    return {
-      cards: [
-        { k: 'Active users (7 days)', v: n(active7), s: `of ${n(members)} members` },
-        { k: 'Logins last 30 days', v: n(logins30), s: logins30 >= 100000 ? 'counted up to 100,000' : `${n(active30)} distinct users` },
-        { k: 'Inactive members (30 days)', v: n(Math.max(0, members - active30)), s: 'No sign-in in 30 days' },
-        { k: 'Adoption score', v: String(score), s: score >= 75 ? 'Excellent' : score >= 40 ? 'Good' : 'Needs attention' },
-      ],
-      bars: ROLES.filter((r) => byRole[r]).map((r) => [ROLE_LABELS[r], pct(byRole[r], members)]),
-      table: null,
-    };
   }
 
   async #storage(ws) {

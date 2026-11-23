@@ -26,7 +26,7 @@ const SCENARIOS = [
   ['list: search, cached term', { path: `${S}/pages/debug-log-entries/records?q=user4242` }],
   ['list: search, NEVER cached (random term)', { requests: [{ setupRequest: (r) => ({ ...r, path: `${S}/pages/debug-log-entries/records?q=user${rand()}${rand()}` }) }] }],
   ['list: unique deep pages, NEVER cached', { requests: [{ setupRequest: (r) => ({ ...r, path: `${S}/pages/debug-log-entries/records?limit=80&after=${encodeCursor({ id: rows[0].id.replace(/^......../, (m) => (parseInt(m, 16) - rand()).toString(16).padStart(8, '0')) })}` }) }] }],
-  ['dashboard: adoption (1M events)', { path: `${S}/pages/adoption-manager/metrics` }],
+  ['dashboard: optimizer', { path: `${S}/pages/optimizer/metrics` }],
   ['dashboard: storage usage (1M records)', { path: `${S}/pages/storage-usage/metrics` }],
   ['adapter: login history', { path: `${S}/pages/login-history/records` }],
   ['adapter: users (200k members)', { path: `${S}/pages/users/records` }],

@@ -32,6 +32,7 @@ const slug = (s) => String(s).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0
   };
 
   const pages = {}; const fixtures = { lists: {}, dashboards: {}, details: {}, trees: {} };
+  const REMOVED = new Set(['Adoption Manager']); // pages dropped from the product on purpose (still in the mock-up)
   const treeNode = (node, trail) => {
     if (typeof node === 'string') {
       const key = keyOf(node, [...trail, node]);
@@ -39,7 +40,7 @@ const slug = (s) => String(s).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0
       return { label: node, page: key };
     }
     const [label, kids] = node;
-    return { label, children: kids.map((k) => treeNode(k, [...trail, label])) };
+    return { label, children: kids.filter((k) => !REMOVED.has(k)).map((k) => treeNode(k, [...trail, label])) };
   };
 
   const ENGINE = /rule|process|trigger|workflow|flow\b|flows\b|approval|assignment|escalat|auto-response|matching|duplicate|entitlement|macro|territor|forecast|email-to|web-to|snapshot|platform event|scheduled|sharing|encryption|session|password|single sign|login (flows|access)|transaction security|delegated|import|export|mass |loader|translat|expire|deliverab/i;

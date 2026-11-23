@@ -1,7 +1,7 @@
 # Setup engine — design, scale model, measurements
 
 ## What it is
-One registry of 266 pages (`packages/shared/src/setup/registry.generated.json`, built from the design by `tools/setup/build-registry.cjs`)
+One registry of 265 pages (`packages/shared/src/setup/registry.generated.json`, built from the design by `tools/setup/build-registry.cjs`)
 drives a generic API (`/api/v1/setup`, admins only) and six UI templates. Adding a page = adding registry data.
 **The registry describes screens; it does not make settings do anything.** `docs/setup-status.md` (generated) lists, per page, whether it
 is real platform data, a working tool, live metrics, records, or stored-only configuration.
@@ -47,7 +47,6 @@ Postgres tuned (`shared_buffers=2GB`, `effective_cache_size=8GB`, `random_page_c
 | list, deep keyset page (400 k rows in) | 7 894 | 23 ms | 158 ms |
 | search, repeated term (cached) | 9 428 | 5 ms | 19 ms |
 | list, unique deep pages (never cached) | 4 595 | 11 ms | 41 ms |
-| dashboard: adoption (1 M events) | 10 369 | 5 ms | 88 ms |
 | adapter: login history | 8 211 | 6 ms | 23 ms |
 | adapter: members (200 k) | 9 906 | 5 ms | 18 ms |
 | search, never cached, matching (full 80-row pages) | 350–440 | 15–65 ms | 200–390 ms up to 32 concurrent; 560 ms at 64 |
