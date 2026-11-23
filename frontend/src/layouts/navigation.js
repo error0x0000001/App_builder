@@ -16,7 +16,7 @@ export const NAV = {
     { to: '/app/members', icon: 'users', label: 'Members' },
   ],
   groups: [
-    { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural }) => ({ to: `/app/o/${key}`, icon: 'users', label: plural })) },
+    { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural })) },
     { label: 'Account', icon: 'user', defaultOpen: true, items: [
       { to: '/app/profile', icon: 'user', label: 'Profile' },
       { to: '/app/security', icon: 'shield', label: 'Security' },

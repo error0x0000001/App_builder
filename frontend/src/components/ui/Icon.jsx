@@ -1,5 +1,5 @@
 import {
-  AlertTriangle, Briefcase01, Calendar, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronSelectorVertical, Copy01, DotsHorizontal, Download01, Edit01, Eye, EyeOff,
+  AlertTriangle, ArrowDown, ArrowUp, Announcement01, Briefcase01, Building02, Calendar, CheckSquare, Cloud01, Code01, CornerDownLeft, Cube01, Database01, Grid01, Key01, LifeBuoy01, Palette, Stars01, Target01, TrendUp01, Zap, Check, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronSelectorVertical, Copy01, DotsHorizontal, Download01, Edit01, Eye, EyeOff,
   Home02, InfoCircle, LayoutLeft, Lock01, LogOut01, Mail01, Monitor01, Moon01, Plus, RefreshCw01, SearchLg, Sliders01, Sun, Trash01, User01, Users01, XClose, ShieldTick,
 } from '@untitledui/icons';
 
@@ -8,7 +8,8 @@ import {
  * add an icon by importing it above and giving it a name here. Only the icons listed are bundled (the package is tree-shakeable).
  */
 const ICONS = {
-  home: Home02, briefcase: Briefcase01, users: Users01, user: User01, shield: ShieldTick, sliders: Sliders01,
+  home: Home02, briefcase: Briefcase01, target: Target01, building: Building02, 'trend-up': TrendUp01, 'life-buoy': LifeBuoy01, megaphone: Announcement01, 'check-square': CheckSquare,
+  database: Database01, grid: Grid01, stars: Stars01, cube: Cube01, zap: Zap, palette: Palette, code: Code01, cloud: Cloud01, key: Key01, 'arrow-up': ArrowUp, 'arrow-down': ArrowDown, 'corner-down-left': CornerDownLeft, users: Users01, user: User01, shield: ShieldTick, sliders: Sliders01,
   check: Check, 'check-circle': CheckCircle, x: XClose, plus: Plus, search: SearchLg, copy: Copy01, trash: Trash01, edit: Edit01, download: Download01, refresh: RefreshCw01,
   eye: Eye, 'eye-off': EyeOff, sun: Sun, moon: Moon01, monitor: Monitor01, mail: Mail01, lock: Lock01, calendar: Calendar, alert: AlertTriangle, info: InfoCircle,
   'log-out': LogOut01, 'panel-left': LayoutLeft, 'chevrons-up-down': ChevronSelectorVertical, 'chevron-right': ChevronRight, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft,

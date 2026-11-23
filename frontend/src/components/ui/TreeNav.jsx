@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn.js';
 import { Icon } from './Icon.jsx';
 
 /**
- * Collapsible tree. Node: { id, label, to?, children?, trailing? }. Leaves with `to` are router links; branches toggle.
+ * Collapsible tree. Node: { id, label, icon?, to?, children?, trailing? }. Leaves with `to` are router links; branches toggle.
  * `forceOpen` expands everything (used while filtering). `isOpenByDefault(node)` lets the caller open the active branch.
  */
 export function TreeNav({ nodes, forceOpen = false, isOpenByDefault = () => false, label }) {
@@ -24,6 +24,7 @@ function TreeNode({ node, depth, forceOpen, isOpenByDefault }) {
       {branch ? (
         <button type="button" aria-expanded={expanded} onClick={() => setOpen((v) => !v)} style={indent} className={cn(ROW, 'font-medium text-ink hover:bg-surface-2')}>
           <Icon name="chevron-right" className={cn('size-3.5 shrink-0 text-muted transition-transform', expanded && 'rotate-90')} />
+          {node.icon && <Icon name={node.icon} className="size-4 shrink-0 text-muted" />}
           <span className="truncate">{node.label}</span>
           {node.trailing && <span className="ml-auto shrink-0 text-xs text-muted">{node.trailing}</span>}
         </button>

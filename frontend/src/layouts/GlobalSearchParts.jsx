@@ -81,17 +81,17 @@ export function EmptyState({ title, hint, onClear }) {
 
 const Hint = ({ keys, children }) => (
   <span className="flex items-center gap-1.5 whitespace-nowrap">
-    <span className="flex items-center gap-1">{keys.map((k) => <Kbd key={k} className="grid h-5 min-w-5 place-items-center rounded border-line bg-surface px-1 text-[10px] opacity-100">{k}</Kbd>)}</span>{children}
+    <span className="flex items-center gap-1">{keys.map((k, i) => <Kbd key={typeof k === 'string' ? k : i} className="grid h-5 min-w-5 place-items-center rounded border-line bg-surface px-1 text-[10px] opacity-100">{k}</Kbd>)}</span>{children}
   </span>
 );
 
 export const Footer = () => (
   <footer className="flex items-center gap-3.5 overflow-hidden border-t border-line bg-surface-2/60 px-4 py-2 text-xs text-muted">
-    <Hint keys={['↑', '↓']}>Select</Hint>
-    <Hint keys={['↵']}>Open</Hint>
+    <Hint keys={[<Icon key="u" name="arrow-up" className="size-3" />, <Icon key="d" name="arrow-down" className="size-3" />]}>Select</Hint>
+    <Hint keys={[<Icon key="e" name="corner-down-left" className="size-3" />]}>Open</Hint>
     <span className="hidden items-center gap-4 sm:flex">
-      <Hint keys={[MOD_KEY, '↵']}>New tab</Hint>
-      <Hint keys={[MOD_KEY, '⇧', 'L']}>Copy link</Hint>
+      <Hint keys={[MOD_KEY, <Icon key="e" name="corner-down-left" className="size-3" />]}>New tab</Hint>
+      <Hint keys={[MOD_KEY, 'Shift', 'L']}>Copy link</Hint>
     </span>
     <Hint keys={['Esc']}>Close</Hint>
   </footer>
