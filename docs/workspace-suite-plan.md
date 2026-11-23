@@ -64,7 +64,12 @@ client one upload and N downloads instead of a full mesh, plus **TURN** for netw
 **What can be verified where we build:** the sandbox has no camera/microphone, no TURN and no UDP route to outside, so call media cannot
 be exercised end to end here; the signalling, tokens, permissions and UI states can. Real verification needs a staging box with LiveKit + TURN.
 
-## Decisions needed before Chat/Meet are built
+## Decisions (owner)
+- **File storage:** S3-compatible object storage in production (S3, R2 or MinIO). Next step: an S3 `StorageDriver` with presigned direct upload/download.
+- **Retention:** per-workspace retention **plus legal hold** (freeze chosen conversations): `messages` gets a month partition per conversation hash, a `retention_days` setting drops whole partitions, and a `legal_hold` flag on a conversation (or workspace) blocks both partition drops and deletes/edits-for-everyone.
+- **Call engine:** open — the owner asked whether an SFU adds load to our system (answer: it runs on its own machines or managed; our API only issues tokens). To be confirmed before Meet is built.
+
+## Decisions that were needed before Chat/Meet
 1. **Media engine:** LiveKit self-hosted (our docker-compose, TURN included) or LiveKit Cloud / another managed SFU?
 2. **File storage for real use:** local disk is fine for dev; production wants S3-compatible object storage (S3, R2, MinIO).
 3. **Message retention / compliance:** unlimited, per-workspace retention setting, or legal-hold?
