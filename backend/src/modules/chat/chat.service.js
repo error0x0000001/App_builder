@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7, version as uuidVersion } from 'uuid';
 import { CHAT_MAX_GROUP_MEMBERS, dmKeyOf } from '@app/shared';
-import { avatarUrl } from '../../shared/avatar.js';
+import { avatarUrl, chatIconUrl } from '../../shared/avatar.js';
 import { pgArray } from '../../shared/db/helpers.js';
 import { ConflictError, ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../shared/errors.js';
 import { conversationChannel, userChannel } from './bus.js';
@@ -50,7 +50,7 @@ export class ChatService {
 
   /** The caller's active membership of a conversation (this is the ONLY authorisation check chat needs). */
   async member(ctx, conversationId) {
-    const [row] = await this.#rows(sql`select m.role, m.last_read_id, c.id, c.kind, c.title, c.legal_hold, c.created_by, c.meeting_at
+    const [row] = await this.#rows(sql`select m.role, m.last_read_id, c.id, c.kind, c.title, c.legal_hold, c.created_by, c.meeting_at, c.disappear_after
       from chat_members m join chat_conversations c on c.id = m.conversation_id
       where c.workspace_id = ${ctx.workspaceId} and m.conversation_id = ${conversationId} and m.user_id = ${ctx.userId} and m.left_at is null`);
     if (!row) throw new NotFoundError('Conversation not found');
@@ -66,13 +66,14 @@ export class ChatService {
   #announce(conversationId, event) { return this.bus.publish(conversationChannel(conversationId), { conversationId, ...event }); }
   #tell(userIds, event) { return Promise.all(userIds.map((id) => this.bus.publish(userChannel(id), event))); }
 
-  #message(r, reactions = []) {
+  #message(r, reactions = [], poll = null) {
     const deleted = Boolean(r.deleted_at);
     return {
       id: r.id, conversationId: r.conversation_id, senderId: r.sender_id, kind: r.kind,
       body: deleted ? '' : r.body, replyTo: r.reply_to, forwarded: r.forwarded,
       attachments: deleted ? [] : r.attachments, mentions: r.mentions,
-      editedAt: r.edited_at, deletedAt: r.deleted_at, createdAt: r.created_at,
+      editedAt: r.edited_at, deletedAt: r.deleted_at, createdAt: r.created_at, expiresAt: r.expires_at ?? null, starred: Boolean(r.starred),
+      ...(poll ? { poll } : {}),
       ...(r.reply_id ? { replyPreview: { id: r.reply_id, senderId: r.reply_sender, body: r.reply_deleted ? '' : String(r.reply_body ?? '').slice(0, 140), deleted: Boolean(r.reply_deleted) } } : {}),
       reactions,
     };
@@ -82,13 +83,15 @@ export class ChatService {
 
   async inbox(ctx, { archived = false, limit = 50 } = {}) {
     const rows = await this.#rows(sql`
-      select c.id, c.kind, c.title, c.description, c.meeting_at, c.legal_hold, c.created_by, c.last_message_id, c.last_message_at, c.created_at,
+      select c.id, c.kind, c.title, c.description, c.meeting_at, c.legal_hold, c.created_by, c.last_message_id, c.last_message_at, c.created_at, c.disappear_after, c.icon_version,
         m.pinned, m.archived, m.muted_until, m.role, m.last_read_id,
         (select count(*) from (select 1 from chat_messages x where x.conversation_id = c.id and x.id > coalesce(m.last_read_id, ${NIL}::uuid)
-          and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind = 'text' limit 100) q)::int as unread,
+          and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind in ('text', 'poll') limit 100) q)::int as unread,
         lm.body as last_body, lm.sender_id as last_sender, lm.kind as last_kind, lm.deleted_at as last_deleted,
         (select count(*) from chat_members cm where cm.conversation_id = c.id and cm.left_at is null)::int as member_count,
         peer.user_id as peer_id,
+        exists (select 1 from (select x.mentions from chat_messages x where x.conversation_id = c.id and x.id > coalesce(m.last_read_id, ${NIL}::uuid) and x.deleted_at is null and x.sender_id is distinct from ${ctx.userId} limit 100) q
+          where q.mentions @> ${JSON.stringify([ctx.userId])}::jsonb) as mentioned,
         exists (select 1 from chat_calls k where k.conversation_id = c.id and k.ended_at is null) as in_call
       from chat_members m
       join chat_conversations c on c.id = m.conversation_id
@@ -102,7 +105,7 @@ export class ChatService {
       conversations: rows.map((r) => ({
         id: r.id, kind: r.kind, title: r.title, description: r.description, meetingAt: r.meeting_at, legalHold: r.legal_hold, createdBy: r.created_by,
         peerId: r.peer_id, memberCount: r.member_count, role: r.role, pinned: r.pinned, archived: r.archived, mutedUntil: r.muted_until,
-        unread: r.unread, lastReadId: r.last_read_id, createdAt: r.created_at, inCall: r.in_call,
+        unread: r.unread, mentioned: r.mentioned, lastReadId: r.last_read_id, createdAt: r.created_at, inCall: r.in_call, disappearAfter: r.disappear_after, icon: chatIconUrl(r.id, r.icon_version),
         last: r.last_message_id ? { id: r.last_message_id, at: r.last_message_at, senderId: r.last_sender, kind: r.last_kind, deleted: r.last_deleted, body: r.last_deleted ? '' : String(r.last_body ?? '').slice(0, 140) } : null,
       })),
     };
@@ -111,7 +114,7 @@ export class ChatService {
   async unreadTotal(ctx) {
     const [row] = await this.#rows(sql`select coalesce(sum(u), 0)::int as total from (
       select (select count(*) from (select 1 from chat_messages x where x.conversation_id = m.conversation_id and x.id > coalesce(m.last_read_id, ${NIL}::uuid)
-        and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind = 'text' limit 100) q) as u
+        and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind in ('text', 'poll') limit 100) q) as u
       from chat_members m where m.workspace_id = ${ctx.workspaceId} and m.user_id = ${ctx.userId} and m.left_at is null and m.archived = false
         and (m.muted_until is null or m.muted_until < now())) t`);
     return { unread: row?.total ?? 0 };
@@ -119,7 +122,7 @@ export class ChatService {
 
   async get(ctx, conversationId) {
     await this.member(ctx, conversationId);
-    const [c] = await this.#rows(sql`select id, kind, title, description, meeting_at, legal_hold, created_by, invite_code, created_at from chat_conversations where id = ${conversationId}`);
+    const [c] = await this.#rows(sql`select id, kind, title, description, meeting_at, legal_hold, created_by, invite_code, created_at, disappear_after, icon_version from chat_conversations where id = ${conversationId}`);
     const members = await this.#rows(sql`select user_id, role, last_read_id, joined_at from chat_members where conversation_id = ${conversationId} and left_at is null order by joined_at, user_id`);
     const mine = members.find((m) => m.user_id === ctx.userId);
     const [call] = await this.#rows(sql`select id, video, started_by, created_at from chat_calls where conversation_id = ${conversationId} and ended_at is null`);
@@ -129,7 +132,7 @@ export class ChatService {
       people,
       conversation: {
         id: c.id, kind: c.kind, title: c.title, description: c.description, meetingAt: c.meeting_at, legalHold: c.legal_hold, createdBy: c.created_by,
-        inviteCode: admin ? c.invite_code : null, createdAt: c.created_at, role: mine.role,
+        inviteCode: admin ? c.invite_code : null, createdAt: c.created_at, role: mine.role, disappearAfter: c.disappear_after, icon: chatIconUrl(c.id, c.icon_version),
         activeCall: call ? { id: call.id, video: call.video, startedBy: call.started_by, startedAt: call.created_at } : null,
         members: members.map((m) => ({ userId: m.user_id, role: m.role, lastReadId: m.last_read_id })),
       },
@@ -305,29 +308,48 @@ export class ChatService {
     return map;
   }
 
+  #visible = (ctx, alias = 'm') => sql`(${sql.raw(alias)}.expires_at is null or ${sql.raw(alias)}.expires_at > now()) and not exists (select 1 from chat_hidden h where h.user_id = ${ctx.userId} and h.conversation_id = ${sql.raw(alias)}.conversation_id and h.message_id = ${sql.raw(alias)}.id)`;
+  #starredFlag = (ctx, alias = 'm') => sql`exists (select 1 from chat_stars s where s.user_id = ${ctx.userId} and s.conversation_id = ${sql.raw(alias)}.conversation_id and s.message_id = ${sql.raw(alias)}.id) as starred`;
+
+  /** Vote counts (and the caller's own votes) for the polls among these message rows. */
+  async #pollResults(conversationId, rows, userId) {
+    const polls = rows.filter((r) => r.poll);
+    if (!polls.length) return new Map();
+    const ids = polls.map((r) => r.id);
+    const votes = await this.#rows(sql`select message_id, option, count(*)::int as n, bool_or(user_id = ${userId}) as mine from chat_poll_votes where conversation_id = ${conversationId} and message_id = any(${pgArray(ids, 'uuid')}) group by message_id, option`);
+    const voters = await this.#rows(sql`select message_id, count(distinct user_id)::int as n from chat_poll_votes where conversation_id = ${conversationId} and message_id = any(${pgArray(ids, 'uuid')}) group by message_id`);
+    const voterCount = new Map(voters.map((v) => [v.message_id, v.n]));
+    return new Map(polls.map((r) => [r.id, {
+      multi: Boolean(r.poll.multi), voters: voterCount.get(r.id) ?? 0,
+      options: r.poll.options.map((text, i) => { const v = votes.find((x) => x.message_id === r.id && x.option === i); return { text, votes: v?.n ?? 0, mine: Boolean(v?.mine) }; }),
+    }]));
+  }
+
   async messages(ctx, conversationId, { before, after, limit }) {
     await this.member(ctx, conversationId);
     const where = before ? sql`and m.id < ${before}` : after ? sql`and m.id > ${after}` : sql``;
-    const rows = await this.#rows(sql`select m.*, r.id as reply_id, r.sender_id as reply_sender, r.body as reply_body, r.deleted_at is not null as reply_deleted
+    const rows = await this.#rows(sql`select m.*, ${this.#starredFlag(ctx)}, r.id as reply_id, r.sender_id as reply_sender, r.body as reply_body, r.deleted_at is not null as reply_deleted
       from chat_messages m left join chat_messages r on r.conversation_id = m.conversation_id and r.id = m.reply_to
-      where m.conversation_id = ${conversationId} ${where} order by m.id ${after ? sql`asc` : sql`desc`} limit ${limit + 1}`);
+      where m.conversation_id = ${conversationId} and ${this.#visible(ctx)} ${where} order by m.id ${after ? sql`asc` : sql`desc`} limit ${limit + 1}`);
     const hasMore = rows.length > limit;
     const page = rows.slice(0, limit);
     if (!after) page.reverse();
-    const reactions = await this.#reactionsFor(conversationId, page.map((r) => r.id), ctx.userId);
+    const [reactions, polls] = await Promise.all([this.#reactionsFor(conversationId, page.map((r) => r.id), ctx.userId), this.#pollResults(conversationId, page, ctx.userId)]);
     const people = await this.#people(page.flatMap((r) => [r.sender_id, r.reply_sender]));
-    return { messages: page.map((r) => this.#message(r, reactions.get(r.id) ?? [])), hasMore, people };
+    return { messages: page.map((r) => this.#message(r, reactions.get(r.id) ?? [], polls.get(r.id))), hasMore, people };
   }
 
   async #loadMessage(conversationId, id, userId) {
-    const [row] = await this.#rows(sql`select m.*, r.id as reply_id, r.sender_id as reply_sender, r.body as reply_body, r.deleted_at is not null as reply_deleted
+    const [row] = await this.#rows(sql`select m.*, ${this.#starredFlag({ userId })}, r.id as reply_id, r.sender_id as reply_sender, r.body as reply_body, r.deleted_at is not null as reply_deleted
       from chat_messages m left join chat_messages r on r.conversation_id = m.conversation_id and r.id = m.reply_to where m.conversation_id = ${conversationId} and m.id = ${id}`);
     if (!row) throw new NotFoundError('Message not found');
-    return this.#message(row, (await this.#reactionsFor(conversationId, [id], userId)).get(id) ?? []);
+    return this.#message(row, (await this.#reactionsFor(conversationId, [id], userId)).get(id) ?? [], (await this.#pollResults(conversationId, [row], userId)).get(id));
   }
 
+  #expiry = (m) => (m.disappear_after ? sql`now() + ${m.disappear_after} * interval '1 second'` : sql`null`);
+
   async send(ctx, conversationId, input) {
-    await this.member(ctx, conversationId);
+    const m = await this.member(ctx, conversationId);
     if (!this.cache.allow(`chat:${ctx.workspaceId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.workspaceId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
     let id = input.id;
     if (id) {
@@ -355,8 +377,8 @@ export class ChatService {
       : [];
     if (input.attachments?.length) attachments = await this.drive.chatFileMeta(ctx, conversationId, input.attachments);
 
-    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, reply_to, forwarded, attachments, mentions)
-      values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'text', ${body}, ${input.replyTo ?? null}, ${forwarded}, ${JSON.stringify(attachments)}::jsonb, ${JSON.stringify(mentions)}::jsonb)
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, reply_to, forwarded, attachments, mentions, expires_at)
+      values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'text', ${body}, ${input.replyTo ?? null}, ${forwarded}, ${JSON.stringify(attachments)}::jsonb, ${JSON.stringify(mentions)}::jsonb, ${this.#expiry(m)})
       on conflict (conversation_id, id) do nothing returning id`);
     const message = await this.#loadMessage(conversationId, id, ctx.userId);
     if (!row) return { message, duplicate: true }; // a retry of something already stored: no second broadcast
@@ -379,7 +401,7 @@ export class ChatService {
   async remove(ctx, conversationId, messageId) {
     const m = await this.member(ctx, conversationId);
     if (m.legal_hold) throw new ConflictError('LEGAL_HOLD: this conversation is frozen');
-    const [row] = await this.#rows(sql`update chat_messages set deleted_at = now(), body = '', attachments = '[]'::jsonb where conversation_id = ${conversationId} and id = ${messageId} and kind = 'text' and deleted_at is null
+    const [row] = await this.#rows(sql`update chat_messages set deleted_at = now(), body = '', attachments = '[]'::jsonb where conversation_id = ${conversationId} and id = ${messageId} and kind in ('text', 'poll') and deleted_at is null
       and (sender_id = ${ctx.userId} or ${m.kind === 'group' && m.role === 'admin'}) returning id`);
     if (!row) throw new NotFoundError('You can only delete your own messages');
     await this.#rows(sql`delete from chat_pins where conversation_id = ${conversationId} and message_id = ${messageId}`);
@@ -422,6 +444,100 @@ export class ChatService {
     if (rows.length) await this.#announce(conversationId, { type: 'read', userId: ctx.userId, lastReadId: messageId });
     return { ok: true };
   }
+
+  // ---- starring, delete for me, disappearing messages, polls, message info, group admin --------------------------------------------
+
+  async star(ctx, conversationId, messageId, { on }) {
+    await this.member(ctx, conversationId);
+    if (on) {
+      const [exists] = await this.#rows(sql`select 1 as ok from chat_messages where conversation_id = ${conversationId} and id = ${messageId} and deleted_at is null and kind in ('text', 'poll')`);
+      if (!exists) throw new NotFoundError('Message not found');
+      await this.#rows(sql`insert into chat_stars (user_id, conversation_id, message_id) values (${ctx.userId}, ${conversationId}, ${messageId}) on conflict do nothing`);
+    } else await this.#rows(sql`delete from chat_stars where user_id = ${ctx.userId} and conversation_id = ${conversationId} and message_id = ${messageId}`);
+    return { starred: on };
+  }
+
+  /** Your starred messages across every conversation you are still in, newest first. */
+  async starred(ctx, { before, limit }) {
+    const older = before ? sql`and s.message_id < ${before}` : sql``;
+    const rows = await this.#rows(sql`select m.*, true as starred, c.kind as conv_kind, c.title as conv_title,
+        (select p.user_id from chat_members p where p.conversation_id = c.id and p.user_id <> ${ctx.userId} and c.kind = 'dm' limit 1) as peer_id
+      from chat_stars s
+      join chat_messages m on m.conversation_id = s.conversation_id and m.id = s.message_id
+      join chat_conversations c on c.id = s.conversation_id
+      join chat_members me on me.conversation_id = c.id and me.user_id = ${ctx.userId} and me.left_at is null
+      where s.user_id = ${ctx.userId} and m.deleted_at is null and ${this.#visible(ctx)} ${older} order by s.message_id desc limit ${limit + 1}`);
+    const page = rows.slice(0, limit);
+    return {
+      people: await this.#people(page.flatMap((r) => [r.sender_id, r.peer_id])),
+      items: page.map((r) => ({ message: this.#message(r), conversation: { id: r.conversation_id, kind: r.conv_kind, title: r.conv_title, peerId: r.peer_id } })),
+      nextBefore: rows.length > limit ? page.at(-1).id : null,
+    };
+  }
+
+  /** "Delete for me": hides a message from the caller's own view only. Works under legal hold (nothing is destroyed). */
+  async hideForMe(ctx, conversationId, messageId) {
+    await this.member(ctx, conversationId);
+    await this.#rows(sql`insert into chat_hidden (user_id, conversation_id, message_id) values (${ctx.userId}, ${conversationId}, ${messageId}) on conflict do nothing`);
+    await this.#rows(sql`delete from chat_stars where user_id = ${ctx.userId} and conversation_id = ${conversationId} and message_id = ${messageId}`);
+    return { ok: true };
+  }
+
+  /** Disappearing messages: from now on, new messages in this conversation vanish after `seconds` (0 = off). Anyone in a DM; admins in a group. */
+  async setDisappearing(ctx, conversationId, { seconds }) {
+    const m = await this.member(ctx, conversationId);
+    if (m.kind === 'group' && m.role !== 'admin') throw new ForbiddenError('Only group admins can change this');
+    await this.#rows(sql`update chat_conversations set disappear_after = ${seconds || null} where id = ${conversationId}`);
+    await this.#system(ctx, conversationId, `disappearing:${seconds}`, []);
+    await this.#announce(conversationId, { type: 'conversation.updated' });
+    return { disappearAfter: seconds || null };
+  }
+
+  async createPoll(ctx, conversationId, { id: clientId, question, options, multi }) {
+    const m = await this.member(ctx, conversationId);
+    if (!this.cache.allow(`chat:${ctx.workspaceId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.workspaceId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
+    const id = clientId ?? uuidv7();
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, poll, expires_at)
+      values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'poll', ${question}, ${JSON.stringify({ options, multi })}::jsonb, ${this.#expiry(m)}) on conflict (conversation_id, id) do nothing returning id`);
+    const message = await this.#loadMessage(conversationId, id, ctx.userId);
+    if (!row) return { message, duplicate: true };
+    await this.#rows(sql`update chat_conversations set last_message_id = ${id}, last_message_at = ${message.createdAt} where id = ${conversationId} and (last_message_id is null or last_message_id < ${id})`);
+    await this.#rows(sql`update chat_members set last_read_id = ${id} where conversation_id = ${conversationId} and user_id = ${ctx.userId} and (last_read_id is null or last_read_id < ${id})`);
+    await this.#announce(conversationId, { type: 'message.new', message, sender: (await this.#people([ctx.userId]))[ctx.userId] });
+    return { message, duplicate: false };
+  }
+
+  /** Replaces the caller's vote(s) on a poll (an empty list withdraws the vote). */
+  async vote(ctx, conversationId, messageId, { options }) {
+    await this.member(ctx, conversationId);
+    const [msg] = await this.#rows(sql`select id, poll from chat_messages where conversation_id = ${conversationId} and id = ${messageId} and kind = 'poll' and deleted_at is null`);
+    if (!msg) throw new NotFoundError('Poll not found');
+    const chosen = [...new Set(options)];
+    if (chosen.some((o) => o >= msg.poll.options.length)) throw new ValidationError({ options: 'Choose one of the options' });
+    if (!msg.poll.multi && chosen.length > 1) throw new ValidationError({ options: 'Choose one option' });
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`delete from chat_poll_votes where conversation_id = ${conversationId} and message_id = ${messageId} and user_id = ${ctx.userId}`);
+      if (chosen.length) await tx.execute(sql`insert into chat_poll_votes (conversation_id, message_id, user_id, option) select ${conversationId}, ${messageId}, ${ctx.userId}, o from unnest(${pgArray(chosen, 'int')}) as o`);
+    });
+    const poll = (await this.#pollResults(conversationId, [msg], ctx.userId)).get(messageId);
+    await this.#announce(conversationId, { type: 'poll.updated', messageId, userId: ctx.userId, counts: poll.options.map((o) => o.votes), voters: poll.voters });
+    return { poll };
+  }
+
+  /** Who has read a message you sent (read state is a per-person cursor, so this is exact for reads; delivery is not tracked). */
+  async messageInfo(ctx, conversationId, messageId) {
+    await this.member(ctx, conversationId);
+    const [msg] = await this.#rows(sql`select sender_id, created_at from chat_messages where conversation_id = ${conversationId} and id = ${messageId}`);
+    if (!msg) throw new NotFoundError('Message not found');
+    if (msg.sender_id !== ctx.userId) throw new ForbiddenError('Only the sender can see who read a message');
+    const members = await this.#rows(sql`select user_id, last_read_id from chat_members where conversation_id = ${conversationId} and left_at is null and user_id <> ${ctx.userId}`);
+    const read = members.filter((x) => x.last_read_id && x.last_read_id >= messageId).map((x) => x.user_id);
+    const pending = members.filter((x) => !x.last_read_id || x.last_read_id < messageId).map((x) => x.user_id);
+    return { readBy: read, pending, sentAt: msg.created_at, people: await this.#people([...read, ...pending]) };
+  }
+
+  /** For routes that act on a group's settings (the icon): the caller must be an admin of a group. */
+  groupAdmin(ctx, conversationId) { return this.#group(ctx, conversationId); }
 
   // ---- shared media, documents, links, groups in common (the info panel) ---------------------------------------------------------
 

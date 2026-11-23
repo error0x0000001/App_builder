@@ -39,8 +39,9 @@ import { IntakeService } from '../../modules/automation/intake.service.js';
 import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
-import { AvatarService } from '../../modules/users/avatar.service.js';
+import { PhotoStore } from '../../modules/users/photoStore.js';
 import { PeopleService } from '../../modules/users/people.service.js';
+import { LinkPreviewService } from '../../modules/chat/linkPreview.service.js';
 import { CallService } from '../../modules/chat/call.service.js';
 import { LiveKitClient } from '../../shared/livekit.js';
 import { ChatService } from '../../modules/chat/chat.service.js';
@@ -103,11 +104,13 @@ export function createContainer({ boss }) {
     db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
     limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
   });
-  const avatars = new AvatarService({ db, storage: drive.storage });
+  const avatars = new PhotoStore({ db, storage: drive.storage, kind: 'avatars', table: 'users', column: 'avatar_version', touchUpdatedAt: true });
+  const icons = new PhotoStore({ db, storage: drive.storage, kind: 'chat-icons', table: 'chat_conversations', column: 'icon_version' });
   const people = new PeopleService({ db: readDb });
   const bus = createBus(config.REDIS_URL);
   const presence = new PresenceStore({ redis: cache.redis });
   const chat = new ChatService({ db, bus, cache, users, drive });
+  const linkPreviews = new LinkPreviewService({ db, cache });
   const calls = new CallService({ db, chat, livekit: new LiveKitClient({ url: config.LIVEKIT_URL, apiKey: config.LIVEKIT_API_KEY, apiSecret: config.LIVEKIT_API_SECRET }) });
   const realtime = new RealtimeHub({ tokens, chat, bus, presence, logger }).start();
   const search = new SearchService({ db: readDb, objects, cache, drive });
@@ -119,5 +122,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { avatars, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

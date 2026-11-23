@@ -55,5 +55,20 @@ export const chatSearchQuerySchema = z.object({
 export const callModerateSchema = z.object({ action: z.enum(['mute', 'mute-all', 'remove']), userId: uuidField.optional() }).strict();
 export const callStartSchema = z.object({ video: z.boolean().default(true) }).strict();
 
+export const DISAPPEAR_OPTIONS = Object.freeze([{ seconds: 0, label: 'Off' }, { seconds: 86_400, label: '24 hours' }, { seconds: 604_800, label: '7 days' }, { seconds: 7_776_000, label: '90 days' }]);
+export const disappearSchema = z.object({ seconds: z.union([z.literal(0), z.literal(86_400), z.literal(604_800), z.literal(7_776_000)]) }).strict();
+export const createPollSchema = z.object({
+  id: uuidField.optional(),
+  question: z.string().trim().min(1, 'Ask a question').max(300),
+  options: z.array(z.string().trim().min(1, 'An option cannot be empty').max(100)).min(2, 'Add at least two options').max(12),
+  multi: z.boolean().default(false),
+}).strict().refine((v) => new Set(v.options.map((o) => o.toLowerCase())).size === v.options.length, 'Options must be different');
+export const voteSchema = z.object({ options: z.array(z.number().int().min(0).max(11)).max(12) }).strict();
+export const starMessageSchema = z.object({ on: z.boolean() }).strict();
+export const starredQuerySchema = z.object({ before: uuidField.optional(), limit: z.coerce.number().int().min(1).max(50).default(30) }).strict();
+export const linkPreviewQuerySchema = z.object({ url: z.string().url().max(2000) }).strict();
+/** A meeting is created from a form with a date and a time; the browser combines them into `meetingAt`. */
+export const meetingFormSchema = z.object({ title: titleSchema, date: z.string().min(1, 'Choose a date'), time: z.string().regex(/^\d{2}:\d{2}$/, 'Choose a time') }).strict();
+
 /** The two people of a direct conversation, in one canonical order — the key that makes "open a DM" idempotent. */
 export const dmKeyOf = (a, b) => [a, b].sort().join(':');

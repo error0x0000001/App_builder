@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   addMembersSchema, chatSearchQuerySchema, createDmSchema, createGroupSchema, editMessageSchema, inboxQuerySchema, memberRoleSchema, memberStateSchema,
-  callModerateSchema, mediaQuerySchema, callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
+  callModerateSchema, createPollSchema, disappearSchema, linkPreviewQuerySchema, mediaQuerySchema, starMessageSchema, starredQuerySchema, voteSchema, callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
 } from '@app/shared';
 import { TooManyRequestsError } from '../../../shared/errors.js';
 import { receiveUpload, tooLarge } from '../middleware/upload.js';
+import { PHOTO_MAX_BYTES } from '../../../modules/users/photoStore.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -17,7 +18,7 @@ const memberParams = z.object({ id: uuidField, userId: uuidField });
 const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
 /** Chat. Any workspace member may call; the service authorises per conversation (membership is the only rule). */
-export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls, drive }) {
+export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls, drive, icons, linkPreviews }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
   router.use((req, res, next) => {
@@ -76,6 +77,33 @@ export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, ca
       const result = await receiveUpload(req, ({ stream, filename, mime }) => drive.uploadToChat(ctx(req), req.params.id, { filename, mime, stream, declaredSize: declared })).catch((error) => { throw tooLarge(error); });
       send(res, { file: { id: result.file.id, name: result.file.name, mime: result.file.mime, size: result.file.size } }, 201);
     } catch (error) { next(error); }
+  });
+
+  router.put('/conversations/:id/messages/:messageId/star', validate({ params: messageParams, body: starMessageSchema }), async (req, res) => send(res, await chat.star(ctx(req), req.params.id, req.params.messageId, req.valid.body)));
+  router.delete('/conversations/:id/messages/:messageId/me', validate({ params: messageParams }), async (req, res) => send(res, await chat.hideForMe(ctx(req), req.params.id, req.params.messageId)));
+  router.get('/starred', validate({ query: starredQuerySchema }), async (req, res) => send(res, await chat.starred(ctx(req), req.valid.query)));
+  router.get('/conversations/:id/messages/:messageId/info', validate({ params: messageParams }), async (req, res) => send(res, await chat.messageInfo(ctx(req), req.params.id, req.params.messageId)));
+  router.put('/conversations/:id/disappearing', validate({ params: idParam, body: disappearSchema }), async (req, res) => send(res, await chat.setDisappearing(ctx(req), req.params.id, req.valid.body)));
+  router.post('/conversations/:id/polls', validate({ params: idParam, body: createPollSchema }), async (req, res) => {
+    const result = await chat.createPoll(ctx(req), req.params.id, req.valid.body);
+    send(res, result, result.duplicate ? 200 : 201);
+  });
+  router.put('/conversations/:id/messages/:messageId/vote', validate({ params: messageParams, body: voteSchema }), async (req, res) => send(res, await chat.vote(ctx(req), req.params.id, req.params.messageId, req.valid.body)));
+  router.get('/link-preview', validate({ query: linkPreviewQuerySchema }), async (req, res) => send(res, await linkPreviews.preview(ctx(req), req.valid.query.url)));
+  // Group icon: admins only; the browser sends a cropped JPEG.
+  router.put('/conversations/:id/icon', validate({ params: idParam }), async (req, res, next) => {
+    try {
+      await chat.groupAdmin(ctx(req), req.params.id);
+      const { photo } = await receiveUpload(req, ({ stream }) => icons.set(req.params.id, stream), { maxFileBytes: PHOTO_MAX_BYTES });
+      await chat.announce(req.params.id, { type: 'conversation.updated' });
+      send(res, { icon: photo });
+    } catch (error) { next(error); }
+  });
+  router.delete('/conversations/:id/icon', validate({ params: idParam }), async (req, res) => {
+    await chat.groupAdmin(ctx(req), req.params.id);
+    const { photo } = await icons.remove(req.params.id);
+    await chat.announce(req.params.id, { type: 'conversation.updated' });
+    send(res, { icon: photo });
   });
 
   router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));

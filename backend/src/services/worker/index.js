@@ -13,6 +13,8 @@ import { createCache } from '../../shared/cache/redis.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
 import { SettingsReader } from '../../modules/setup/settingsReader.js';
 import { PasswordExpiryService } from '../../modules/setup/passwordExpiry.service.js';
+import { ChatRetentionService } from '../../modules/chat/retention.service.js';
+import { LocalStorageDriver } from '../../shared/storage/localStorage.js';
 import { createCleanupJob } from './jobs/cleanup.js';
 import { createSendEmailJob } from './jobs/sendEmail.js';
 
@@ -20,6 +22,7 @@ const boss = await createBoss();
 const repos = createRepositories(db);
 const cache = createCache();
 const cleanup = new CleanupService({ repos, logger });
+const chatRetention = new ChatRetentionService({ db, storage: new LocalStorageDriver(config.STORAGE_DIR), logger });
 const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), logger, settings: new SettingsReader({ repos, cache }) }) });
 const passwordExpiry = new PasswordExpiryService({ repos, oneTime: new OneTimeTokenService({ repos, pepper: config.JWT_SECRET }), mail: new MailService({ boss }), logger });
 
@@ -28,6 +31,7 @@ const handlers = {
   [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
   [QUEUES.CLEANUP]: createCleanupJob(cleanup),
   [QUEUES.ESCALATE_CASES]: () => escalation.run(),
+  [QUEUES.PURGE_CHAT]: () => chatRetention.purgeExpired(),
   [QUEUES.EXPIRE_PASSWORDS]: (job) => passwordExpiry.run(job.data),
 };
 
@@ -39,6 +43,7 @@ for (const [queue, handler] of Object.entries(handlers)) {
 }
 await boss.schedule(QUEUES.CLEANUP, '0 3 * * *'); // daily at 03:00
 await boss.schedule(QUEUES.ESCALATE_CASES, '*/15 * * * *'); // Escalation Rules, every 15 minutes
+await boss.schedule(QUEUES.PURGE_CHAT, '* * * * *'); // disappearing messages, every minute
 
 async function shutdown() {
   logger.info('Worker shutting down');

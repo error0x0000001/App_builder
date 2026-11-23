@@ -99,6 +99,13 @@
       "when": 1795457863569,
       "tag": "0013_chat_media_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795458890550,
+      "tag": "0014_chat_features",
+      "breakpoints": true
     }
   ]
 }

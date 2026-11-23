@@ -7,7 +7,7 @@ import { loadUser } from '../middleware/loadUser.js';
 import { blockWhileImpersonating } from '../middleware/blockImpersonation.js';
 import { validate } from '../middleware/validate.js';
 import { receiveUpload } from '../middleware/upload.js';
-import { AVATAR_MAX_BYTES } from '../../../modules/users/avatar.service.js';
+import { PHOTO_MAX_BYTES } from '../../../modules/users/photoStore.js';
 import { toPublicUser } from '../../../modules/users/userPresenter.js';
 
 const MIN = 60;
@@ -21,9 +21,9 @@ export function meRoutes({ users, password, sessions, audit, mfa, tokens, repos,
   router.patch('/', validate({ body: updateProfileSchema }), async (req, res) => res.json({ user: await users.updateProfile(req.auth.userId, req.valid.body) }));
 
   router.put('/avatar', async (req, res, next) => {
-    try { res.json(await receiveUpload(req, ({ stream }) => avatars.set(req.auth.userId, stream), { maxFileBytes: AVATAR_MAX_BYTES })); } catch (error) { next(error); }
+    try { const { photo } = await receiveUpload(req, ({ stream }) => avatars.set(req.auth.userId, stream), { maxFileBytes: PHOTO_MAX_BYTES }); res.json({ avatar: photo }); } catch (error) { next(error); }
   });
-  router.delete('/avatar', async (req, res) => res.json(await avatars.remove(req.auth.userId)));
+  router.delete('/avatar', async (req, res) => res.json({ avatar: (await avatars.remove(req.auth.userId)).photo }));
 
   router.patch('/preferences', validate({ body: userPreferencesSchema }), async (req, res) => res.json({ user: await users.updatePreferences(req.auth.userId, req.valid.body) }));
 

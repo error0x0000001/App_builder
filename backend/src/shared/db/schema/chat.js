@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, tz } from '../helpers.js';
 
 /**
@@ -18,6 +18,8 @@ export const chatConversations = pgTable(
     createdBy: uuid('created_by').notNull(),
     inviteCode: text('invite_code'),
     meetingAt: tz('meeting_at'),
+    disappearAfter: integer('disappear_after'), // seconds; null = messages stay
+    iconVersion: integer('icon_version').notNull().default(0), // group photo (0 = none)
     legalHold: boolean('legal_hold').notNull().default(false),
     lastMessageId: uuid('last_message_id'),
     lastMessageAt: tz('last_message_at'),
@@ -67,10 +69,13 @@ export const chatMessages = pgTable(
     mentions: jsonb('mentions').notNull().default([]),
     editedAt: tz('edited_at'),
     deletedAt: tz('deleted_at'),
+    expiresAt: tz('expires_at'), // disappearing messages
+    poll: jsonb('poll'), // { options: string[], multi: boolean } for kind = 'poll'
     createdAt: createdAt(),
   },
   (t) => [
     primaryKey({ columns: [t.conversationId, t.id] }),
+    index('chat_messages_expiry_idx').on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
     // "Media, docs and links" in the info panel: only the messages that have attachments / links, newest first
     index('chat_messages_media_idx').on(t.conversationId, t.id.desc()).where(sql`jsonb_array_length(${t.attachments}) > 0`),
     index('chat_messages_links_idx').on(t.conversationId, t.id.desc()).where(sql`${t.body} ~ 'https?://'`),
@@ -118,4 +123,30 @@ export const chatCalls = pgTable(
     uniqueIndex('chat_calls_active_uq').on(t.conversationId).where(sql`${t.endedAt} is null`),
     index('chat_calls_history_idx').on(t.conversationId, t.startedAt),
   ],
+);
+
+/** Per-person bookmarks ("starred messages"). */
+export const chatStars = pgTable(
+  'chat_stars',
+  { userId: uuid('user_id').notNull(), conversationId: uuid('conversation_id').notNull(), messageId: uuid('message_id').notNull(), createdAt: createdAt() },
+  (t) => [primaryKey({ columns: [t.userId, t.conversationId, t.messageId] }), index('chat_stars_user_idx').on(t.userId, t.messageId.desc())],
+);
+
+/** "Delete for me": messages one person has hidden from their own view. */
+export const chatHidden = pgTable(
+  'chat_hidden',
+  { userId: uuid('user_id').notNull(), conversationId: uuid('conversation_id').notNull(), messageId: uuid('message_id').notNull() },
+  (t) => [primaryKey({ columns: [t.userId, t.conversationId, t.messageId] })],
+);
+
+export const chatPollVotes = pgTable(
+  'chat_poll_votes',
+  { conversationId: uuid('conversation_id').notNull(), messageId: uuid('message_id').notNull(), userId: uuid('user_id').notNull(), option: integer('option').notNull() },
+  (t) => [primaryKey({ columns: [t.conversationId, t.messageId, t.userId, t.option] })],
+);
+
+/** Cached page titles/descriptions for links shared in chat (public web pages only; shared across tenants). */
+export const chatLinkPreviews = pgTable(
+  'chat_link_previews',
+  { urlHash: text('url_hash').primaryKey(), url: text('url').notNull(), title: text('title'), description: text('description'), site: text('site'), status: text('status').notNull(), fetchedAt: tz('fetched_at').defaultNow().notNull() },
 );
