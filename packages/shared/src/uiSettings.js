@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { HEX_RE } from './color.js';
 
 /**
  * Workspace UI customization — the single registry behind the owner's "Customize" sheet, the API validation and the
  * app shell. Add an option here (+ its CSS if it is a colour) and it appears in the sheet and is validated and saved
- * automatically. `type`: 'choice' (segmented control) | 'swatch' (colour cards: each option has `colors` to preview).
+ * automatically. `type`: 'choice' (segmented control) | 'swatch' (colour cards: each option has `colors` to preview) | 'color' (any colour from the
+ * colour picker, `#rrggbb`; `default: null` = use the preset above it).
  */
 export const UI_OPTIONS = Object.freeze([
   {
@@ -26,11 +28,20 @@ export const UI_OPTIONS = Object.freeze([
       { value: 'accent', label: 'Accent', colors: ['#18181b', '#ffffff'] },
     ],
   },
+  {
+    key: 'navHex', group: 'Colors', label: 'Custom navigation colour', type: 'color', default: null,
+    description: 'Any colour for the sidebar or top bar. Overrides the presets above; text and icons adapt automatically.',
+  },
+  {
+    key: 'accentHex', group: 'Colors', label: 'Custom accent colour', type: 'color', default: null, afterTheme: true,
+    description: 'Any brand colour for buttons, links and focus rings. Overrides the accent colour above, in light and dark.',
+  },
 ]);
 
 export const UI_DEFAULTS = Object.freeze(Object.fromEntries(UI_OPTIONS.map((o) => [o.key, o.default])));
 
-const shape = Object.fromEntries(UI_OPTIONS.map((o) => [o.key, z.enum(o.options.map((x) => x.value))]));
+const colorValue = z.string().regex(HEX_RE, 'Use a colour like #7f56d9').transform((v) => v.toLowerCase()).nullable();
+const shape = Object.fromEntries(UI_OPTIONS.map((o) => [o.key, o.type === 'color' ? colorValue : z.enum(o.options.map((x) => x.value))]));
 
 /** PATCH body: any subset of the options, nothing else. */
 export const uiSettingsPatchSchema = z.object(shape).partial().strict().refine((v) => Object.keys(v).length > 0, 'Nothing to update');
@@ -38,6 +49,7 @@ export const uiSettingsPatchSchema = z.object(shape).partial().strict().refine((
 /** Stored settings (possibly from an older version) → a complete, valid set: unknown or invalid values fall back to defaults. */
 export const resolveUiSettings = (stored) => Object.fromEntries(UI_OPTIONS.map((o) => {
   const value = stored?.[o.key];
+  if (o.type === 'color') return [o.key, typeof value === 'string' && HEX_RE.test(value) ? value.toLowerCase() : o.default];
   return [o.key, o.options.some((x) => x.value === value) ? value : o.default];
 }));
 
