@@ -145,6 +145,13 @@ describe('dashboards, health and tools', () => {
     }
     const overview = await owner.get(`${S}/pages/system-overview/metrics`);
     assert.ok(overview.body.gauges.length >= 6);
+    const o = overview.body;
+    assert.deepEqual(o.kpis.map((k) => k.key), ['members', 'active-users', 'logins', 'changes', 'health']);
+    assert.equal(o.activity.length, 14, 'two weeks of daily activity');
+    assert.ok(o.activity.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && Number.isInteger(d.logins) && Number.isInteger(d.changes)));
+    assert.equal(o.hourly.length, 24);
+    assert.ok(o.kpis.find((k) => k.key === 'health').value >= 0 && o.kpis.find((k) => k.key === 'health').total > 0);
+    assert.ok(Array.isArray(o.recent) && Array.isArray(o.attention) && Array.isArray(o.composition));
   });
   it('health check scores real settings and can fix them', async () => {
     const before = await owner.get(`${S}/pages/health-check/metrics`);

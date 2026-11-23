@@ -1,5 +1,7 @@
 import { ROLE_LABELS, ROLES } from '@app/shared';
 import { sql } from 'drizzle-orm';
+import { getSetupPage } from '@app/shared/setup-registry';
+import { avatarUrl } from '../../shared/avatar.js';
 import { uuidV7Floor } from '../../shared/ids.js';
 
 const DAY_MS = 86_400_000;
@@ -111,19 +113,57 @@ export class MetricsService {
     return { cards: [{ k: 'Integration rules', v: n(counts['data-integration-rules'] ?? 0) }, { k: 'Duplicate rules', v: n(counts['duplicate-rules'] ?? 0) }, { k: 'Matching rules', v: n(counts['matching-rules'] ?? 0) }], bars: [], table: null };
   }
 
+  /** The Setup landing dashboard: limits, KPIs with trends, 14 days of activity, what the workspace is made of, recent changes and what needs attention. */
   async #overview(ws) {
-    const [counts, storage, api] = await Promise.all([
+    const COMPONENTS = [['profiles', 'Profiles'], ['roles', 'Roles'], ['permission-sets', 'Permission sets'], ['flows', 'Flows'], ['workflow-rules', 'Workflow rules'], ['validation-rules', 'Validation rules'], ['apex-triggers', 'Triggers']];
+    const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+    const since = uuidV7Floor(Date.now() - 14 * DAY_MS);
+    const [counts, storage, api, hourly, loginRows, changeRows, recentRows, members, health] = await Promise.all([
       this.repos.setupRecords.countsByCollection(ws, ['object-manager-objects', 'object-manager-fields', 'workflow-rules', 'flows', 'apex-triggers', 'validation-rules', 'profiles', 'permission-sets', 'roles']),
-      this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws),
+      this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws), this.usage.hourly24(ws),
+      this.db.execute(sql`select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as d, count(*)::int as n, count(distinct user_id)::int as u from auth_events
+        where workspace_id = ${ws} and id >= ${since}::uuid and type = 'login_success' group by 1`),
+      this.db.execute(sql`select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as d, count(*)::int as n, count(distinct user_id)::int as u from setup_audit
+        where workspace_id = ${ws} and id >= ${since}::uuid group by 1`),
+      this.db.execute(sql`select a.id, a.page_key, a.action, a.summary, a.created_at, u.id as user_id, u.first_name, u.last_name, u.email, u.avatar_version
+        from setup_audit a left join users u on u.id = a.user_id where a.workspace_id = ${ws} order by a.id desc limit 8`),
+      this.repos.memberships.countMembers(ws), this.health.evaluate(ws),
     ]);
     const stored = storage.reduce((s, r) => s + r.bytes, 0);
     const custom = await this.db.execute(sql`select count(*)::int as n from setup_records where workspace_id = ${ws} and collection = 'object-manager-objects' and status = 'Custom'`);
     const gauge = (label, used, limit, fmt = n) => ({ label, used, limit, pct: pct(used, limit), text: `${fmt(used)} of ${fmt(limit)}` });
-    return { gauges: [
-      gauge('Custom objects', custom.rows[0].n, 2000), gauge('Custom fields', counts['object-manager-fields'] ?? 0, 100_000),
-      gauge('Data storage', stored, 5e9, bytes), gauge('API requests (24h)', api, 1_000_000),
-      gauge('Flows', counts.flows ?? 0, 2000), gauge('Workflow rules', counts['workflow-rules'] ?? 0, 500),
-      gauge('Profiles', counts.profiles ?? 0, 1000), gauge('Permission sets', counts['permission-sets'] ?? 0, 1500),
-    ] };
+
+    const days = Array.from({ length: 14 }, (_, i) => day(Date.now() - (13 - i) * DAY_MS));
+    const by = (rows) => new Map(rows.rows.map((r) => [r.d, r]));
+    const logins = by(loginRows); const changes = by(changeRows);
+    const series = (map, field) => days.map((d) => map.get(d)?.[field] ?? 0);
+    const sum = (list) => list.reduce((a, b) => a + b, 0);
+    const kpi = (key, label, values) => ({ key, label, value: sum(values.slice(7)), previous: sum(values.slice(0, 7)), series: values });
+    const loginSeries = series(logins, 'n'); const changeSeries = series(changes, 'n'); const userSeries = series(logins, 'u');
+    const activeUsers = kpi('active-users', 'Active users', userSeries);
+    activeUsers.value = (await this.db.execute(sql`select count(distinct user_id)::int as n from auth_events where workspace_id = ${ws} and id >= ${uuidV7Floor(Date.now() - 7 * DAY_MS)}::uuid and type = 'login_success'`)).rows[0].n;
+
+    return {
+      gauges: [
+        gauge('Custom objects', custom.rows[0].n, 2000), gauge('Custom fields', counts['object-manager-fields'] ?? 0, 100_000),
+        gauge('Data storage', stored, 5e9, bytes), gauge('API requests (24h)', api, 1_000_000),
+        gauge('Flows', counts.flows ?? 0, 2000), gauge('Workflow rules', counts['workflow-rules'] ?? 0, 500),
+        gauge('Profiles', counts.profiles ?? 0, 1000), gauge('Permission sets', counts['permission-sets'] ?? 0, 1500),
+      ],
+      kpis: [
+        { key: 'members', label: 'Members', value: members, previous: null, series: null },
+        activeUsers, kpi('logins', 'Sign-ins', loginSeries), kpi('changes', 'Setup changes', changeSeries),
+        { key: 'health', label: 'Security health', value: health.score, previous: null, series: null, failing: health.risks.length, total: health.checks.length },
+      ],
+      activity: days.map((d, i) => ({ date: d, logins: loginSeries[i], changes: changeSeries[i] })),
+      hourly,
+      composition: COMPONENTS.map(([key, label]) => ({ key, label, count: counts[key] ?? 0 })).filter((c) => c.count > 0),
+      recent: recentRows.rows.map((r) => {
+        const page = (() => { try { return getSetupPage(r.page_key); } catch { return null; } })();
+        return { id: r.id, at: r.created_at, action: r.action, summary: r.summary, pageKey: r.page_key, pageName: page?.name ?? r.page_key,
+          who: { id: r.user_id, name: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || r.email || 'System', avatar: r.user_id ? avatarUrl(r.user_id, r.avatar_version ?? 0) : null } };
+      }),
+      attention: health.risks.slice(0, 5).map((r) => ({ label: r.label, pageKey: r.page, pageName: r.pageName, current: String(r.current), standard: String(r.standard), weight: r.weight })),
+    };
   }
 }

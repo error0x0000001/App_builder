@@ -32,15 +32,18 @@ export class UsageMeter {
     }
   }
 
-  /** Calls in the last 24 hours for a workspace. */
-  async last24h(workspaceId) {
+  /** Calls per hour for the last 24 hours (oldest first, the current hour last). */
+  async hourly24(workspaceId) {
     await this.flush();
-    const now = hourKey(); let total = 0;
+    const now = hourKey(); const hours = [];
     for (let h = now - 23; h <= now; h++) {
-      total += this.redis ? Number((await this.redis.hget(`usage:${h}`, workspaceId)) ?? 0) : this.local.get(h)?.get(workspaceId) ?? 0;
+      hours.push(this.redis ? Number((await this.redis.hget(`usage:${h}`, workspaceId)) ?? 0) : this.local.get(h)?.get(workspaceId) ?? 0);
     }
-    return total;
+    return hours;
   }
+
+  /** Calls in the last 24 hours for a workspace. */
+  async last24h(workspaceId) { return (await this.hourly24(workspaceId)).reduce((a, b) => a + b, 0); }
 
   stop() { clearInterval(this.timer); }
 }
