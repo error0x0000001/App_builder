@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   addMembersSchema, chatSearchQuerySchema, createDmSchema, createGroupSchema, editMessageSchema, inboxQuerySchema, memberRoleSchema, memberStateSchema,
-  messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
+  callStartSchema, messagesQuerySchema, patchConversationSchema, reactionSchema, readSchema, sendMessageSchema, uuidField,
 } from '@app/shared';
 import { TooManyRequestsError } from '../../../shared/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -16,7 +16,7 @@ const memberParams = z.object({ id: uuidField, userId: uuidField });
 const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
 /** Chat. Any workspace member may call; the service authorises per conversation (membership is the only rule). */
-export function chatRoutes({ tokens, membershipLookup, cache, chat, presence }) {
+export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
   router.use((req, res, next) => {
@@ -57,6 +57,13 @@ export function chatRoutes({ tokens, membershipLookup, cache, chat, presence }) 
   router.put('/conversations/:id/messages/:messageId/pin', validate({ params: messageParams }), async (req, res) => send(res, await chat.pin(ctx(req), req.params.id, req.params.messageId)));
   router.get('/conversations/:id/pins', validate({ params: idParam }), async (req, res) => send(res, await chat.pins(ctx(req), req.params.id)));
   router.post('/conversations/:id/read', validate({ params: idParam, body: readSchema }), async (req, res) => send(res, await chat.markRead(ctx(req), req.params.id, req.valid.body)));
+
+  router.get('/config', async (req, res) => send(res, await calls.config()));
+  router.post('/conversations/:id/call', validate({ params: idParam, body: callStartSchema }), async (req, res) => send(res, await calls.start(ctx(req), req.params.id, req.valid.body), 201));
+  router.post('/conversations/:id/call/join', validate({ params: idParam }), async (req, res) => send(res, await calls.join(ctx(req), req.params.id)));
+  router.post('/conversations/:id/call/decline', validate({ params: idParam }), async (req, res) => send(res, await calls.decline(ctx(req), req.params.id)));
+  router.post('/conversations/:id/call/leave', validate({ params: idParam }), async (req, res) => send(res, await calls.leave(ctx(req), req.params.id)));
+  router.post('/conversations/:id/call/end', validate({ params: idParam }), async (req, res) => send(res, await calls.end(ctx(req), req.params.id)));
 
   router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));
   router.get('/presence', validate({ query: z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i) }) }), async (req, res) => send(res, { online: await presence.online(req.auth.workspaceId, req.valid.query.ids.split(',')) }));

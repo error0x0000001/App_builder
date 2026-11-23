@@ -94,3 +94,22 @@ export const chatPins = pgTable(
   },
   (t) => [primaryKey({ columns: [t.conversationId, t.messageId] })],
 );
+
+/** A call in a conversation. At most one is active (ended_at null) per conversation; the media itself lives in LiveKit, room = conversation id. */
+export const chatCalls = pgTable(
+  'chat_calls',
+  {
+    id: pk(),
+    workspaceId: uuid('workspace_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    startedBy: uuid('started_by').notNull(),
+    video: boolean('video').notNull().default(true),
+    joined: jsonb('joined').notNull().default([]), // user ids who actually joined (a call only the starter joined is "missed")
+    startedAt: createdAt(),
+    endedAt: tz('ended_at'),
+  },
+  (t) => [
+    uniqueIndex('chat_calls_active_uq').on(t.conversationId).where(sql`${t.endedAt} is null`),
+    index('chat_calls_history_idx').on(t.conversationId, t.startedAt),
+  ],
+);

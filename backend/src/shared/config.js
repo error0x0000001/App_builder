@@ -16,6 +16,9 @@ const schema = z.object({
   SEARCH_REQUESTS_PER_10S: z.coerce.number().int().default(200), // per person; typing is bursty, this only stops abuse
   STORAGE_DIR: z.string().default('./storage'), // where the local StorageDriver keeps uploaded bytes (Documents)
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).default(100), // largest single file
+  LIVEKIT_URL: z.string().optional(), // the SFU clients connect to, e.g. ws://localhost:7880 (dev: `livekit-server --dev`) or wss://<project>.livekit.cloud
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
   DRIVE_QUOTA_MB: z.coerce.number().int().min(1).default(10240), // total Documents storage per workspace
   API_MAX_REQUESTS: z.coerce.number().int().default(100_000), // a worker retires after this many requests (Odoo limit_request)
   API_MAX_RSS_MB: z.coerce.number().int().default(1024), // ...or when its memory passes this (Odoo limit_memory_soft)
@@ -50,4 +53,5 @@ const schema = z.object({
 
 export const config = Object.freeze(schema.parse(process.env));
 export const isProduction = config.NODE_ENV === 'production';
+export const callsEnabled = Boolean(config.LIVEKIT_URL && config.LIVEKIT_API_KEY && config.LIVEKIT_API_SECRET);
 export const googleEnabled = Boolean(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET);

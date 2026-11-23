@@ -40,6 +40,8 @@ import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
 import { PeopleService } from '../../modules/users/people.service.js';
+import { CallService } from '../../modules/chat/call.service.js';
+import { LiveKitClient } from '../../shared/livekit.js';
 import { ChatService } from '../../modules/chat/chat.service.js';
 import { createBus } from '../../modules/chat/bus.js';
 import { PresenceStore } from '../../modules/chat/presence.js';
@@ -104,6 +106,7 @@ export function createContainer({ boss }) {
   const bus = createBus(config.REDIS_URL);
   const presence = new PresenceStore({ redis: cache.redis });
   const chat = new ChatService({ db, bus, cache, users });
+  const calls = new CallService({ db, chat, livekit: new LiveKitClient({ url: config.LIVEKIT_URL, apiKey: config.LIVEKIT_API_KEY, apiSecret: config.LIVEKIT_API_SECRET }) });
   const realtime = new RealtimeHub({ tokens, chat, bus, presence, logger }).start();
   const search = new SearchService({ db: readDb, objects, cache, drive });
   const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
@@ -114,5 +117,5 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { people, chat, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

@@ -78,6 +78,13 @@
       "when": 1795454813065,
       "tag": "0010_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795455949523,
+      "tag": "0011_calls",
+      "breakpoints": true
     }
   ]
 }

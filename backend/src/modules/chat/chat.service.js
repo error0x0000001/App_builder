@@ -87,7 +87,8 @@ export class ChatService {
           and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind = 'text' limit 100) q)::int as unread,
         lm.body as last_body, lm.sender_id as last_sender, lm.kind as last_kind, lm.deleted_at as last_deleted,
         (select count(*) from chat_members cm where cm.conversation_id = c.id and cm.left_at is null)::int as member_count,
-        peer.user_id as peer_id
+        peer.user_id as peer_id,
+        exists (select 1 from chat_calls k where k.conversation_id = c.id and k.ended_at is null) as in_call
       from chat_members m
       join chat_conversations c on c.id = m.conversation_id
       left join chat_messages lm on lm.conversation_id = c.id and lm.id = c.last_message_id
@@ -100,7 +101,7 @@ export class ChatService {
       conversations: rows.map((r) => ({
         id: r.id, kind: r.kind, title: r.title, description: r.description, meetingAt: r.meeting_at, legalHold: r.legal_hold, createdBy: r.created_by,
         peerId: r.peer_id, memberCount: r.member_count, role: r.role, pinned: r.pinned, archived: r.archived, mutedUntil: r.muted_until,
-        unread: r.unread, lastReadId: r.last_read_id, createdAt: r.created_at,
+        unread: r.unread, lastReadId: r.last_read_id, createdAt: r.created_at, inCall: r.in_call,
         last: r.last_message_id ? { id: r.last_message_id, at: r.last_message_at, senderId: r.last_sender, kind: r.last_kind, deleted: r.last_deleted, body: r.last_deleted ? '' : String(r.last_body ?? '').slice(0, 140) } : null,
       })),
     };
@@ -120,13 +121,15 @@ export class ChatService {
     const [c] = await this.#rows(sql`select id, kind, title, description, meeting_at, legal_hold, created_by, invite_code, created_at from chat_conversations where id = ${conversationId}`);
     const members = await this.#rows(sql`select user_id, role, last_read_id, joined_at from chat_members where conversation_id = ${conversationId} and left_at is null order by joined_at, user_id`);
     const mine = members.find((m) => m.user_id === ctx.userId);
-    const people = await this.#people(members.map((m) => m.user_id));
+    const [call] = await this.#rows(sql`select id, video, started_by, created_at from chat_calls where conversation_id = ${conversationId} and ended_at is null`);
+    const people = await this.#people([...members.map((m) => m.user_id), call?.started_by]);
     const admin = mine.role === 'admin';
     return {
       people,
       conversation: {
         id: c.id, kind: c.kind, title: c.title, description: c.description, meetingAt: c.meeting_at, legalHold: c.legal_hold, createdBy: c.created_by,
         inviteCode: admin ? c.invite_code : null, createdAt: c.created_at, role: mine.role,
+        activeCall: call ? { id: call.id, video: call.video, startedBy: call.started_by, startedAt: call.created_at } : null,
         members: members.map((m) => ({ userId: m.user_id, role: m.role, lastReadId: m.last_read_id })),
       },
     };
@@ -178,12 +181,25 @@ export class ChatService {
     return this.get(ctx, conversationId);
   }
 
-  async #system(ctx, conversationId, body, targets) {
+  /** An event line in the conversation (group changes, calls). Never counts as unread. */
+  async event(ctx, conversationId, kind, body, targets = []) {
     const id = uuidv7();
-    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, mentions) values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'system', ${body}, ${JSON.stringify(targets)}::jsonb) returning *`);
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, mentions) values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, ${kind}, ${body}, ${JSON.stringify(targets)}::jsonb) returning *`);
     await this.#rows(sql`update chat_conversations set last_message_id = ${id}, last_message_at = ${row.created_at} where id = ${conversationId}`);
     await this.#announce(conversationId, { type: 'message.new', message: this.#message(row) });
   }
+
+  #system(ctx, conversationId, body, targets) { return this.event(ctx, conversationId, 'system', body, targets); }
+
+  /** Everyone currently in the conversation, except `exceptUserId` (who rings, who is told). */
+  async memberIds(conversationId, exceptUserId = null) {
+    const rows = await this.#rows(sql`select user_id from chat_members where conversation_id = ${conversationId} and left_at is null and user_id is distinct from ${exceptUserId}`);
+    return rows.map((r) => r.user_id);
+  }
+
+  announce(conversationId, event) { return this.#announce(conversationId, event); }
+  tell(userIds, event) { return this.#tell(userIds, event); }
+  people(ids) { return this.#people(ids); }
 
   // ---- membership --------------------------------------------------------------------------------------------------------------
 
