@@ -10,4 +10,5 @@ export * from './setup/adapters.js';
 export * from './objects.js';
 export * from './automation.js';
 export * from './uiSettings.js';
+export * from './palettes.js';
 export * from './color.js';

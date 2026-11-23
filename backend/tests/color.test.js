@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { UI_PRESETS, accentTokens, contrastRatio, customColorCss, hexToHsv, hsvToHex, navTokens, readableOn, resolveUiSettings, uiSettingsPatchSchema } from '@app/shared';
+import { PALETTES, UI_PRESETS, accentTokens, contrastRatio, customColorCss, hexToHsv, hsvToHex, navTokens, paletteTokens, readableOn, resolveUiSettings, uiSettingsPatchSchema } from '@app/shared';
 
 describe('custom colours', () => {
   it('round-trips hex ↔ HSV and keeps greys and primaries exact', () => {
@@ -45,5 +45,26 @@ describe('custom colours', () => {
       if (preset.ui.navHex) assert.ok(contrastRatio(preset.ui.navHex, navTokens(preset.ui.navHex)['--sidebar-ink']) >= 7, `${preset.id} navigation text`);
       if (preset.ui.accentHex) assert.ok(contrastRatio(accentTokens(preset.ui.accentHex).light['--accent'], accentTokens(preset.ui.accentHex).light['--accent-ink']) >= 3, `${preset.id} button text`);
     }
+  });
+
+  it('whole-app palettes are readable in light and dark and generate CSS for both', () => {
+    const real = PALETTES.filter((p) => p.light);
+    assert.ok(real.length >= 6);
+    for (const palette of real) {
+      for (const mode of ['light', 'dark']) {
+        const c = palette[mode];
+        assert.ok(contrastRatio(c.ink, c.surface) >= 7, `${palette.id} ${mode}: text on cards`);
+        assert.ok(contrastRatio(c.ink, c.inset) >= 7, `${palette.id} ${mode}: text on the page`);
+        assert.ok(contrastRatio(c.muted, c.surface) >= 4.5, `${palette.id} ${mode}: secondary text`);
+        assert.ok(contrastRatio(c.ink, c.sidebar) >= 7, `${palette.id} ${mode}: text on the navigation`);
+        assert.equal(Object.keys(paletteTokens(palette, mode).surfaces).length, 9);
+      }
+      const css = customColorCss({ palette: palette.id });
+      assert.match(css, new RegExp(`data-palette="${palette.id}"`));
+      assert.match(css, /data-theme="dark"\]\[data-palette/, 'has a dark rule');
+      assert.match(css, /data-accent="custom"/, "uses the palette's own accent");
+    }
+    assert.equal(customColorCss({ palette: 'default' }), '', 'the built-in palette adds nothing');
+    assert.equal(uiSettingsPatchSchema.safeParse({ palette: 'nonexistent' }).success, false);
   });
 });

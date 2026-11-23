@@ -2,6 +2,8 @@
  * Colour maths for the owner's custom colours (Customize › Colors). Pure functions only — the picker UI, the CSS the app injects and the
  * unit tests all share them. From ONE chosen colour we derive every token a theme needs, in light and dark, with readable text on top.
  */
+import { PALETTES } from './palettes.js';
+
 export const HEX_RE = /^#[0-9a-f]{6}$/i;
 
 const clamp = (n, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, n));
@@ -65,14 +67,38 @@ export function navTokens(hex) {
   };
 }
 
+/** Every surface and navigation token for one mode of a palette (navigation derives from the same eight colours). */
+export function paletteTokens(palette, mode) {
+  const c = palette?.[mode];
+  if (!c) return null;
+  return {
+    surfaces: {
+      '--bg': c.bg, '--inset': c.inset, '--surface': c.surface, '--surface-2': c.surface2, '--line': c.line, '--line-strong': c.lineStrong,
+      '--ink': c.ink, '--muted': c.muted, '--placeholder': c.placeholder,
+    },
+    nav: {
+      '--sidebar': c.sidebar, '--sidebar-ink': c.ink, '--sidebar-muted': c.muted, '--sidebar-line': c.line, '--sidebar-accent': mix(c.sidebar, c.ink, 0.07),
+      '--rail': mix(c.sidebar, c.ink, 0.05), '--chrome': c.bg,
+    },
+  };
+}
+
 const rule = (selector, tokens) => `${selector}{${Object.entries(tokens).map(([k, v]) => `${k}:${v}`).join(';')}}`;
 
 /** The CSS for whichever custom colours are set. Selectors outrank the tenant-theme blocks; the app injects this in one <style>. */
-export function customColorCss({ accentHex, navHex } = {}) {
+export function customColorCss({ palette: paletteId, accentHex, navHex } = {}) {
   const out = [];
-  if (accentHex && HEX_RE.test(accentHex)) {
-    const { light, dark } = accentTokens(accentHex);
-    out.push(rule('html:root[data-accent="custom"]', light), rule('html:root[data-theme="dark"][data-accent="custom"]', dark));
+  const palette = PALETTES.find((p) => p.id === paletteId && p.light);
+  if (palette) {
+    for (const [mode, prefix] of [['light', 'html:root'], ['dark', 'html:root[data-theme="dark"]']]) {
+      const t = paletteTokens(palette, mode);
+      out.push(rule(`${prefix}[data-palette="${palette.id}"]`, t.surfaces), rule(`${prefix}[data-palette="${palette.id}"]:not([data-nav-color])`, t.nav));
+    }
+  }
+  const own = accentHex && HEX_RE.test(accentHex) ? accentHex : null; // the owner's colour wins over the palette's
+  const accent = own ?? palette?.accent;
+  if (accent) {
+    out.push(rule('html:root[data-accent="custom"]', accentTokens(accent).light), rule('html:root[data-theme="dark"][data-accent="custom"]', accentTokens(own ?? palette.accentDark ?? accent).dark));
   }
   if (navHex && HEX_RE.test(navHex)) out.push(rule('html:root[data-nav-color="custom"]', navTokens(navHex)));
   return out.join('\n');

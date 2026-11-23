@@ -54,7 +54,7 @@ export function CustomizeSheet() {
   };
 
   const preview = (key) => (hex) => applyCustomColors({ ...ui, [key]: hex }); // live while dragging; saved on release
-  const groups = Map.groupBy(UI_OPTIONS, (o) => o.group);
+  const groups = Map.groupBy(UI_OPTIONS.filter((o) => !o.hidden), (o) => o.group); // hidden options (the palette) are set from Theme presets
   const control = (option) => (
     <div key={option.key} className="space-y-1.5">
       <p className="text-sm font-medium text-ink">{option.label}</p>

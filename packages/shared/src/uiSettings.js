@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HEX_RE } from './color.js';
+import { PALETTES } from './palettes.js';
 
 /**
  * Workspace UI customization — the single registry behind the owner's "Customize" sheet, the API validation and the
@@ -29,6 +30,11 @@ export const UI_OPTIONS = Object.freeze([
     ],
   },
   {
+    key: 'palette', group: 'Colors', label: 'Colour palette', type: 'choice', default: 'default', hidden: true,
+    description: 'A whole-UI palette (page, cards, borders, text; light and dark). Chosen from Theme presets.',
+    options: PALETTES.map(({ id, label }) => ({ value: id, label })),
+  },
+  {
     key: 'navHex', group: 'Colors', label: 'Custom navigation colour', type: 'color', default: null,
     description: 'Any colour for the sidebar or top bar. Overrides the presets above; text and icons adapt automatically.',
   },
@@ -40,17 +46,22 @@ export const UI_OPTIONS = Object.freeze([
 
 /**
  * Complete colour looks the owner can apply in one click (Customize › Theme presets). Each is a patch of colour options only — layout and
- * style stay as chosen. `navHex`/`accentHex` null = the built-in light navigation / the workspace's accent theme.
+ * style stay as chosen. Brand presets recolour navigation + accent; `kind: 'palette'` presets restyle the whole UI (see palettes.js).
+ * `navHex`/`accentHex` null = the built-in light navigation / the workspace's accent theme (or the palette's own accent).
  */
 export const UI_PRESETS = Object.freeze([
-  { id: 'untitled', label: 'Untitled', description: 'Light navigation, purple accent.', ui: { navColor: 'default', navHex: null, accentHex: null } },
-  { id: 'indigo', label: 'Indigo', description: 'Light navigation, indigo accent.', ui: { navColor: 'default', navHex: null, accentHex: '#444ce7' } },
-  { id: 'midnight', label: 'Midnight', description: 'Deep navy navigation, soft blue accent.', ui: { navColor: 'default', navHex: '#00072d', accentHex: '#6b9bff' } },
-  { id: 'ocean', label: 'Ocean', description: 'Dark teal-blue navigation, sky accent.', ui: { navColor: 'default', navHex: '#0b4a6f', accentHex: '#0ba5ec' } },
-  { id: 'forest', label: 'Forest', description: 'Deep green navigation, fresh green accent.', ui: { navColor: 'default', navHex: '#0b3d2e', accentHex: '#12b76a' } },
-  { id: 'sunset', label: 'Sunset', description: 'Warm brown navigation, orange accent.', ui: { navColor: 'default', navHex: '#7a2e0e', accentHex: '#ef6820' } },
-  { id: 'rose', label: 'Rose', description: 'Dark plum navigation, rose accent.', ui: { navColor: 'default', navHex: '#4a1022', accentHex: '#f63d68' } },
-  { id: 'graphite', label: 'Graphite', description: 'Charcoal navigation, charcoal accent.', ui: { navColor: 'default', navHex: '#1d2939', accentHex: '#344054' } },
+  { id: 'untitled', label: 'Untitled', description: 'The built-in look: light navigation, purple accent.', ui: { palette: 'default', navColor: 'default', navHex: null, accentHex: null } },
+  { id: 'indigo', label: 'Indigo', description: 'Light navigation, indigo accent.', ui: { palette: 'default', navColor: 'default', navHex: null, accentHex: '#444ce7' } },
+  { id: 'midnight', label: 'Midnight', description: 'Deep navy navigation, soft blue accent.', ui: { palette: 'default', navColor: 'default', navHex: '#00072d', accentHex: '#6b9bff' } },
+  { id: 'ocean', label: 'Ocean', description: 'Dark teal-blue navigation, sky accent.', ui: { palette: 'default', navColor: 'default', navHex: '#0b4a6f', accentHex: '#0ba5ec' } },
+  { id: 'forest', label: 'Forest', description: 'Deep green navigation, fresh green accent.', ui: { palette: 'default', navColor: 'default', navHex: '#0b3d2e', accentHex: '#12b76a' } },
+  { id: 'sunset', label: 'Sunset', description: 'Warm brown navigation, orange accent.', ui: { palette: 'default', navColor: 'default', navHex: '#7a2e0e', accentHex: '#ef6820' } },
+  { id: 'rose', label: 'Rose', description: 'Dark plum navigation, rose accent.', ui: { palette: 'default', navColor: 'default', navHex: '#4a1022', accentHex: '#f63d68' } },
+  { id: 'graphite', label: 'Graphite', description: 'Charcoal navigation, charcoal accent.', ui: { palette: 'default', navColor: 'default', navHex: '#1d2939', accentHex: '#344054' } },
+  { id: 'slack', label: 'Slack', description: 'Aubergine navigation, blue accent.', ui: { palette: 'default', navColor: 'default', navHex: '#3f0e40', accentHex: '#1264a3' } },
+  ...PALETTES.filter((p) => p.light).map((p) => ({
+    id: p.id, label: p.label, kind: 'palette', description: `${p.label}-inspired surfaces, borders, text and accent — light and dark.`, ui: { palette: p.id, navColor: 'default', navHex: null, accentHex: null },
+  })),
 ]);
 
 export const UI_DEFAULTS = Object.freeze(Object.fromEntries(UI_OPTIONS.map((o) => [o.key, o.default])));
