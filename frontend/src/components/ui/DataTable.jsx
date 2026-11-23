@@ -15,9 +15,9 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="h-9 bg-surface-2 text-left text-xs font-medium text-muted">
-              {selection && <th scope="col" className="w-10 px-3"><Checkbox aria-label="Select all" checked={allSelected} onChange={(e) => selection.onToggleAll(e.target.checked)} /></th>}
-              {columns.map((c) => <th key={c.key} scope="col" className={cn('whitespace-nowrap px-3 font-medium', ALIGN[c.align])}>{c.label}</th>)}
+            <tr className="h-11 border-b border-line bg-surface text-left text-xs font-semibold text-muted">
+              {selection && <th scope="col" className="w-10 pl-4 pr-0"><Checkbox aria-label="Select all" checked={allSelected} onChange={(e) => selection.onToggleAll(e.target.checked)} /></th>}
+              {columns.map((c) => <th key={c.key} scope="col" className={cn('whitespace-nowrap px-4 font-semibold', ALIGN[c.align])}>{c.label}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -25,10 +25,10 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
               <tr
                 key={row[rowKey]}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn('h-10 border-t border-line', onRowClick && 'cursor-pointer hover:bg-surface-2/60')}
+                className={cn('h-12 odd:bg-surface-2/70', onRowClick && 'cursor-pointer hover:bg-surface-2')}
               >
-                {selection && <td className="w-10 px-3" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
-                {columns.map((c) => <td key={c.key} className={cn('px-3 py-1.5 text-ink', c.wrap ? 'whitespace-normal break-words' : 'max-w-[28rem] truncate', ALIGN[c.align], c.className)}>{c.render ? c.render(row) : row[c.key]}</td>)}
+                {selection && <td className="w-10 pl-4 pr-0" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
+                {columns.map((c) => <td key={c.key} className={cn('px-4 py-2 text-ink', c.wrap ? 'whitespace-normal break-words' : 'max-w-[28rem] truncate', ALIGN[c.align], c.className)}>{c.render ? c.render(row) : row[c.key]}</td>)}
               </tr>
             ))}
             {!rows.length && !loading && (
