@@ -12,11 +12,12 @@ import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { ChatAvatar } from './ChatAvatar.jsx';
 import { NewChatDialog } from './NewChatDialog.jsx';
+import { StarredMessages } from './StarredMessages.jsx';
 import { conversationTitle, formatInboxTime, nameOf, previewText } from './chatFormat.js';
 import { useInbox, usePeople } from './chatQueries.js';
 import { usePresence } from './usePresence.js';
 
-const TABS = [{ id: 'all', label: 'All' }, { id: 'unread', label: 'Unread' }, { id: 'groups', label: 'Groups' }];
+const TABS = [{ id: 'all', label: 'All' }, { id: 'unread', label: 'Unread' }, { id: 'groups', label: 'Groups' }, { id: 'starred', label: 'Starred' }];
 
 function Row({ conversation, people, selected, online, myId, onOpen }) {
   const title = conversationTitle(conversation, people);
@@ -37,6 +38,7 @@ function Row({ conversation, people, selected, online, myId, onOpen }) {
             <span className={cn('min-w-0 flex-1 truncate text-sm', conversation.unread ? 'text-ink' : 'text-muted')}>{previewText(conversation, people, myId)}</span>
             {conversation.pinned && <Icon name="pin" className="size-3.5 shrink-0 text-muted" aria-label="Pinned" />}
             {muted && <Icon name="bell-off" className="size-3.5 shrink-0 text-muted" aria-label="Muted" />}
+            {conversation.mentioned && <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-accent-ink" aria-label="You were mentioned">@</span>}
             {conversation.unread > 0 && <span className={cn('grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-xs font-semibold', muted ? 'bg-line-strong text-ink' : 'bg-accent text-accent-ink')} aria-label={`${conversation.unread} unread`}>{conversation.unread > 99 ? '99+' : conversation.unread}</span>}
           </span>
         </span>
@@ -84,10 +86,10 @@ export function ConversationList({ activeId, onOpen }) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {inbox.isPending && <div className="flex justify-center py-10"><Spinner /></div>}
         {inbox.isError && <p className="p-4 text-sm text-danger">{inbox.error.message}</p>}
-        <ul aria-label="Conversations">
+        {tab === 'starred' ? <StarredMessages onOpen={onOpen} /> : <ul aria-label="Conversations">
           {visible.map((c) => <Row key={c.id} conversation={c} people={people} selected={c.id === activeId} online={c.kind === 'dm' && online.includes(c.peerId)} myId={user.id} onOpen={onOpen} />)}
-        </ul>
-        {inbox.isSuccess && visible.length === 0 && !q && (
+        </ul>}
+        {tab !== 'starred' && inbox.isSuccess && visible.length === 0 && !q && (
           <div className="px-6 py-12 text-center">
             <div className="mx-auto mb-3 grid size-12 place-items-center rounded-full border border-line bg-surface-2"><Icon name="chat" className="size-6 text-muted" /></div>
             <p className="text-sm font-semibold text-ink">{tab === 'unread' ? 'You are all caught up' : 'No conversations yet'}</p>

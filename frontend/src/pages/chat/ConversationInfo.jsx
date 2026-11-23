@@ -1,4 +1,4 @@
-import { formatBytes, patchConversationSchema } from '@app/shared';
+import { DISAPPEAR_OPTIONS, formatBytes, patchConversationSchema } from '@app/shared';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,8 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/DropdownMenu.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { PeoplePicker } from '../../components/ui/PeoplePicker.jsx';
+import { PhotoUpload } from '../../components/ui/PhotoUpload.jsx';
+import { Select } from '../../components/ui/Select.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Switch } from '../../components/ui/Switch.jsx';
 import { Tabs } from '../../components/ui/Tabs.jsx';
@@ -142,7 +144,8 @@ export function ConversationInfo({ conversationId, onClose }) {
         {conversation && (
           <>
             <div className="flex flex-col items-center gap-1 px-4 py-6 text-center">
-              {group ? <ChatAvatar conversation={{ ...conversation, peerId }} people={people} size="size-28" /> : <Avatar name={title} src={peer?.avatar} size="size-28" className="text-3xl" />}
+              {group && admin ? <PhotoUpload name={title} src={conversation.icon} onUpload={async (file) => { await chatApi.uploadIcon(conversationId, file); await refresh(); }} onRemove={async () => { await chatApi.removeIcon(conversationId); await refresh(); }} />
+                : group ? <ChatAvatar conversation={{ ...conversation, peerId }} people={people} size="size-28" /> : <Avatar name={title} src={peer?.avatar} size="size-28" className="text-3xl" />}
               <h3 className="mt-3 max-w-full truncate text-lg font-semibold text-ink">{title}</h3>
               {group ? <p className="text-sm text-muted">Group · {conversation.members.length} members</p> : (
                 <>
@@ -172,6 +175,11 @@ export function ConversationInfo({ conversationId, onClose }) {
                       <DropdownMenuContent align="end">{MUTE_OPTIONS.map((o) => <DropdownMenuItem key={o.label} onSelect={() => setState({ mutedUntil: new Date(Date.now() + o.hours * 3_600_000).toISOString() })}>{o.label}</DropdownMenuItem>)}</DropdownMenuContent>
                     </DropdownMenu>
                   )}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-ink">Disappearing messages</p>
+                  <Select aria-label="Disappearing messages" disabled={group && !admin} options={DISAPPEAR_OPTIONS.map((o) => ({ value: String(o.seconds), label: o.label }))} value={String(conversation.disappearAfter ?? 0)} onChange={(v) => run(() => chatApi.setDisappearing(conversationId, Number(v)))()} />
+                  <p className="text-xs text-muted">New messages {conversation.disappearAfter ? 'in this chat disappear after the chosen time (files too).' : 'stay until someone deletes them.'}{group && !admin ? ' Only admins can change this.' : ''}</p>
                 </div>
                 <Switch label="Pin chat" checked={Boolean(item?.pinned)} onChange={(e) => setState({ pinned: e.target.checked })} />
                 <Switch label="Archive chat" description="Hidden from your list until someone writes again." checked={Boolean(item?.archived)} onChange={(e) => setState({ archived: e.target.checked })} />

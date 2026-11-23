@@ -17,11 +17,22 @@ export function ImageThumb({ file, className, onClick }) {
   );
 }
 
-/** What a message carries: pictures as a grid, everything else as file cards. Clicking opens the preview. */
+/** A voice note or audio file: plays in place through the same short-lived link. */
+export function AudioAttachment({ file, mine }) {
+  const { data } = useQuery({ queryKey: ['drive', 'link', file.id], queryFn: () => driveApi.link(file.id), staleTime: 4 * 60_000 });
+  return (
+    <div className={cn('flex min-w-56 items-center gap-2 rounded-lg border px-2 py-1.5', mine ? 'border-accent-ink/30 bg-black/10' : 'border-line bg-surface')}>
+      <audio controls preload="metadata" src={data?.url} aria-label={file.name} className="h-9 w-full min-w-0" />
+    </div>
+  );
+}
+
+/** What a message carries: pictures as a grid, audio as a player, everything else as file cards. Clicking opens the preview. */
 export function MessageAttachments({ attachments, mine, onOpen }) {
   const files = attachments.map(asDriveFile);
   const images = files.filter((f) => f.kind === 'image');
-  const others = files.filter((f) => f.kind !== 'image');
+  const audio = files.filter((f) => f.kind === 'audio');
+  const others = files.filter((f) => f.kind !== 'image' && f.kind !== 'audio');
   return (
     <div className="mb-1.5 space-y-1.5">
       {images.length > 0 && (
@@ -29,6 +40,7 @@ export function MessageAttachments({ attachments, mine, onOpen }) {
           {images.map((f) => <ImageThumb key={f.id} file={f} onClick={() => onOpen(f)} className={images.length === 1 ? 'aspect-[4/3] w-64 max-w-full' : 'aspect-square'} />)}
         </div>
       )}
+      {audio.map((f) => <AudioAttachment key={f.id} file={f} mine={mine} />)}
       {others.map((f) => (
         <button key={f.id} type="button" onClick={() => onOpen(f)} className={cn('flex w-full min-w-48 items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring', mine ? 'border-accent-ink/30 bg-black/10' : 'border-line bg-surface')}>
           <FileTypeIcon item={f} className="size-8" />

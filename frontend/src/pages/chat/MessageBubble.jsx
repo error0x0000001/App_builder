@@ -6,16 +6,10 @@ import { EmojiPicker } from '../../components/ui/EmojiPicker.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { cn } from '../../lib/cn.js';
 import { MessageAttachments } from './Attachments.jsx';
+import { LinkPreviewCard } from './LinkPreviewCard.jsx';
+import { PollCard } from './PollCard.jsx';
+import { RichText, firstUrl } from './RichText.jsx';
 import { formatTime, nameOf } from './chatFormat.js';
-
-const URL_PATTERN = /(https?:\/\/[^\s<>]+[^\s<>.,;:!?)\]'"])/g;
-
-/** Text with clickable links (never HTML: the body is rendered as text nodes). */
-function Linkified({ text }) {
-  return text.split(URL_PATTERN).map((part, i) => (i % 2 === 1
-    ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline decoration-current/50 underline-offset-2 hover:decoration-current">{part}</a>
-    : part));
-}
 
 const ActionButton = ({ label, icon, onClick, buttonRef }) => (
   <button ref={buttonRef} type="button" aria-label={label} title={label} onClick={onClick} className="grid size-7 place-items-center rounded-md text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring">
@@ -28,11 +22,13 @@ const Ticks = ({ read, pending, failed }) => (failed
   ? <span className="text-danger">Not sent</span>
   : <span aria-label={pending ? 'Sending' : read ? 'Read' : 'Sent'} className={cn('inline-flex', read ? 'text-accent-ink' : 'opacity-70')}>{pending ? '…' : read ? '✓✓' : '✓'}</span>);
 
-function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRun, peerRead, flipMenu, onReply, onReact, onEdit, onDelete, onForward, onPin, onRetry, onJumpTo, onOpenAttachment, canDeleteOthers }) {
+function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRun, peerRead, flipMenu, onReply, onReact, onEdit, onDelete, onForward, onPin, onRetry, onJumpTo, onOpenAttachment, onStar, onInfo, onHide, canDeleteOthers, myId, conversationId }) {
   const [picker, setPicker] = useState(false);
   const pickerButton = useRef(null);
   const deleted = Boolean(message.deletedAt);
   const sender = nameOf(people, message.senderId);
+  const isPoll = message.kind === 'poll';
+  const link = !deleted && message.body ? firstUrl(message.body) : null;
 
   return (
     <div className={cn('group/msg flex items-end gap-2', mine && 'flex-row-reverse', firstOfRun ? 'mt-3' : 'mt-0.5')}>
@@ -51,8 +47,11 @@ function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRu
               </button>
             )}
             {!deleted && message.attachments?.length > 0 && <MessageAttachments attachments={message.attachments} mine={mine} onOpen={onOpenAttachment} />}
-            {deleted ? 'This message was deleted' : message.body && <p className="whitespace-pre-wrap"><Linkified text={message.body} /></p>}
+            {deleted ? 'This message was deleted' : isPoll ? <PollCard message={message} mine={mine} conversationId={conversationId} /> : message.body && <p className="whitespace-pre-wrap"><RichText text={message.body} mentions={message.mentions} people={people} myId={myId} mine={mine} /></p>}
+            {!deleted && !isPoll && link && <LinkPreviewCard url={link} mine={mine} />}
             <span className={cn('mt-0.5 flex items-center justify-end gap-1.5 text-[11px] leading-4', mine ? 'text-accent-ink/80' : 'text-muted')}>
+              {message.starred && <Icon name="star" className="size-3 fill-current" aria-label="Starred" />}
+              {message.expiresAt && !deleted && <Icon name="timer" className="size-3" aria-label="Disappearing message" />}
               {message.editedAt && !deleted && <span>edited</span>}
               <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
               {mine && !deleted && !group && <Ticks read={peerRead} pending={message.pending} failed={message.failed} />}
@@ -67,11 +66,14 @@ function MessageBubbleImpl({ message, mine, people, group, showSender, firstOfRu
               <DropdownMenu>
                 <DropdownMenuTrigger>{(props) => <button {...props} type="button" aria-label="More actions" className="grid size-7 place-items-center rounded-md text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring data-[open=true]:opacity-100"><Icon name="more-horizontal" className="size-4" /></button>}</DropdownMenuTrigger>
                 <DropdownMenuContent side={flipMenu ? 'top' : 'bottom'} align={mine ? 'end' : 'start'} className="min-w-44">
-                  <DropdownMenuItem icon="copy" onSelect={() => navigator.clipboard?.writeText(message.body)}>Copy text</DropdownMenuItem>
-                  <DropdownMenuItem icon="forward" onSelect={() => onForward(message)}>Forward</DropdownMenuItem>
-                  <DropdownMenuItem icon="pin" onSelect={() => onPin(message)}>Pin / unpin</DropdownMenuItem>
-                  {(mine || canDeleteOthers) && <DropdownMenuSeparator />}
-                  {mine && <DropdownMenuItem icon="edit" onSelect={() => onEdit(message)}>Edit</DropdownMenuItem>}
+                  {!isPoll && <DropdownMenuItem icon="copy" onSelect={() => navigator.clipboard?.writeText(message.body)}>Copy text</DropdownMenuItem>}
+                  {!isPoll && <DropdownMenuItem icon="forward" onSelect={() => onForward(message)}>Forward</DropdownMenuItem>}
+                  <DropdownMenuItem icon="star" onSelect={() => onStar(message)}>{message.starred ? 'Unstar' : 'Star'}</DropdownMenuItem>
+                  {!isPoll && <DropdownMenuItem icon="pin" onSelect={() => onPin(message)}>Pin / unpin</DropdownMenuItem>}
+                  {mine && <DropdownMenuItem icon="eye" onSelect={() => onInfo(message)}>Message info</DropdownMenuItem>}
+                  <DropdownMenuSeparator />
+                  {mine && !isPoll && <DropdownMenuItem icon="edit" onSelect={() => onEdit(message)}>Edit</DropdownMenuItem>}
+                  <DropdownMenuItem icon="trash" onSelect={() => onHide(message)}>Delete for me</DropdownMenuItem>
                   {(mine || canDeleteOthers) && <DropdownMenuItem icon="trash" onSelect={() => onDelete(message)} className="text-danger">Delete for everyone</DropdownMenuItem>}
                 </DropdownMenuContent>
               </DropdownMenu>

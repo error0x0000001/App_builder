@@ -41,10 +41,10 @@ const BY_EXT = Object.fromEntries(Object.entries(EXT).flatMap(([kind, list]) => 
 /** image | pdf | document | spreadsheet | presentation | video | audio | archive | code | text | file */
 export function fileKindOf(name = '', mime = '') {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  if (mime.startsWith('audio/')) return 'audio'; // a recording named .webm/.mp4 is audio when its type says so
   if (BY_EXT[ext]) return BY_EXT[ext];
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
-  if (mime.startsWith('audio/')) return 'audio';
   if (mime === 'application/pdf') return 'pdf';
   if (mime.startsWith('text/')) return 'text';
   return 'file';
@@ -52,7 +52,7 @@ export function fileKindOf(name = '', mime = '') {
 export const FILE_KIND_LABELS = Object.freeze({ image: 'Image', pdf: 'PDF', document: 'Document', spreadsheet: 'Spreadsheet', presentation: 'Presentation', video: 'Video', audio: 'Audio', archive: 'Archive', code: 'Code', text: 'Text', file: 'File' });
 
 /** Types the browser may render inline (never HTML/SVG/JS: those are always downloaded). */
-export const INLINE_SAFE = Object.freeze(new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp', 'application/pdf', 'text/plain', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4']));
+export const INLINE_SAFE = Object.freeze(new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp', 'application/pdf', 'text/plain', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/webm']));
 
 export const formatBytes = (n) => {
   if (!Number.isFinite(n)) return '';

@@ -17,6 +17,8 @@ import { messagesQueryOptions, useConversation, useInbox, usePeople } from './ch
 import { useChatRealtime } from './ChatRealtime.jsx';
 import { Composer } from './Composer.jsx';
 import { PreviewDialog } from '../documents/PreviewDialog.jsx';
+import { MessageInfoDialog } from './MessageInfoDialog.jsx';
+import { PollDialog } from './PollDialog.jsx';
 import { asDriveFile } from './Attachments.jsx';
 import { ForwardDialog } from './ForwardDialog.jsx';
 import { MessageBubble } from './MessageBubble.jsx';
@@ -43,6 +45,8 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
   const [forwarding, setForwarding] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [infoFor, setInfoFor] = useState(null);
+  const [pollOpen, setPollOpen] = useState(false);
   const composer = useRef(null);
   const [unseen, setUnseen] = useState(0);
   const [actionError, setActionError] = useState(null);
@@ -87,7 +91,7 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
     if (!last || last.pending || last.failed || document.visibilityState !== 'visible') return;
     if (lastMarked.current === last.id || last.id <= (item?.lastReadId ?? '')) return;
     lastMarked.current = last.id;
-    patchInboxItem(qc, id, { unread: 0, lastReadId: last.id });
+    patchInboxItem(qc, id, { unread: 0, mentioned: false, lastReadId: last.id });
     chatApi.markRead(id, last.id).then(() => qc.invalidateQueries({ queryKey: KEYS.unread })).catch(() => { lastMarked.current = null; });
   }, [messages, item?.lastReadId, id, qc]);
   useEffect(() => {
@@ -98,22 +102,24 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
 
   // -- actions
   const fail = (error) => setActionError(error.message ?? 'Something went wrong');
-  const send = useCallback(async ({ body, replyTo: replyId, attachments = [] }) => {
+  const send = useCallback(async ({ body, replyTo: replyId, attachments = [], mentions = [] }) => {
     const messageId = uuidv7();
     const replied = replyId ? messages.find((m) => m.id === replyId) : null;
     upsertMessage(qc, {
-      id: messageId, conversationId: id, senderId: myId, kind: 'text', body, replyTo: replyId ?? null, forwarded: false, attachments, mentions: [], editedAt: null, deletedAt: null,
+      id: messageId, conversationId: id, senderId: myId, kind: 'text', body, replyTo: replyId ?? null, forwarded: false, attachments, mentions, editedAt: null, deletedAt: null,
       createdAt: new Date().toISOString(), reactions: [], pending: true,
       ...(replied ? { replyPreview: { id: replied.id, senderId: replied.senderId, body: replied.body.slice(0, 140), deleted: false } } : {}),
     });
     setReplyTo(null); stick.current = true;
-    try { upsertMessage(qc, (await chatApi.send(id, { id: messageId, body, replyTo: replyId, attachments: attachments.map((a) => a.id) })).message); }
+    try { upsertMessage(qc, (await chatApi.send(id, { id: messageId, body, replyTo: replyId, attachments: attachments.map((a) => a.id), mentions })).message); }
     catch { patchMessage(qc, id, messageId, { pending: false, failed: true }); }
   }, [qc, id, myId, messages]);
-  const retry = (message) => { dropMessage(qc, id, message.id); send({ body: message.body, replyTo: message.replyTo, attachments: message.attachments }); };
+  const retry = (message) => { dropMessage(qc, id, message.id); send({ body: message.body, replyTo: message.replyTo, attachments: message.attachments, mentions: message.mentions }); };
   const saveEdit = async (message, body) => { setEditing(null); if (body !== message.body) await chatApi.edit(id, message.id, body).catch(fail); };
   const react = (message, emoji) => chatApi.react(id, message.id, emoji).catch(fail);
   const pin = (message) => chatApi.pin(id, message.id).catch(fail);
+  const star = async (message) => { try { await chatApi.star(id, message.id, !message.starred); patchMessage(qc, id, message.id, { starred: !message.starred }); } catch (e) { fail(e); } };
+  const hide = async (message) => { try { await chatApi.hideForMe(id, message.id); dropMessage(qc, id, message.id); qc.invalidateQueries({ queryKey: KEYS.inbox }); } catch (e) { fail(e); } };
   const jumpTo = (messageId) => document.getElementById(`msg-${messageId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   const canDeleteOthers = conversation?.kind === 'group' && conversation.role === 'admin';
 
@@ -123,7 +129,7 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
   let unreadMarked = false;
   const subtitle = typers.length ? `${typers.map((u) => nameOf(people, u).split(' ')[0]).join(', ')} typing…`
     : conversation?.kind === 'dm' ? (online.includes(peerId) ? 'Online' : 'Offline')
-      : conversation ? `${conversation.members.length} members${conversation.meetingAt ? ' · Meeting' : ''}` : '';
+      : conversation ? `${conversation.members.length} members${conversation.meetingAt ? ' · Meeting' : ''}${conversation.disappearAfter ? ' · Disappearing messages' : ''}` : '';
 
   return (
     <DropZone onFiles={(files) => composer.current?.addFiles(files)} label="Drop files to send" className="h-full min-h-0">
@@ -176,7 +182,7 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
                     <MessageBubble
                       message={m} mine={m.senderId === myId} people={people} group={conversation?.kind === 'group'} showSender={conversation?.kind === 'group'} firstOfRun={firstOfRun}
                       peerRead={Boolean(peerReadId) && peerReadId >= m.id} flipMenu={i >= messages.length - 3} canDeleteOthers={canDeleteOthers}
-                      onReply={setReplyTo} onReact={react} onEdit={(msg) => { setReplyTo(null); setEditing(msg); }} onDelete={setDeleting} onForward={setForwarding} onPin={pin} onRetry={retry} onJumpTo={jumpTo} onOpenAttachment={setPreview}
+                      onReply={setReplyTo} onReact={react} onEdit={(msg) => { setReplyTo(null); setEditing(msg); }} onDelete={setDeleting} onForward={setForwarding} onPin={pin} onRetry={retry} onJumpTo={jumpTo} onOpenAttachment={setPreview} onStar={star} onHide={hide} onInfo={(msg) => setInfoFor({ id: msg.id, conversationId: id })} myId={myId} conversationId={id}
                     />
                   )}
               </div>
@@ -188,7 +194,7 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
 
       {actionError && <div className="px-3 pb-2"><Alert tone="error">{actionError} <button type="button" onClick={() => setActionError(null)} className="ml-2 font-semibold underline">Dismiss</button></Alert></div>}
       <Composer
-        ref={composer} conversationId={id} replyTo={replyTo} editing={editing} people={people} myId={myId} disabled={!conversation && detail.isPending}
+        ref={composer} conversationId={id} onPoll={() => setPollOpen(true)} members={conversation?.kind === 'group' ? conversation.members.filter((m) => m.userId !== myId).map((m) => ({ id: m.userId, name: people[m.userId]?.name })) : []} replyTo={replyTo} editing={editing} people={people} myId={myId} disabled={!conversation && detail.isPending}
         onSend={send} onSaveEdit={saveEdit} onCancel={() => { setReplyTo(null); setEditing(null); }} onTyping={() => sendTyping(id)}
       />
 
@@ -197,6 +203,8 @@ export function Thread({ id, onBack, onInfo, embedded = false }) {
         onConfirm={async () => { await chatApi.remove(id, deleting.id).catch(fail); }}
       />
       <ForwardDialog message={forwarding} fromConversationId={id} onClose={() => setForwarding(null)} />
+      <PollDialog conversationId={id} open={pollOpen} onClose={() => setPollOpen(false)} />
+      <MessageInfoDialog target={infoFor} onClose={() => setInfoFor(null)} />
       <PreviewDialog file={preview} files={allFiles} onClose={() => setPreview(null)} onNavigate={setPreview} onDownload={(f) => download(`/drive/files/${f.id}/download`, f.name)} />
     </section>
     </DropZone>

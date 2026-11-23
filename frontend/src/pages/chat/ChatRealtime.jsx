@@ -42,23 +42,28 @@ export function ChatRealtimeProvider({ children }) {
           if (!old) return old;
           if (!old.conversations.some((c) => c.id === event.conversationId)) return old; // unknown conversation: refetched below
           const next = old.conversations.map((c) => (c.id === event.conversationId
-            ? { ...c, last: { id: event.message.id, at: event.message.createdAt, senderId: event.message.senderId, kind: event.message.kind, deleted: false, body: event.message.body.slice(0, 140) }, unread: mine || visible || event.message.kind !== 'text' ? c.unread : Math.min(100, c.unread + 1) }
+            ? { ...c, last: { id: event.message.id, at: event.message.createdAt, senderId: event.message.senderId, kind: event.message.kind, deleted: false, body: event.message.body.slice(0, 140) }, unread: mine || visible || !['text', 'poll'].includes(event.message.kind) ? c.unread : Math.min(100, c.unread + 1), mentioned: c.mentioned || (!mine && !visible && Boolean(event.message.mentions?.includes(myId))) }
             : c));
           return { ...old, conversations: sortInbox(next) };
         });
         if (!qc.getQueryData(KEYS.inbox)?.conversations.some((c) => c.id === event.conversationId)) qc.invalidateQueries({ queryKey: KEYS.inbox });
-        if (!mine && event.message.kind === 'text') qc.invalidateQueries({ queryKey: KEYS.unread });
+        if (!mine && ['text', 'poll'].includes(event.message.kind)) qc.invalidateQueries({ queryKey: KEYS.unread });
         setTyping((t) => { const { [event.message.senderId]: _gone, ...rest } = t[event.conversationId] ?? {}; return { ...t, [event.conversationId]: rest }; });
         break;
       }
-      case 'message.updated':
-        patchMessage(qc, event.conversationId, event.message.id, event.message);
+      case 'message.updated': {
+        const { starred: _theirs, poll: _poll, ...shared } = event.message; // per-person fields (stars, my votes) are not the sender's to set
+        patchMessage(qc, event.conversationId, event.message.id, shared);
         qc.invalidateQueries({ queryKey: KEYS.inbox });
+        break;
+      }
+      case 'poll.updated':
+        patchMessage(qc, event.conversationId, event.messageId, (m) => (m.poll ? { poll: { ...m.poll, voters: event.voters, options: m.poll.options.map((o, i) => ({ ...o, votes: event.counts[i] ?? o.votes })) } } : {}));
         break;
       case 'reaction': applyReaction(qc, event, myId); break;
       case 'read':
         qc.invalidateQueries({ queryKey: KEYS.conversation(event.conversationId) });
-        if (event.userId === myId) { patchInboxItem(qc, event.conversationId, { unread: 0, lastReadId: event.lastReadId }); qc.invalidateQueries({ queryKey: KEYS.unread }); }
+        if (event.userId === myId) { patchInboxItem(qc, event.conversationId, { unread: 0, mentioned: false, lastReadId: event.lastReadId }); qc.invalidateQueries({ queryKey: KEYS.unread }); }
         break;
       case 'typing':
         setTyping((t) => ({ ...t, [event.conversationId]: { ...t[event.conversationId], [event.userId]: Date.now() + TYPING_MS } }));

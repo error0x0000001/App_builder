@@ -15,6 +15,7 @@ export function ChatAvatar({ conversation, people, online = false, size = 'size-
       </span>
     );
   }
+  if (conversation.icon) return <Avatar name={title} src={conversation.icon} size={size} />;
   const hue = hueOf(title);
   return (
     <span className={cn(size, 'grid shrink-0 place-items-center rounded-full text-white')} style={{ backgroundColor: `hsl(${hue} 55% 45%)` }} aria-hidden="true">

@@ -1,3 +1,5 @@
+import { DISAPPEAR_OPTIONS } from '@app/shared';
+
 const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const dayName = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
 const dayFull = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -30,9 +32,11 @@ export const conversationTitle = (conversation, people) => (conversation.kind ==
 
 /** One sentence for a system message ("Asha added Bela and Chitra"). */
 export function systemText(message, people, myId) {
+  const [kind, arg] = message.body.split(':');
   const who = message.senderId === myId ? 'You' : nameOf(people, message.senderId);
   const targets = (message.mentions ?? []).map((id) => (id === myId ? 'you' : nameOf(people, id))).join(', ');
-  switch (message.body) {
+  switch (kind) {
+    case 'disappearing': return Number(arg) ? `${who} turned on disappearing messages (${DISAPPEAR_OPTIONS.find((o) => o.seconds === Number(arg))?.label ?? 'timer'})` : `${who} turned off disappearing messages`;
     case 'created': return `${who} created this group`;
     case 'added': return targets === who.toLowerCase() || message.mentions?.[0] === message.senderId ? `${who} joined with an invite link` : `${who} added ${targets}`;
     case 'removed': return `${who} removed ${targets}`;
@@ -61,5 +65,6 @@ export function previewText(conversation, people, myId) {
   if (last.kind === 'system') return systemText({ ...last, mentions: [] }, people, myId);
   if (last.kind === 'call') return callText(last, people, myId);
   const prefix = last.senderId === myId ? 'You: ' : conversation.kind === 'group' ? `${nameOf(people, last.senderId).split(' ')[0]}: ` : '';
+  if (last.kind === 'poll') return `${prefix}Poll: ${last.body}`;
   return `${prefix}${last.body || 'Attachment'}`;
 }
