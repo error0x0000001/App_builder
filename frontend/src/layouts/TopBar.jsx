@@ -7,8 +7,7 @@ import { OverflowList } from '../components/ui/OverflowList.jsx';
 import { WorkspaceSwitcherLogo } from '../components/workspace/WorkspaceSwitcher.jsx';
 import { cn } from '../lib/cn.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
-import { isVisibleTo } from './NavMain.jsx';
-import { NAV } from './navigation.js';
+import { isVisibleTo, NAV } from './navigation.js';
 import { NavUserCompact } from './NavUser.jsx';
 
 /** Text-only entries; the active one is an outlined pill. */

@@ -1,39 +1,22 @@
-import { hasRole } from '@app/shared';
 import { useAuth } from '../auth/AuthProvider.jsx';
-import { SidebarCollapsibleGroup, SidebarGroup, SidebarMenu, SidebarNavItem } from '../components/sidebar/SidebarParts.jsx';
-import { NAV } from './navigation.js';
+import { NavRows, useNavSections } from './NavRows.jsx';
+import { isVisibleTo, NAV } from './navigation.js';
 
-/** Items a role may not see are hidden here (the API enforces the same rule). */
-export const isVisibleTo = (item, workspace) => !item.minRole || Boolean(workspace && hasRole(workspace.role, item.minRole));
-export const useVisibleItems = (items) => {
-  const { activeWorkspace } = useAuth();
-  return items.filter((item) => isVisibleTo(item, activeWorkspace));
-};
-
-const NavItems = ({ items }) => useVisibleItems(items).map(({ minRole, bleed, ...item }) => <SidebarNavItem key={item.to} {...item} />);
-
-/** Renders NAV.main and NAV.groups. */
+/** Classic sidebar body: the same rows as the rail panel, with the group names as small headings. */
 export function NavMain() {
-  return (
-    <>
-      <SidebarGroup>
-        <SidebarMenu><NavItems items={NAV.main} /></SidebarMenu>
-      </SidebarGroup>
-      {NAV.groups.map((group) => (
-        <SidebarCollapsibleGroup key={group.label} label={group.label} defaultOpen={group.defaultOpen} action={group.action}>
-          <NavItems items={group.items} />
-        </SidebarCollapsibleGroup>
-      ))}
-    </>
-  );
+  const sections = useNavSections();
+  return sections.map((section, index) => (
+    <section key={section.id} className="flex flex-col gap-1">
+      {index > 0 && <h3 className="px-3 text-xs font-semibold text-sidebar-muted">{section.label}</h3>}
+      <ul className="flex flex-col gap-0.5"><NavRows items={section.items} /></ul>
+    </section>
+  ));
 }
 
-/** Renders NAV.bottom (pinned above the user menu). */
+/** NAV.bottom (Setup) pinned above the user menu. */
 export function NavBottom() {
-  if (!useVisibleItems(NAV.bottom).length) return null;
-  return (
-    <nav aria-label="Secondary">
-      <SidebarMenu><NavItems items={NAV.bottom} /></SidebarMenu>
-    </nav>
-  );
+  const { activeWorkspace } = useAuth();
+  const items = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
+  if (!items.length) return null;
+  return <nav aria-label="Secondary"><ul className="flex flex-col gap-0.5"><NavRows items={items} /></ul></nav>;
 }
