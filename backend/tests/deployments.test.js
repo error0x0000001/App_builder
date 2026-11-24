@@ -16,6 +16,7 @@ before(async () => {
   fake = new FakeRunner((command) => {
     if (command.startsWith('docker version')) return { output: '27.3.1\n' };
     if (command.includes('rev-parse HEAD')) return { output: `Cloning…\n${'a'.repeat(40)}\n` };
+    if (command.includes('top -bn1')) return { output: 'cpu 37.5\nmem 2048 8192\ndisk 1000000 20000000\nup 3 days\n' };
     if (command.includes("sh -c 'while true")) return { output: 'Running\n' };
     return { output: '' };
   });
@@ -370,6 +371,25 @@ describe('commands and schedules (pure)', () => {
     assert.ok(cronError('60 * * * *'));
     const t = new Date(Date.UTC(2026, 10, 24, 3, 30));
     assert.deepEqual(['30 3 * * *', '*/15 * * * *', '0 3 * * *', '30 3 * * 2', '30 3 1 * 2', '*/10 2-4 * * 1-5'].map((c) => cronMatches(c, t)), [true, true, false, true, true, true]);
+  });
+});
+
+describe('server metrics history', () => {
+  it('samples ready servers every five minutes, once per slot, and serves the series', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const before = fake.respond;
+    fake.respond = (c) => (c.includes('top -bn1') ? { output: 'cpu 37.5\nmem 2048 8192\ndisk 1000000 20000000\nup 3 days\n' } : before(c));
+    const at = new Date(Date.UTC(2030, 0, 1, 10, 5));
+    assert.ok(await svc.sampleServers(at) >= 1);
+    await svc.sampleServers(at);
+    await db.execute(sql`update dp_server_metrics set at = now() - interval '10 minutes' where server_id = ${sid}::uuid`);
+    const { rows } = await db.execute(sql`select count(*)::int as n from dp_server_metrics where server_id = ${sid}::uuid`);
+    assert.equal(rows[0].n, 1, 'a slot is sampled once');
+    const res = await client.get(`${D}/servers/${sid}/metrics?hours=1`);
+    assert.equal(res.status, 200);
+    fake.respond = before;
+    assert.deepEqual([res.body.metrics[0].cpu, res.body.metrics[0].memUsedMb, res.body.metrics[0].memTotalMb], [38, 2048, 8192]);
   });
 });
 

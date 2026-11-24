@@ -141,6 +141,13 @@
       "when": 1795549000000,
       "tag": "0019_deployments_access",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795549100000,
+      "tag": "0020_deployments_metrics",
+      "breakpoints": true
     }
   ]
 }

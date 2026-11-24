@@ -66,6 +66,7 @@ export const deploymentsApi = {
   updateServer: (id, body) => patch(`/deployments/servers/${id}`, body),
   testServer: (id) => post(`/deployments/servers/${id}/test`),
   setupServer: (id, acmeEmail) => post(`/deployments/servers/${id}/setup`, { acmeEmail }),
+  serverMetrics: (id, hours = 24) => get(`/deployments/servers/${id}/metrics?hours=${hours}`),
   serverStats: (id) => get(`/deployments/servers/${id}/stats`),
   deleteServer: (id) => del(`/deployments/servers/${id}`),
   projects: () => get('/deployments/projects'),

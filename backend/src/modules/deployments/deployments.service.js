@@ -99,13 +99,36 @@ export class DeploymentsService {
     return dep;
   }
 
-  async serverStats(ctx, id) {
-    const server = await this.#server(ctx.workspaceId, id);
+  async #readStats(server) {
     const { code, output } = await this.#runnerFor(server).run(cmd.serverStatsCommand, { timeoutMs: 30_000 });
     if (code !== 0) throw new ValidationError(undefined, 'Could not read the server’s statistics');
     const get = (k) => output.split('\n').find((l) => l.startsWith(`${k} `))?.split(' ').slice(1).map(Number) ?? [];
     const [cpu] = get('cpu'); const [memUsed, memTotal] = get('mem'); const [diskUsed, diskTotal] = get('disk');
     return { cpuPercent: Math.round(cpu ?? 0), memUsedMb: memUsed ?? 0, memTotalMb: memTotal ?? 0, diskUsedKb: diskUsed ?? 0, diskTotalKb: diskTotal ?? 0, uptime: output.split('\n').find((l) => l.startsWith('up ')) ?? '' };
+  }
+
+  async serverStats(ctx, id) { return this.#readStats(await this.#server(ctx.workspaceId, id)); }
+
+  /** Samples every ready server (called each 5th minute by the tick) and keeps a week of history. */
+  async sampleServers(at = new Date()) {
+    const { rows } = await this.db.execute(sql`select * from dp_servers where status = 'ready'`);
+    const stamp = new Date(Math.floor(at.getTime() / 300_000) * 300_000);
+    let saved = 0;
+    for (let i = 0; i < rows.length; i += 10) {
+      const results = await Promise.allSettled(rows.slice(i, i + 10).map(async (server) => {
+        const m = await this.#readStats(server);
+        await this.db.execute(sql`insert into dp_server_metrics (server_id, at, cpu, mem_used_mb, mem_total_mb, disk_used_kb, disk_total_kb) values (${server.id}::uuid, ${stamp.toISOString()}, ${m.cpuPercent}, ${m.memUsedMb}, ${m.memTotalMb}, ${m.diskUsedKb}, ${m.diskTotalKb}) on conflict do nothing`);
+      }));
+      saved += results.filter((r) => r.status === 'fulfilled').length;
+    }
+    await this.db.execute(sql`delete from dp_server_metrics where at < now() - interval '7 days'`);
+    return saved;
+  }
+
+  async serverMetrics(ws, id, hours = 24) {
+    await this.#server(ws, id);
+    const { rows } = await this.db.execute(sql`select at, cpu, mem_used_mb, mem_total_mb, disk_used_kb, disk_total_kb from dp_server_metrics where server_id = ${id}::uuid and at > now() - make_interval(hours => ${hours}) order by at`);
+    return rows.map((r) => ({ at: r.at, cpu: r.cpu, memUsedMb: r.mem_used_mb, memTotalMb: r.mem_total_mb, diskUsedKb: Number(r.disk_used_kb), diskTotalKb: Number(r.disk_total_kb) }));
   }
 
   // ---------- projects and environments ----------
@@ -572,6 +595,7 @@ export class DeploymentsService {
     const minute = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
     const { rows } = await this.db.execute(sql`select * from dp_jobs where enabled and (last_run_at is null or last_run_at < ${minute})`);
     let queued = 0;
+    if (minute.getUTCMinutes() % 5 === 0) await this.sampleServers(minute).catch(() => {});
     for (const job of rows) if (cronMatches(job.cron, minute)) { await this.#queueJob(job); queued += 1; }
     await this.db.execute(sql`update dp_deployments set status = 'error', finished_at = now(), log = log || E'\n✖ The worker stopped before this finished.\n' where status = 'running' and started_at < now() - interval '2 hours'`);
     return queued;

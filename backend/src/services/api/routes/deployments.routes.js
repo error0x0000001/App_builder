@@ -67,6 +67,7 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.delete('/services/:id/jobs/:jobId', need('manager'), validate({ params: idJob }), async (req, res) => res.json({ jobs: await deployments.deleteJob(ctx(req), req.params.id, req.params.jobId) }));
   router.post('/services/:id/jobs/:jobId/run', need('deployer'), rateLimit.ip('deploy-job-run', 60, 600), validate({ params: idJob }), async (req, res) => res.status(202).json({ deployment: await deployments.runJob(ctx(req), req.params.id, req.params.jobId) }));
 
+  router.get('/servers/:id/metrics', need('viewer'), validate({ params: id, query: z.object({ hours: z.coerce.number().int().min(1).max(168).default(24) }) }), async (req, res) => res.json({ metrics: await deployments.serverMetrics(ws(req), req.params.id, req.valid.query.hours) }));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
   router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
   router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));

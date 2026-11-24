@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { serverBodySchema } from '@app/shared';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AreaChart, ChartLegend } from '../../components/ui/charts/AreaChart.jsx';
 import { z } from 'zod';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Form } from '../../components/forms/Form.jsx';
@@ -68,9 +69,10 @@ function LogSheet({ id, title, onClose }) {
 
 function StatsSheet({ server, onClose }) {
   const stats = useQuery({ queryKey: ['deployments', 'server-stats', server.id], queryFn: () => deploymentsApi.serverStats(server.id), refetchInterval: 8000, retry: false });
+  const history = useQuery({ queryKey: ['deployments', 'server-metrics', server.id], queryFn: () => deploymentsApi.serverMetrics(server.id), refetchInterval: 60_000 });
   const s = stats.data?.stats;
   return (
-    <Sheet open onClose={onClose} title={`${server.name} — usage`} width="w-[24rem]">
+    <Sheet open onClose={onClose} title={`${server.name} — usage`} width="w-[28rem]">
       {stats.isError && <Alert tone="error">{stats.error.message}</Alert>}
       {s && (
         <div className="space-y-5">
@@ -81,6 +83,14 @@ function StatsSheet({ server, onClose }) {
         </div>
       )}
       {stats.isPending && <p className="text-sm text-muted">Reading the server…</p>}
+      <h3 className="mb-2 mt-6 text-sm font-semibold text-ink">Last 24 hours</h3>
+      {(history.data?.metrics.length ?? 0) < 2 ? <p className="text-sm text-muted">History builds up as the server is sampled every 5 minutes.</p> : (
+        <>
+          <ChartLegend items={[{ label: 'CPU %', color: 'var(--accent)' }, { label: 'Memory %', color: 'var(--fi-orange)' }]} />
+          <AreaChart height={180} labels={history.data.metrics.map((m) => m.at)} format={(t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} every={Math.ceil(history.data.metrics.length / 4)}
+            series={[{ key: 'cpu', label: 'CPU %', color: 'var(--accent)', values: history.data.metrics.map((m) => Math.round(m.cpu)) }, { key: 'mem', label: 'Memory %', color: 'var(--fi-orange)', values: history.data.metrics.map((m) => (m.memTotalMb ? Math.round((m.memUsedMb / m.memTotalMb) * 100) : 0)) }]} />
+        </>
+      )}
     </Sheet>
   );
 }
