@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -99,3 +99,8 @@ export function CopyField({ value, label }) {
 
 /** The feature switch as a page guard: when this install has Deployments off, the app does not exist. */
 export function useDeploymentsOverview() { return useQuery({ queryKey: ['deployments', 'overview'], queryFn: deploymentsApi.overview, refetchInterval: 15_000 }); }
+
+const RANK = ['viewer', 'deployer', 'manager'];
+export const LevelContext = createContext('viewer');
+/** `can('deployer')` — whether this person's Deployments level is at least that (the server enforces it too; this only hides what would be refused). */
+export function useCan() { const level = useContext(LevelContext); return (need) => RANK.indexOf(level) >= RANK.indexOf(need); }

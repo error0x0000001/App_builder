@@ -13,7 +13,7 @@ import { FeaturedIcon } from '../../components/ui/FeaturedIcon.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
-import { StatusBadge, ago, useDeploymentsOverview } from './parts.jsx';
+import { StatusBadge, ago, useDeploymentsOverview, useCan } from './parts.jsx';
 
 function NewProjectDialog({ open, onClose }) {
   const queryClient = useQueryClient(); const navigate = useNavigate();
@@ -40,12 +40,14 @@ const DOTS = { done: 'bg-success', running: 'bg-warning', error: 'bg-danger', st
 export default function OverviewPage() {
   const query = useDeploymentsOverview();
   const [creating, setCreating] = useState(false);
+  const can = useCan();
   const data = query.data;
   return (
     <div className="space-y-6">
       <PageToolbar meta={data ? `${data.projects.length} project${data.projects.length === 1 ? '' : 's'} · ${data.servers.length} server${data.servers.length === 1 ? '' : 's'}` : undefined}>
-        <Button as={Link} to="/app/deployments/servers" size="sm" variant="neutral"><Icon name="server" className="size-4" />Servers</Button>
-        <Button size="sm" onClick={() => setCreating(true)}><Icon name="plus" className="size-4" />New project</Button>
+        {can('manager') && <Button as={Link} to="/app/deployments/access" size="sm" variant="neutral"><Icon name="users" className="size-4" />Access</Button>}
+        {can('manager') && <Button as={Link} to="/app/deployments/servers" size="sm" variant="neutral"><Icon name="server" className="size-4" />Servers</Button>}
+        {can('manager') && <Button size="sm" onClick={() => setCreating(true)}><Icon name="plus" className="size-4" />New project</Button>}
       </PageToolbar>
       {query.isPending && <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>}
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
@@ -59,7 +61,7 @@ export default function OverviewPage() {
             </div>
           )}
           {data.projects.length === 0 ? (
-            <div className="grid place-items-center gap-3 py-16 text-center"><FeaturedIcon icon="rocket" color="brand" size="xl" /><div><p className="text-base font-semibold text-ink">No projects yet</p><p className="text-sm text-muted">Create a project, then add an application or a database to it.</p></div><Button size="sm" onClick={() => setCreating(true)}>New project</Button></div>
+            <div className="grid place-items-center gap-3 py-16 text-center"><FeaturedIcon icon="rocket" color="brand" size="xl" /><div><p className="text-base font-semibold text-ink">No projects yet</p><p className="text-sm text-muted">Create a project, then add an application or a database to it.</p></div>{can('manager') && <Button size="sm" onClick={() => setCreating(true)}>New project</Button>}</div>
           ) : (
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {data.projects.map((p) => (

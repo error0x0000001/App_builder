@@ -56,6 +56,10 @@ export const invitationsApi = {
 
 const page = (key, rest = '') => `/setup/pages/${key}${rest}`;
 export const deploymentsApi = {
+  me: () => get('/deployments/me'),
+  access: () => get('/deployments/access'),
+  setAccess: (body) => put('/deployments/access', body),
+  removeAccess: (userId) => del(`/deployments/access/${userId}`),
   overview: () => get('/deployments/overview'),
   servers: () => get('/deployments/servers'),
   addServer: (body) => post('/deployments/servers', body),

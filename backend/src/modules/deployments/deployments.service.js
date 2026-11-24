@@ -277,6 +277,34 @@ export class DeploymentsService {
     return { note };
   }
 
+  // ---------- access (who may use Deployments) ----------
+  /** Owners and admins are managers; anyone else has a level only if one was granted. */
+  async levelFor(ctx) {
+    if (ctx.role === 'owner' || ctx.role === 'admin') return 'manager';
+    const { rows: [r] } = await this.db.execute(sql`select level from dp_access where workspace_id = ${ctx.workspaceId} and user_id = ${ctx.userId}`);
+    return r?.level ?? null;
+  }
+
+  async listAccess(ws) {
+    const { rows } = await this.db.execute(sql`select a.user_id, a.level, a.created_at, u.email, coalesce(nullif(trim(concat(u.first_name, ' ', u.last_name)), ''), u.email) as name from dp_access a join users u on u.id = a.user_id where a.workspace_id = ${ws} order by u.email`);
+    return rows.map((r) => ({ userId: r.user_id, level: r.level, name: r.name, email: r.email, grantedAt: r.created_at }));
+  }
+
+  async setAccess(ctx, { userId, level }) {
+    const { rows: [m] } = await this.db.execute(sql`select role from memberships where workspace_id = ${ctx.workspaceId} and user_id = ${userId}::uuid`);
+    if (!m) throw new NotFoundError('That person is not in this workspace');
+    if (m.role === 'owner' || m.role === 'admin') throw new ValidationError(undefined, 'Owners and admins already have full access.');
+    await this.db.execute(sql`insert into dp_access (workspace_id, user_id, level, granted_by) values (${ctx.workspaceId}, ${userId}::uuid, ${level}, ${ctx.userId}) on conflict (workspace_id, user_id) do update set level = excluded.level`);
+    await this.#audit(ctx, `Gave a member ${level} access to Deployments`);
+    return this.listAccess(ctx.workspaceId);
+  }
+
+  async removeAccess(ctx, userId) {
+    await this.db.execute(sql`delete from dp_access where workspace_id = ${ctx.workspaceId} and user_id = ${userId}::uuid`);
+    await this.#audit(ctx, 'Removed a member’s Deployments access');
+    return this.listAccess(ctx.workspaceId);
+  }
+
   // ---------- domains ----------
   async addDomain(ctx, serviceId, body) {
     const s = await this.#service(ctx.workspaceId, serviceId);

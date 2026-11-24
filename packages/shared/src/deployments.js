@@ -145,3 +145,9 @@ export const jobPatchSchema = jobObject.omit({ kind: true }).partial();
 
 /** A short, URL- and Docker-safe name: `my-app-4f9a`. */
 export const appNameFor = (name, suffix) => `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'app'}-${suffix}`;
+
+/** Who may do what in Deployments. Workspace owners and admins are always `manager`; everyone else needs a row in Deployments › Access. */
+export const ACCESS_LEVELS = ['viewer', 'deployer', 'manager'];
+export const accessRank = (level) => ACCESS_LEVELS.indexOf(level);
+export const hasAccess = (have, need) => accessRank(have) >= accessRank(need) && accessRank(have) >= 0;
+export const accessBodySchema = z.object({ userId: z.string().uuid(), level: z.enum(ACCESS_LEVELS) });

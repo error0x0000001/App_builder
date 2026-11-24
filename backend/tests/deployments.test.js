@@ -372,3 +372,45 @@ describe('commands and schedules (pure)', () => {
     assert.deepEqual(['30 3 * * *', '*/15 * * * *', '0 3 * * *', '30 3 * * 2', '30 3 1 * 2', '*/10 2-4 * * 1-5'].map((c) => cronMatches(c, t)), [true, true, false, true, true, true]);
   });
 });
+
+describe('access levels', () => {
+  async function member(boss, ws) {
+    const email = uniqueEmail();
+    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'member' }] });
+    const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
+    const person = new Client(server.base);
+    await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
+    await person.post(`/workspaces/${ws}/switch`);
+    return { person, id: (await person.get('/me')).body.user.id };
+  }
+  it('gives members nothing until granted, then viewer < deployer < manager', async () => {
+    const { client, ws } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const service = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Web', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' } })).body.service;
+    const { person, id } = await member(client, ws);
+    assert.equal((await person.get(`${D}/me`)).status, 403, 'no grant, no access');
+    assert.equal((await client.get(`${D}/me`)).body.level, 'manager');
+
+    assert.equal((await client.put(`${D}/access`, { userId: id, level: 'viewer' })).status, 200);
+    assert.equal((await person.get(`${D}/me`)).body.level, 'viewer');
+    assert.equal((await person.get(`${D}/overview`)).status, 200);
+    assert.equal((await person.post(`${D}/services/${service.id}/deploy`)).status, 403);
+    assert.equal((await person.get(`${D}/access`)).status, 403);
+    assert.equal((await person.get(`${D}/servers`)).status, 200);
+
+    await client.put(`${D}/access`, { userId: id, level: 'deployer' });
+    assert.equal((await person.post(`${D}/services/${service.id}/deploy`)).status, 202);
+    assert.equal((await person.post(`${D}/services/${service.id}/secrets`)).status, 403, 'secrets are for managers');
+    assert.equal((await person.post(`${D}/servers`, { name: 'x', host: 'h.example.com', port: 22, username: 'root', sshKey: KEY })).status, 403);
+
+    await client.put(`${D}/access`, { userId: id, level: 'manager' });
+    assert.equal((await person.post(`${D}/services/${service.id}/secrets`)).status, 200);
+
+    const list = (await client.get(`${D}/access`)).body.access;
+    assert.equal(list.length, 1);
+    assert.equal((await client.delete(`${D}/access/${id}`)).status, 200);
+    assert.equal((await person.get(`${D}/me`)).status, 403, 'removing the grant removes access');
+    assert.equal((await client.put(`${D}/access`, { userId: crypto.randomUUID(), level: 'viewer' })).status, 404);
+  });
+});

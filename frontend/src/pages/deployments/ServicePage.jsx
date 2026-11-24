@@ -20,7 +20,7 @@ import { Switch } from '../../components/ui/Switch.jsx';
 import { Tabs } from '../../components/ui/Tabs.jsx';
 import { Textarea } from '../../components/ui/Textarea.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
-import { CopyField, KINDS, KindTile, LogView, StatusBadge, ago, duration, useDeploymentLog } from './parts.jsx';
+import { CopyField, KINDS, KindTile, LogView, StatusBadge, ago, duration, useCan, useDeploymentLog } from './parts.jsx';
 
 const Section = ({ title, description, action, children }) => (
   <section className="rounded-xl border border-line bg-surface p-5">
@@ -233,6 +233,7 @@ const TABS = [
 export default function ServicePage() {
   const { serviceId, '*': rest } = useParams(); const navigate = useNavigate(); const queryClient = useQueryClient();
   const tab = TABS.some((t) => t.id === rest) ? rest : 'overview';
+  const can = useCan();
   const query = useQuery({ queryKey: ['deployments', 'service', serviceId], queryFn: () => deploymentsApi.service(serviceId), refetchInterval: 6000 });
   const [secrets, setSecrets] = useState(null); const [error, setError] = useState(null); const [busy, setBusy] = useState(null);
   const [logId, setLogId] = useState(null); const [confirm, setConfirm] = useState(null);
@@ -241,15 +242,15 @@ export default function ServicePage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['deployments'] });
   if (query.isPending) return <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>;
   if (query.isError) return <Alert tone="error">{query.error.message}</Alert>;
-  const tabs = TABS.filter((t) => !(t.id === 'logs' && false));
+  const tabs = TABS.filter((t) => can('manager') || !['environment', 'domains', 'settings'].includes(t.id));
   const run = (name, fn, openLog) => async () => { setBusy(name); setError(null); try { const r = await fn(); await refresh(); if (openLog && r?.deployment) setLogId(r.deployment.id); } catch (e) { setError(e.message); } finally { setBusy(null); } };
   const reveal = async () => { try { setSecrets(await deploymentsApi.secrets(serviceId)); } catch (e) { setError(e.message); } };
   const live = service.status === 'done' || service.status === 'error';
   return (
     <div className="space-y-5">
       <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
-        {service.status === 'stopped' ? <Button size="sm" variant="neutral" loading={busy === 'start'} onClick={run('start', () => deploymentsApi.start(serviceId))}><Icon name="play-circle" className="size-4" />Start</Button> : live && <Button size="sm" variant="neutral" loading={busy === 'stop'} onClick={run('stop', () => deploymentsApi.stop(serviceId))}><Icon name="stop-circle" className="size-4" />Stop</Button>}
-        <Button size="sm" loading={busy === 'deploy'} disabled={service.status === 'running'} onClick={run('deploy', () => deploymentsApi.deploy(serviceId), true)}><Icon name="rocket" className="size-4" />{service.lastDeployedAt ? 'Redeploy' : 'Deploy'}</Button>
+        {can('deployer') && (service.status === 'stopped' ? <Button size="sm" variant="neutral" loading={busy === 'start'} onClick={run('start', () => deploymentsApi.start(serviceId))}><Icon name="play-circle" className="size-4" />Start</Button> : live && <Button size="sm" variant="neutral" loading={busy === 'stop'} onClick={run('stop', () => deploymentsApi.stop(serviceId))}><Icon name="stop-circle" className="size-4" />Stop</Button>)}
+        {can('deployer') && <Button size="sm" loading={busy === 'deploy'} disabled={service.status === 'running'} onClick={run('deploy', () => deploymentsApi.deploy(serviceId), true)}><Icon name="rocket" className="size-4" />{service.lastDeployedAt ? 'Redeploy' : 'Deploy'}</Button>}
       </PageToolbar>
       <div className="flex items-center gap-3"><KindTile kind={service.kind} size="lg" /><div className="min-w-0"><h1 className="truncate text-lg font-semibold text-ink">{service.name}</h1><div className="mt-0.5 flex items-center gap-2"><StatusBadge status={service.status} />{!service.serverId && <Badge tone="warning">No server</Badge>}</div></div></div>
       {error && <Alert tone="error">{error}</Alert>}

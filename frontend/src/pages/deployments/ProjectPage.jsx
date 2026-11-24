@@ -19,7 +19,7 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Tabs } from '../../components/ui/Tabs.jsx';
 import { Textarea } from '../../components/ui/Textarea.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
-import { KINDS, KindTile, StatusBadge, ago } from './parts.jsx';
+import { KINDS, KindTile, StatusBadge, ago, useCan } from './parts.jsx';
 
 /** Drops what the form left empty or does not apply to the chosen kind, so the shared schema sees only real input. */
 const clean = (v) => {
@@ -104,6 +104,7 @@ export default function ProjectPage() {
   const { projectId } = useParams(); const navigate = useNavigate(); const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['deployments', 'project', projectId], queryFn: () => deploymentsApi.project(projectId), refetchInterval: 8000 });
   const servers = useQuery({ queryKey: ['deployments', 'servers'], queryFn: deploymentsApi.servers });
+  const can = useCan();
   const [envId, setEnvId] = useState(null); const [adding, setAdding] = useState(false); const [shared, setShared] = useState(false);
   const [newEnv, setNewEnv] = useState(false); const [envName, setEnvName] = useState(''); const [confirm, setConfirm] = useState(null); const [error, setError] = useState(null);
   const project = query.data?.project;
@@ -115,19 +116,19 @@ export default function ProjectPage() {
   return (
     <div className="space-y-5">
       <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
-        <Button size="sm" variant="neutral" onClick={() => setConfirm({ type: 'project' })}><Icon name="trash" className="size-4" />Delete project</Button>
-        <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New service</Button>
+        {can('manager') && <Button size="sm" variant="neutral" onClick={() => setConfirm({ type: 'project' })}><Icon name="trash" className="size-4" />Delete project</Button>}
+        {can('manager') && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New service</Button>}
       </PageToolbar>
       <div><h1 className="text-lg font-semibold text-ink">{project.name}</h1>{project.description && <p className="text-sm text-muted">{project.description}</p>}</div>
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1"><Tabs tabs={tabs} value={env.id} onChange={setEnvId} label="Environments" /></div>
-        <Button size="sm" variant="ghost" onClick={() => setNewEnv(true)}><Icon name="plus" className="size-4" />Environment</Button>
-        <Button size="sm" variant="neutral" onClick={() => setShared(true)}><Icon name="key" className="size-4" />Shared variables</Button>
-        {env.services.length === 0 && project.environments.length > 1 && <Button size="sm" variant="ghost" className="text-danger!" onClick={() => setConfirm({ type: 'environment', env })}>Delete</Button>}
+        {can('manager') && <Button size="sm" variant="ghost" onClick={() => setNewEnv(true)}><Icon name="plus" className="size-4" />Environment</Button>}
+        {can('manager') && <Button size="sm" variant="neutral" onClick={() => setShared(true)}><Icon name="key" className="size-4" />Shared variables</Button>}
+        {can('manager') && env.services.length === 0 && project.environments.length > 1 && <Button size="sm" variant="ghost" className="text-danger!" onClick={() => setConfirm({ type: 'environment', env })}>Delete</Button>}
       </div>
       {env.services.length === 0 ? (
-        <div className="grid place-items-center gap-3 py-14 text-center"><FeaturedIcon icon="cube" color="brand" size="xl" /><div><p className="text-base font-semibold text-ink">Nothing in {env.name} yet</p><p className="text-sm text-muted">Add an application, a Compose stack or a database.</p></div><Button size="sm" onClick={() => setAdding(true)}>New service</Button></div>
+        <div className="grid place-items-center gap-3 py-14 text-center"><FeaturedIcon icon="cube" color="brand" size="xl" /><div><p className="text-base font-semibold text-ink">Nothing in {env.name} yet</p><p className="text-sm text-muted">Add an application, a Compose stack or a database.</p></div>{can('manager') && <Button size="sm" onClick={() => setAdding(true)}>New service</Button>}</div>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {env.services.map((s) => (

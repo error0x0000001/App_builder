@@ -17,7 +17,7 @@ export const NAV = {
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
     { to: '/app/integrations', icon: 'layers', label: 'Integrations', minRole: 'admin' },
-    { to: '/app/deployments', icon: 'rocket', label: 'Deployments', minRole: 'admin', feature: 'deployments', prefix: true },
+    { to: '/app/deployments', icon: 'rocket', label: 'Deployments', feature: 'deployments', prefix: true },
   ],
   groups: [
     { label: 'Documents', icon: 'folder', panel: 'documents', defaultOpen: true, items: [{ to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true, panes: true }] },
