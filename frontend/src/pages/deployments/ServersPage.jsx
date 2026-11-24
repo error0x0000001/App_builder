@@ -9,6 +9,7 @@ import { Form } from '../../components/forms/Form.jsx';
 import { SubmitButton, TextField, TextareaField } from '../../components/forms/fields.jsx';
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
+import { Badge } from '../../components/ui/Badge.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
@@ -16,6 +17,7 @@ import { Dialog } from '../../components/ui/Dialog.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/DropdownMenu.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
+import { Select } from '../../components/ui/Select.jsx';
 import { Sheet } from '../../components/ui/Sheet.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { LogView, StatusBadge, useDeploymentLog } from './parts.jsx';
@@ -67,6 +69,39 @@ function LogSheet({ id, title, onClose }) {
   );
 }
 
+function ClusterSheet({ server, servers, onClose }) {
+  const queryClient = useQueryClient();
+  const nodes = useQuery({ queryKey: ['deployments', 'nodes', server.id], queryFn: () => deploymentsApi.nodes(server.id), retry: false });
+  const [error, setError] = useState(null); const [busy, setBusy] = useState(null); const [managerId, setManagerId] = useState('');
+  const others = servers.filter((s) => s.id !== server.id && s.status === 'ready');
+  const act = (key, fn) => async () => { setBusy(key); setError(null); try { await fn(); await queryClient.invalidateQueries({ queryKey: ['deployments', 'nodes'] }); } catch (e) { setError(e.message); } finally { setBusy(null); } };
+  const columns = [
+    { key: 'hostname', label: 'Node', width: 150, render: (n) => <span className="font-medium">{n.hostname}</span> },
+    { key: 'role', label: 'Role', width: 90, render: (n) => <Badge tone={n.role === 'manager' ? 'accent' : 'neutral'}>{n.role}{n.managerStatus === 'Leader' ? ' · leader' : ''}</Badge> },
+    { key: 'status', label: 'Status', width: 90, render: (n) => <Badge tone={n.status === 'Ready' ? 'success' : 'danger'} dot>{n.status}</Badge> },
+    { key: 'availability', label: 'Tasks', width: 90, render: (n) => n.availability },
+    { key: 'a', label: '', width: 150, align: 'right', render: (n) => n.managerStatus === 'Leader' ? null : (
+      <span className="flex justify-end gap-1">
+        <Button size="sm" variant="neutral" loading={busy === `d${n.id}`} onClick={act(`d${n.id}`, () => deploymentsApi.nodeAction(server.id, n.id, n.availability === 'Active' ? 'drain' : 'active'))}>{n.availability === 'Active' ? 'Drain' : 'Activate'}</Button>
+        <Button size="icon" variant="ghost" aria-label={`Remove ${n.hostname}`} loading={busy === `r${n.id}`} onClick={act(`r${n.id}`, () => deploymentsApi.nodeAction(server.id, n.id, 'remove'))}><Icon name="trash" className="size-4" /></Button>
+      </span>) },
+  ];
+  return (
+    <Sheet open onClose={onClose} title={`${server.name} — cluster`} description="Swarm nodes. Services are placed across ready, active nodes." width="w-[40rem]">
+      {error && <Alert tone="error" className="mb-3">{error}</Alert>}
+      {nodes.isError ? <Alert tone="warning">{nodes.error.message}</Alert> : <DataTable columns={columns} rows={nodes.data?.nodes ?? []} loading={nodes.isPending} empty="No nodes." />}
+      <div className="mt-6 rounded-xl border border-line bg-surface p-4">
+        <h3 className="text-sm font-semibold text-ink">Join {server.name} to another cluster</h3>
+        <p className="mt-1 text-xs text-muted">Makes this server a worker of the chosen manager. It must not run services of its own.</p>
+        <div className="mt-3 flex gap-2">
+          <Select aria-label="Manager server" value={managerId} onChange={(e) => setManagerId(e.target.value)} options={[{ value: '', label: others.length ? 'Choose a manager' : 'No other ready server' }, ...others.map((s) => ({ value: s.id, label: s.name }))]} className="flex-1" />
+          <Button size="sm" disabled={!managerId} loading={busy === 'join'} onClick={act('join', () => deploymentsApi.joinCluster(server.id, { managerId }))}>Join</Button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 function StatsSheet({ server, onClose }) {
   const stats = useQuery({ queryKey: ['deployments', 'server-stats', server.id], queryFn: () => deploymentsApi.serverStats(server.id), refetchInterval: 8000, retry: false });
   const history = useQuery({ queryKey: ['deployments', 'server-metrics', server.id], queryFn: () => deploymentsApi.serverMetrics(server.id), refetchInterval: 60_000 });
@@ -98,7 +133,7 @@ function StatsSheet({ server, onClose }) {
 export default function ServersPage() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['deployments', 'servers'], queryFn: deploymentsApi.servers, refetchInterval: 10_000 });
-  const [adding, setAdding] = useState(false); const [setup, setSetup] = useState(null); const [log, setLog] = useState(null); const [stats, setStats] = useState(null);
+  const [adding, setAdding] = useState(false); const [setup, setSetup] = useState(null); const [log, setLog] = useState(null); const [stats, setStats] = useState(null); const [cluster, setCluster] = useState(null);
   const [confirm, setConfirm] = useState(null); const [busy, setBusy] = useState(null); const [error, setError] = useState(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['deployments'] });
   const test = async (s) => { setBusy(s.id); setError(null); try { await deploymentsApi.testServer(s.id); await refresh(); } catch (e) { setError(e.message); } finally { setBusy(null); } };
@@ -115,6 +150,7 @@ export default function ServersPage() {
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem icon="rocket" onSelect={() => setSetup(s)}>Set up server</DropdownMenuItem>
             <DropdownMenuItem icon="activity" onSelect={() => setStats(s)}>Usage</DropdownMenuItem>
+            <DropdownMenuItem icon="layers" onSelect={() => setCluster(s)}>Cluster</DropdownMenuItem>
             <DropdownMenuItem icon="trash" onSelect={() => setConfirm(s)}>Remove</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -133,6 +169,7 @@ export default function ServersPage() {
       {setup && <SetupDialog server={setup} onClose={() => setSetup(null)} onStarted={(id) => { setLog({ id, title: `Setting up ${setup.name}` }); setSetup(null); refresh(); }} />}
       {log && <LogSheet id={log.id} title={log.title} onClose={() => { setLog(null); refresh(); }} />}
       {stats && <StatsSheet server={stats} onClose={() => setStats(null)} />}
+      {cluster && <ClusterSheet server={cluster} servers={query.data?.servers ?? []} onClose={() => setCluster(null)} />}
       <ConfirmDialog open={Boolean(confirm)} danger confirmLabel="Remove server" title={`Remove ${confirm?.name}?`} description="Quelli forgets the server and its key. Anything running on it keeps running." onConfirm={async () => { try { await deploymentsApi.deleteServer(confirm.id); await refresh(); } catch (e) { setError(e.message); } }} onClose={() => setConfirm(null)} />
     </div>
   );

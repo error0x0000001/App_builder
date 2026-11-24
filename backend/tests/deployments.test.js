@@ -393,6 +393,33 @@ describe('server metrics history', () => {
   });
 });
 
+describe('swarm cluster', () => {
+  it('lists nodes, joins a server to a manager with a redacted token, and drains or removes nodes', async () => {
+    const { client } = await admin();
+    const managerId = await readyServer(client);
+    const worker = (await client.post(`${D}/servers`, { name: 'worker-1', host: 'w1.example.com', port: 22, username: 'root', sshKey: KEY })).body.server;
+    await client.post(`${D}/servers/${worker.id}/test`);
+    const before = fake.respond;
+    const node = (id, host, mgr) => JSON.stringify({ ID: id, Hostname: host, Status: 'Ready', Availability: 'Active', ManagerStatus: mgr, EngineVersion: '27.3.1' });
+    fake.respond = (c) => c.startsWith('docker node ls') ? { output: `${node('abcdefghij1', 'prod-1', 'Leader')}\n${node('abcdefghij2', 'worker-1', '')}\n` } : c.startsWith('docker swarm join-token') ? { output: 'SWMTKN-1-secrettokenvalue\n' } : before(c);
+    const nodes = (await client.get(`${D}/servers/${managerId}/nodes`)).body.nodes;
+    assert.deepEqual(nodes.map((n) => [n.hostname, n.role]), [['prod-1', 'manager'], ['worker-1', 'worker']]);
+    fake.commands.length = 0;
+    const joined = await client.post(`${D}/servers/${worker.id}/join`, { managerId });
+    assert.equal(joined.status, 200, JSON.stringify(joined.body));
+    assert.ok(fake.commands.some((c) => c.includes('docker swarm join --token') && c.includes(':2377')));
+    assert.equal((await client.post(`${D}/servers/${worker.id}/join`, { managerId: worker.id })).status, 400);
+    assert.equal((await client.post(`${D}/servers/${managerId}/nodes/abcdefghij2/drain`)).status, 200);
+    assert.ok(fake.commands.some((c) => c.includes('--availability') && c.includes('drain')));
+    assert.equal((await client.post(`${D}/servers/${managerId}/nodes/abcdefghij2/remove`)).status, 200);
+    assert.equal((await client.post(`${D}/servers/${managerId}/nodes/${encodeURIComponent('x; rm -rf')}/drain`)).status, 400, 'node ids are validated');
+    fake.respond = (c) => (c.startsWith('docker node ls') ? { code: 1, output: 'not a swarm manager' } : before(c));
+    assert.equal((await client.get(`${D}/servers/${managerId}/nodes`)).status, 400);
+    fake.respond = before;
+    assert.throws(() => cmd.nodeActionCommand('a b', 'drain'));
+  });
+});
+
 describe('preview deployments', () => {
   it('deploys one copy per pushed branch, reuses it, and removes it when the branch is deleted', async () => {
     const { client, ws } = await admin();

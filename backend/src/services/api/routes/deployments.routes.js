@@ -71,6 +71,9 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.get('/credentials', need('viewer'), async (req, res) => res.json({ credentials: await deployments.listCredentials(ws(req)) }));
   router.post('/credentials', need('manager'), validate({ body: credentialBodySchema }), async (req, res) => res.status(201).json({ credential: await deployments.createCredential(ctx(req), req.valid.body) }));
   router.delete('/credentials/:id', need('manager'), validate({ params: id }), async (req, res) => res.json({ credentials: await deployments.deleteCredential(ctx(req), req.params.id) }));
+  router.get('/servers/:id/nodes', need('viewer'), validate({ params: id }), async (req, res) => res.json({ nodes: await deployments.clusterNodes(ctx(req), req.params.id) }));
+  router.post('/servers/:id/join', need('manager'), validate({ params: id, body: z.object({ managerId: uuidField, role: z.enum(['worker', 'manager']).default('worker') }) }), async (req, res) => res.json({ nodes: await deployments.joinCluster(ctx(req), req.params.id, req.valid.body) }));
+  router.post('/servers/:id/nodes/:nodeId/:action', need('manager'), validate({ params: id.extend({ nodeId: z.string().regex(/^[a-z0-9]{10,40}$/), action: z.enum(['drain', 'active', 'remove']) }) }), async (req, res) => res.json({ nodes: await deployments.nodeAction(ctx(req), req.params.id, req.params.nodeId, req.params.action) }));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
   router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
   router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));

@@ -200,3 +200,16 @@ export function backupCommand({ kind, appName, database, storage, keep, prefix, 
     `echo "Backup ${file} uploaded (${d.label})"`,
   ].join('\n');
 }
+
+// ---------- Swarm cluster ----------
+export const nodesCommand = "docker node ls --format '{{json .}}'";
+export const joinTokenCommand = (role) => `docker swarm join-token -q ${role === 'manager' ? 'manager' : 'worker'}`;
+/** Leaves any swarm this machine is in, then joins the manager's. */
+export const joinCommand = ({ token, managerHost }) => `docker swarm leave --force >/dev/null 2>&1 || true\ndocker swarm join --token ${q(token)} ${q(`${managerHost}:2377`)}`;
+export const NODE_ID = /^[a-z0-9]{10,40}$/;
+export const nodeActionCommand = (nodeId, action) => {
+  if (!NODE_ID.test(nodeId)) throw new Error('Invalid node');
+  if (action === 'drain' || action === 'active') return `docker node update --availability ${action} ${q(nodeId)}`;
+  if (action === 'remove') return `docker node update --availability drain ${q(nodeId)} >/dev/null 2>&1; docker node rm --force ${q(nodeId)}`;
+  throw new Error('Unknown action');
+};

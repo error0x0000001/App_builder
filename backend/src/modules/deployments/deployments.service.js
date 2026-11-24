@@ -131,6 +131,44 @@ export class DeploymentsService {
     return rows.map((r) => ({ at: r.at, cpu: r.cpu, memUsedMb: r.mem_used_mb, memTotalMb: r.mem_total_mb, diskUsedKb: Number(r.disk_used_kb), diskTotalKb: Number(r.disk_total_kb) }));
   }
 
+  // ---------- Swarm cluster ----------
+  #parseNodes(output) {
+    return output.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
+      .map((n) => ({ id: n.ID, hostname: n.Hostname, status: n.Status, availability: n.Availability, role: n.ManagerStatus ? 'manager' : 'worker', managerStatus: n.ManagerStatus || null, engine: n.EngineVersion, self: /\*$/.test(n.ID ?? '') || n.Self === true }));
+  }
+
+  async clusterNodes(ctx, serverId) {
+    const server = await this.#server(ctx.workspaceId, serverId);
+    const { code, output } = await this.#runnerFor(server).run(cmd.nodesCommand, { timeoutMs: 30_000 });
+    if (code !== 0) throw new ValidationError(undefined, 'This server is not a Swarm manager. Run “Set up server” on it first.');
+    return this.#parseNodes(output);
+  }
+
+  /** Makes `serverId` a node of the swarm run by `managerId`. */
+  async joinCluster(ctx, serverId, { managerId, role = 'worker' }) {
+    if (serverId === managerId) throw new ValidationError(undefined, 'Choose a different server as the manager.');
+    const worker = await this.#server(ctx.workspaceId, serverId); const manager = await this.#server(ctx.workspaceId, managerId);
+    if (!manager.host) throw new ValidationError(undefined, 'The manager needs a public address.');
+    const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where server_id = ${serverId}::uuid`);
+    if (used.n > 0) throw new ConflictError('Services still run on this server’s own swarm. Move or delete them before joining it to another cluster.');
+    const { code, output } = await this.#runnerFor(manager).run(cmd.joinTokenCommand(role), { timeoutMs: 30_000 });
+    const token = output.trim().split('\n').pop();
+    if (code !== 0 || !token) throw new ValidationError(undefined, 'The manager did not give a join token. Is it a Swarm manager?');
+    const joined = await this.#runnerFor(worker).run(cmd.joinCommand({ token, managerHost: manager.host }), { timeoutMs: 60_000 });
+    if (joined.code !== 0) throw new ValidationError(undefined, `Could not join: ${cmd.redact(joined.output, [token]).trim().slice(-200)}`);
+    await this.#audit(ctx, `Joined “${worker.name}” to the cluster of “${manager.name}” as a ${role}`);
+    return this.clusterNodes(ctx, managerId);
+  }
+
+  async nodeAction(ctx, serverId, nodeId, action) {
+    const server = await this.#server(ctx.workspaceId, serverId);
+    let command; try { command = cmd.nodeActionCommand(nodeId, action); } catch (e) { throw new ValidationError(undefined, e.message); }
+    const { code, output } = await this.#runnerFor(server).run(command, { timeoutMs: 60_000 });
+    if (code !== 0) throw new ValidationError(undefined, output.trim().slice(-200) || 'The cluster refused that.');
+    await this.#audit(ctx, `Cluster node ${action}: ${server.name}`);
+    return this.clusterNodes(ctx, serverId);
+  }
+
   // ---------- projects and environments ----------
   async listProjects(ws) {
     const { rows } = await this.db.execute(sql`
