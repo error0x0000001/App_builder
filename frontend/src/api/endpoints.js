@@ -58,6 +58,10 @@ const page = (key, rest = '') => `/setup/pages/${key}${rest}`;
 export const setupApi = {
   tree: () => get('/setup/tree'),
   user: (userId) => get(`/setup/users/${userId}`),
+  permissionSets: () => get('/setup/access/permission-sets'),
+  assignPermissionSet: (userId, name) => put(`/setup/users/${userId}/permission-sets`, { name }),
+  removePermissionSet: (userId, name) => del(`/setup/users/${userId}/permission-sets/${encodeURIComponent(name)}`),
+  userCount: ({ q, role, profile, permissionSet, noPermissionSet, noProfile } = {}) => get(`/setup/users/count${qs({ q, role: role?.join(','), profile: profile?.join(','), permissionSet: permissionSet?.join(','), noPermissionSet: noPermissionSet ? 'true' : undefined, noProfile: noProfile ? 'true' : undefined })}`),
   signOutUser: (userId, ids) => post(`/setup/users/${userId}/sign-out`, ids ? { ids } : {}),
   page: (key) => get(page(key)),
   settings: (key) => get(page(key, '/settings')),

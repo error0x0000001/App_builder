@@ -29,6 +29,7 @@ import { UserDetailsService } from '../../modules/setup/userDetails.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
 import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
+import { createAccessAddons } from '../../modules/access/addons.service.js';
 import { SearchService } from '../../modules/search/search.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
@@ -99,7 +100,9 @@ export function createContainer({ boss }) {
   const emailPolicy = new EmailPolicyService({ settings: settingsReader });
   const automation = new AutomationService({ repos, cache, mail, logger, settings: settingsReader });
   const escalation = new EscalationService({ repos, automation, cache, logger });
-  const access = new AccessService({ automation, cache, seed: (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key)) });
+  const seedSetup = (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key));
+  const addons = createAccessAddons({ enabled: config.ACCESS_ADDONS_ENABLED, db, cache, repos, seed: seedSetup }); // null when ACCESS_ADDONS_ENABLED=false: the feature never runs
+  const access = new AccessService({ automation, cache, seed: seedSetup, addons });
   const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
   const drive = new DriveService({
     db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
@@ -119,10 +122,12 @@ export function createContainer({ boss }) {
   const setup = {
     settings: setupSettings, records: setupRecords, health,
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
-    userDetails: new UserDetailsService({ db, repos, cache }),
+    userDetails: new UserDetailsService({ db, repos, cache, addons }),
+    addons,
     tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  return { linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  const features = Object.freeze({ accessAddons: Boolean(addons) });
+  return { features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

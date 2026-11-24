@@ -13,11 +13,11 @@ import { toPublicUser } from '../../../modules/users/userPresenter.js';
 const MIN = 60;
 
 /** Everything about the signed-in person: profile, password, sessions, activity and two-factor auth. */
-export function meRoutes({ users, password, sessions, audit, mfa, tokens, repos, rateLimit, avatars }) {
+export function meRoutes({ features, users, password, sessions, audit, mfa, tokens, repos, rateLimit, avatars }) {
   const router = Router();
   router.use(authenticate(tokens), blockWhileImpersonating);
 
-  router.get('/', async (req, res) => res.json(await users.me(req.auth.userId, req.auth.workspaceId, req.auth.impersonatedBy)));
+  router.get('/', async (req, res) => res.json({ ...(await users.me(req.auth.userId, req.auth.workspaceId, req.auth.impersonatedBy)), features }));
   router.patch('/', validate({ body: updateProfileSchema }), async (req, res) => res.json({ user: await users.updateProfile(req.auth.userId, req.valid.body) }));
 
   router.put('/avatar', async (req, res, next) => {

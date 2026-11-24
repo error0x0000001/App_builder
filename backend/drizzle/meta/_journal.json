@@ -106,6 +106,13 @@
       "when": 1795458890550,
       "tag": "0014_chat_features",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795459900000,
+      "tag": "0015_access_addons",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROLE_LABELS } from '@app/shared';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
@@ -12,7 +12,10 @@ import { Card, Section } from '../../components/ui/Card.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { FeaturedIcon } from '../../components/ui/FeaturedIcon.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
+import { Checkbox } from '../../components/ui/Checkbox.jsx';
+import { Popover } from '../../components/ui/Popover.jsx';
 import { Select } from '../../components/ui/Select.jsx';
+import { Tag } from '../../components/ui/Tag.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { cn } from '../../lib/cn.js';
 import { formatDate, formatRelative } from '../../lib/format.js';
@@ -54,6 +57,41 @@ function AccessCard({ user, onSaved }) {
           <Select label="Profile" options={options} value={profile} onChange={setProfile} placeholder="Default for the role" />
         </div>
         <div className="flex justify-end"><Button size="sm" disabled={!changed} loading={busy} onClick={save}>Save changes</Button></div>
+      </div>
+    </Section>
+  );
+}
+
+/** Permission-set add-ons: extra access on top of role + profile. Only exists when the workspace runs with ACCESS_ADDONS_ENABLED. */
+function AddonsCard({ user, assigned, onChanged }) {
+  const catalogue = useQuery({ queryKey: ['setup', 'access', 'permission-sets'], queryFn: setupApi.permissionSets, staleTime: 30_000 });
+  const anchor = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+  const names = new Set(assigned.map((a) => a.name));
+  const options = catalogue.data?.permissionSets ?? [];
+  const toggle = async (name) => {
+    setBusy(name); setError(null);
+    try { await (names.has(name) ? setupApi.removePermissionSet(user.id, name) : setupApi.assignPermissionSet(user.id, name)); await onChanged(); await catalogue.refetch(); } catch (e) { setError(e.message); } finally { setBusy(null); }
+  };
+  return (
+    <Section title="Add-ons" description="Extra permission sets on top of the role and profile. Access from every set is added together.">
+      <div className="space-y-3">
+        {error && <Alert tone="error">{error}</Alert>}
+        <div className="flex flex-wrap items-center gap-2">
+          {assigned.length === 0 && <span className="text-sm text-muted">No add-ons.</span>}
+          {assigned.map((a) => <Tag key={a.name} dot="accent" closeLabel={`Remove ${a.name}`} onClose={busy ? undefined : () => toggle(a.name)}>{a.name}</Tag>)}
+          <button ref={anchor} type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open} className="inline-flex items-center gap-1 rounded-md border border-dashed border-line-strong px-2 py-1 text-sm font-medium text-muted outline-none hover:border-accent hover:text-link focus-visible:ring-2 focus-visible:ring-ring"><Icon name="plus" className="size-3.5" />Add</button>
+        </div>
+        <Popover anchorRef={anchor} open={open} onClose={() => setOpen(false)} className="w-72 rounded-xl border border-line bg-surface p-1.5" role="listbox" aria-label="Permission sets">
+          {options.length === 0 ? <p className="px-2 py-3 text-sm text-muted">No permission sets yet. Create one under Object Settings.</p> : options.map((o) => (
+            <div key={o.name} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-2">
+              <Checkbox aria-label={o.name} checked={names.has(o.name)} disabled={busy === o.name} onChange={() => toggle(o.name)} className="flex-1" label={<span className="font-medium">{o.name}</span>} />
+              <span className="text-xs text-muted">{o.users.toLocaleString()} {o.users === 1 ? 'person' : 'people'}</span>
+            </div>
+          ))}
+        </Popover>
       </div>
     </Section>
   );
@@ -108,14 +146,14 @@ export default function UserDetailsPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user: me } = useAuth();
+  const { user: me, me: account } = useAuth();
   const [confirmRemove, setConfirmRemove] = useState(false);
   const query = useQuery({ queryKey: ['setup', 'user', userId], queryFn: () => setupApi.user(userId) });
   const refresh = async () => { await Promise.all([query.refetch(), invalidateSetupData(queryClient)]); };
 
   if (query.isPending) return <div className="grid place-items-center py-24 text-muted"><Spinner className="size-6" /></div>;
   if (query.isError) return <div className="space-y-4"><BackLink /><Alert tone="error">{query.error.message}</Alert></div>;
-  const { user, sessions, logins, changes } = query.data;
+  const { user, sessions, logins, changes, permissionSets } = query.data;
   const hue = hueOf(user.name);
   const isMe = user.id === me.id;
   const remove = async () => { await setupApi.deleteRecords('users', [user.id]); await invalidateSetupData(queryClient); navigate('/app/setup/users'); };
@@ -139,6 +177,7 @@ export default function UserDetailsPage() {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <AccessCard key={`${user.role}|${user.profile}`} user={user} onSaved={refresh} />
+          {account?.features?.accessAddons && permissionSets && <AddonsCard user={user} assigned={permissionSets} onChanged={refresh} />}
           <SessionsCard user={user} sessions={sessions} onChanged={refresh} />
           <ChangesCard user={user} changes={changes} />
         </div>

@@ -9,7 +9,7 @@ const device = (ua) => { const p = parseUserAgent(ua ?? ''); return { browser: p
 
 /** Everything the "user details" page shows about one member of this workspace — their access, devices, sign-ins and the Setup changes they made. */
 export class UserDetailsService {
-  constructor({ db, repos, cache }) { Object.assign(this, { db, repos, cache }); }
+  constructor({ db, repos, cache, addons = null }) { Object.assign(this, { db, repos, cache, addons }); }
 
   async get(ws, userId) {
     const { rows } = await this.db.execute(sql`
@@ -25,7 +25,9 @@ export class UserDetailsService {
       this.db.execute(sql`select (select count(*)::int from setup_audit where workspace_id = ${ws} and user_id = ${userId}::uuid) as changes, (select max(created_at) from auth_events where workspace_id = ${ws} and user_id = ${userId}::uuid and type = 'login_success') as last_login`),
     ]);
     const name = `${u.first_name} ${u.last_name}`.trim();
+    const permissionSets = this.addons ? await this.addons.list(ws, userId) : undefined; // undefined = feature off: the field is simply absent
     return {
+      permissionSets,
       user: {
         id: u.id, name, firstName: u.first_name, lastName: u.last_name, email: u.email, avatar: avatarUrl(u.id, u.avatar_version ?? 0),
         role: u.role, roleLabel: ROLE_LABELS[u.role], profile: u.profile ?? PROFILE_BY_ROLE[u.role], joinedAt: u.joined_at, userSince: u.user_since,

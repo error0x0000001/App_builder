@@ -12,3 +12,4 @@ export * from './setup.js';
 export * from './passwordHistory.js';
 export * from './drive.js';
 export * from './chat.js';
+export * from './accessAddons.js';

@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { SETUP_LIST } from '@app/shared';
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider.jsx';
 import { setupApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -110,7 +111,10 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const goPrev = () => index > 0 && setPager({ sig, cursors: cursors.slice(0, -1) });
 
   const rows = useMemo(() => data?.items ?? [], [data]);
-  const totalKnown = knownTotal.sig === sig ? knownTotal : { n: undefined, capped: false };
+  // The Users list shows the exact, uncapped member count (several conditions can be added to this query) when add-ons are on.
+  const { me } = useAuth();
+  const exactUsers = useQuery({ queryKey: ['setup', 'users', 'count', { q }], queryFn: () => setupApi.userCount({ q }), enabled: pageKey === 'users' && Boolean(me?.features?.accessAddons), placeholderData: keepPreviousData });
+  const totalKnown = exactUsers.data ? { n: exactUsers.data.count, capped: false } : knownTotal.sig === sig ? knownTotal : { n: undefined, capped: false };
   const total = totalKnown.n === undefined ? undefined : `${totalKnown.n.toLocaleString()}${totalKnown.capped ? '+' : ''}`;
 
   const columns = useMemo(() => {

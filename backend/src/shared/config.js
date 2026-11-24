@@ -12,6 +12,7 @@ const schema = z.object({
   DB_READ_REPLICA_URL: z.string().url().optional(), // optional read replica for read-only setup queries
   REDIS_URL: z.string().url().optional(),
   API_WORKERS: z.coerce.number().int().min(1).default(1), // prefork worker processes (cluster.js)
+  ACCESS_ADDONS_ENABLED: bool, // permission-set add-ons on top of role + profile (assign on the user page). Off = the feature is never constructed, routed or shown.
   SETUP_REQUESTS_PER_MINUTE: z.coerce.number().int().default(6000), // per-workspace ceiling on Setup API calls (noisy-neighbour guard)
   SEARCH_REQUESTS_PER_10S: z.coerce.number().int().default(200), // per person; typing is bursty, this only stops abuse
   STORAGE_DIR: z.string().default('./storage'), // where the local StorageDriver keeps uploaded bytes (Documents)

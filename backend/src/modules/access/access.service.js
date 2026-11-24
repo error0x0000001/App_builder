@@ -3,6 +3,7 @@ import { ForbiddenError } from '../../shared/errors.js';
 const yes = (v) => String(v).toLowerCase() === 'yes';
 const ACTIONS = ['read', 'create', 'edit', 'delete'];
 const ALL = 'All';
+const NONE = Object.freeze([]);
 /** What a role may do when no Setup grant covers the object. */
 const BASELINE = { viewer: { read: true }, member: { read: true, create: true, edit: true }, admin: { read: true, create: true, edit: true, delete: true }, owner: { read: true, create: true, edit: true, delete: true } };
 const SHARING = { Private: 'private', 'Public Read Only': 'read', 'Public Read/Write': 'write', 'Public Read/Write/Transfer': 'write', 'Public Full Access': 'write', 'Controlled by Parent': 'write' };
@@ -18,7 +19,7 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
  * Rule lists are cached and versioned per Setup collection, so changing a profile applies on the next request on every worker.
  */
 export class AccessService {
-  constructor({ automation, cache, seed }) { Object.assign(this, { automation, cache, seed }); } // seed(ws, collectionKey): loads a collection's built-in rows once
+  constructor({ automation, cache, seed, addons = null }) { Object.assign(this, { automation, cache, seed, addons }); } // addons: permission-set add-ons (null = feature off) // seed(ws, collectionKey): loads a collection's built-in rows once
 
   #index(ws) {
     return this.cache.rememberValue(`r:${ws}:object-settings`, 'grants', { ttlMs: 30_000 }, async () => {
@@ -54,7 +55,8 @@ export class AccessService {
     const { role, profile } = ctx.actor;
     const admin = role === 'owner' || role === 'admin';
     const [grants, assigned, sharing] = await Promise.all([this.#index(ctx.workspaceId), this.#assignments(ctx.workspaceId), this.#sharing(ctx.workspaceId)]);
-    const containers = [profile, ...(assigned[String(ctx.email ?? '').toLowerCase()] ?? [])].filter(Boolean);
+    const extra = this.addons && ctx.userId ? (this.addons.peek(ctx.workspaceId, ctx.userId) ?? await this.addons.setsFor(ctx.workspaceId, ctx.userId)) : NONE;
+    const containers = [profile, ...(assigned[String(ctx.email ?? '').toLowerCase()] ?? []), ...extra].filter(Boolean);
     const covering = containers.map((c) => grants[c]?.[def.key] ?? grants[c]?.[ALL]).filter(Boolean);
     const base = BASELINE[role] ?? BASELINE.viewer;
     const perms = Object.fromEntries(ACTIONS.map((a) => [a, covering.length ? covering.some((g) => g[a]) : Boolean(base[a])]));

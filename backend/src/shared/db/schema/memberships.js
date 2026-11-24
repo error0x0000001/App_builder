@@ -18,6 +18,7 @@ export const memberships = pgTable(
   (t) => [
     primaryKey({ columns: [t.workspaceId, t.userId] }),
     index('memberships_user_idx').on(t.userId, t.createdAt), // "my workspaces"
+    index('memberships_role_profile_idx').on(t.workspaceId, t.role, t.profile), // counts / filters by role and profile
     index('memberships_workspace_page_idx').on(t.workspaceId, t.createdAt, t.userId), // keyset member listing
   ],
 );

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getAdapterMeta, setupIdsSchema, setupListQuerySchema, setupSettingsBodySchema, settingsPatchSchema, uuidField } from '@app/shared';
+import { getAdapterMeta, permissionSetNameSchema, setupIdsSchema, userCountQuerySchema, setupListQuerySchema, setupSettingsBodySchema, settingsPatchSchema, uuidField } from '@app/shared';
 import { SETUP_COUNTS, SETUP_TREE, setupStatus, getCollection, getSetupPage, getToolMeta } from '@app/shared/setup-registry';
 import { createHash } from 'node:crypto';
 import { config } from '../../../shared/config.js';
@@ -25,7 +25,7 @@ function sendEntry(req, res, { body, etag }, cacheControl = 'private, no-cache')
 
 export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, securityPolicy }) {
   const router = Router();
-  const { settings, records, metrics, health, tools, userDetails } = setup;
+  const { settings, records, metrics, health, tools, userDetails, addons } = setup;
 
   // Static definitions are serialised once at boot: a request costs a hash lookup.
   const staticBodies = new Map();
@@ -63,6 +63,14 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
 
   // One person, everything about them (the "user details" page). Role / profile / removal go through the Users records endpoints.
   const userParam = z.object({ userId: uuidField });
+  // Permission-set add-ons. Registered only when ACCESS_ADDONS_ENABLED=true — otherwise these paths do not exist (404).
+  if (addons) {
+    router.get('/access/permission-sets', async (req, res) => res.json({ permissionSets: await addons.catalogueWithCounts(req.setupCtx.workspaceId) }));
+    router.get('/users/count', validate({ query: userCountQuerySchema }), async (req, res) => res.json({ count: await addons.count(req.setupCtx.workspaceId, req.valid.query) }));
+    router.get('/users/:userId/permission-sets', validate({ params: userParam }), async (req, res) => res.json({ permissionSets: await addons.list(req.setupCtx.workspaceId, req.params.userId) }));
+    router.put('/users/:userId/permission-sets', validate({ params: userParam, body: permissionSetNameSchema }), async (req, res) => res.json({ permissionSets: await addons.assign(req.setupCtx, req.params.userId, req.valid.body.name) }));
+    router.delete('/users/:userId/permission-sets/:name', validate({ params: userParam.extend({ name: z.string().max(100) }) }), async (req, res) => res.json({ permissionSets: await addons.unassign(req.setupCtx, req.params.userId, req.params.name) }));
+  }
   router.get('/users/:userId', validate({ params: userParam }), async (req, res) => res.json(await userDetails.get(req.setupCtx.workspaceId, req.params.userId)));
   router.post('/users/:userId/sign-out', validate({ params: userParam, body: z.object({ ids: z.array(uuidField).max(50).optional() }).optional() }), async (req, res) => {
     res.json({ revoked: await userDetails.signOut(req.setupCtx, req.params.userId, req.body?.ids) });

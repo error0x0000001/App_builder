@@ -100,3 +100,15 @@ export const toolInputSchemaFrom = (meta) => {
   }));
   return z.object(shape).strict();
 };
+
+/** Member count with several conditions at once (comma-separated lists in the query string). Every condition is optional; they all apply together. */
+const list = z.string().max(500).transform((v) => v.split(',').map((x) => x.trim()).filter(Boolean)).pipe(z.array(z.string().max(100)).max(50));
+export const userCountQuerySchema = z.object({
+  role: list.pipe(z.array(z.enum(['viewer', 'member', 'admin', 'owner']))).optional(),
+  profile: list.optional(),
+  noProfile: bool.optional(),
+  permissionSet: list.optional(),
+  noPermissionSet: bool.optional(),
+  q: z.string().trim().max(100).optional(),
+});
+export const permissionSetNameSchema = z.object({ name: z.string().trim().min(1).max(100) });
