@@ -22,12 +22,12 @@
   color-scheme: light;
 }
 [data-theme="dark"] {
-  /* Warm dark: a deep espresso page (#110e0d) with soft brown-charcoal paper stepping lighter as it rises (#1a1614, #231e1b). Slightly darker than
-     Material's #121212 and tinted brown, never pitch black. Text is a warm off-white (~87 / 60 / 40 %); accent and semantic hues are lifted for contrast. */
-  --gray-25: #141110; --gray-50: #181412; --gray-100: #1f1a18; --gray-200: #2b2522; --gray-300: #3d3531; --gray-400: #7b716a;
-  --gray-500: #9c928b; --gray-600: #b3aaa3; --gray-700: #cfc7c1; --gray-800: #e3dcd7; --gray-900: #f0eae6;
-  --bg: #110e0d; --surface: #1a1614; --surface-2: #231e1b; --line: #2b2522; --line-strong: #3d3531; --inset: #1a1614;
-  --ink: #ede7e2; --muted: #a99f97; --placeholder: #7b716a;
+  /* Neutral charcoal, a step darker than Material's #121212: page #0f0f0f, paper surfaces stepping lighter as they rise (#181818, #212121).
+     No colour cast, never pitch black. Text is ~87 / 60 / 38 % white; accent and semantic hues are lifted for contrast. */
+  --gray-25: #121212; --gray-50: #161616; --gray-100: #1c1c1c; --gray-200: #2a2a2a; --gray-300: #3a3a3a; --gray-400: #707070;
+  --gray-500: #9a9a9a; --gray-600: #b0b0b0; --gray-700: #cacaca; --gray-800: #dedede; --gray-900: #ececec;
+  --bg: #0f0f0f; --surface: #181818; --surface-2: #212121; --line: #2a2a2a; --line-strong: #3a3a3a; --inset: #181818;
+  --ink: #e6e6e6; --muted: #a3a3a3; --placeholder: #777777;
   --danger: #f97066; --success: #47cd89; --warning: #fdb022;
   --fi-blue: #53b1fd; --fi-purple: #9b8afb; --fi-pink: #f670c7; --fi-orange: #ff692e; --fi-teal: #2ed3b7; --fi-indigo: #8098f9;
   --hero-1: #1a2a4d; --hero-2: #2a2552; --hero-3: #0c1019; --orb-a: #6b9bff; --orb-b: #16264d;
@@ -49,10 +49,10 @@
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {
-  --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #2b2038; --accent-ink: #ffffff;
+  --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #2a2140; --accent-ink: #ffffff;
   --link: #b692f6; --ring: rgba(158, 119, 237, 0.28);
-  --chrome: #0f0c0b; /* around the page card in the Inset style: the card (#1a1614) sits above it */
-  --sidebar: #151211; --sidebar-ink: #ede7e2; --sidebar-muted: #a99f97; --sidebar-line: #2b2522; --sidebar-accent: #231e1b; --rail: #1e1a18;
+  --chrome: #0b0b0b; /* around the page card in the Inset style: the card (#181818) sits above it */
+  --sidebar: #131313; --sidebar-ink: #e6e6e6; --sidebar-muted: #a3a3a3; --sidebar-line: #262626; --sidebar-accent: #212121; --rail: #1b1b1b;
 }
 
 /* graphite: the earlier near-black accent */

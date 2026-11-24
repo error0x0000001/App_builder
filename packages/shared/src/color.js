@@ -51,8 +51,8 @@ export function accentTokens(hex) {
   };
   const lifted = luminance(hex) < 0.08 ? mix(hex, WHITE, 0.4) : hex; // a very dark brand colour would vanish on a black page
   const dark = {
-    '--accent': lifted, '--accent-hover': mix(lifted, WHITE, 0.18), '--accent-soft': mix(lifted, '#1a1614', 0.86), '--accent-ink': readableOn(lifted),
-    '--link': ensureContrast(lifted, '#1a1614', WHITE), '--ring': rgba(lifted, 0.3),
+    '--accent': lifted, '--accent-hover': mix(lifted, WHITE, 0.18), '--accent-soft': mix(lifted, '#181818', 0.86), '--accent-ink': readableOn(lifted),
+    '--link': ensureContrast(lifted, '#181818', WHITE), '--ring': rgba(lifted, 0.3),
   };
   return { light, dark };
 }
