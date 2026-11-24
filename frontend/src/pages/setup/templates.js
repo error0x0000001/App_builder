@@ -14,7 +14,10 @@ export const TEMPLATES = {
   'special:debuglogs': t(() => import('./specials/DebugLogsPage.jsx')),
   'special:sharing': t(() => import('./specials/SharingPage.jsx')),
   'special:objmgr': t(() => import('./specials/ObjectManagerPage.jsx')),
+  'special:users': t(() => import('./specials/UsersPage.jsx')),
   'special:schema': t(() => import('./specials/ObjectManagerPage.jsx')),
 };
 
-export const templateFor = (page) => (page.kind === 'special' ? `special:${page.special}` : page.kind);
+/** Pages composed from other pages: the registry still holds each part (API, settings, search), the screen shows them together. */
+const COMPOSED = { users: 'special:users' };
+export const templateFor = (page) => COMPOSED[page.key] ?? (page.kind === 'special' ? `special:${page.special}` : page.kind);
