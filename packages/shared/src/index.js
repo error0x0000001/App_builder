@@ -15,3 +15,4 @@ export * from './color.js';
 export * from './drive.js';
 export * from './chat.js';
 export * from './integrations.js';
+export * from './deployments.js';

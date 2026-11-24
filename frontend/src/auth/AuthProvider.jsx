@@ -97,7 +97,8 @@ export function AuthProvider({ children }) {
   }, [status, storedUi]);
 
   const value = useMemo(() => {
-    const activeWorkspace = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
+    const found = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
+    const activeWorkspace = found ? { ...found, features: me.features ?? {} } : null; // which optional system apps this install runs
     const ui = resolveUiSettings(activeWorkspace?.uiSettings);
     return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
   }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace, startImpersonation, stopImpersonation, updateUi, setThemeMode]);

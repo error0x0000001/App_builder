@@ -120,6 +120,20 @@
       "when": 1795460900000,
       "tag": "0016_workspace_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795461900000,
+      "tag": "0017_deployments",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795462900000,
+      "tag": "0018_deployments_hostkey",
+      "breakpoints": true
     }
   ]
 }

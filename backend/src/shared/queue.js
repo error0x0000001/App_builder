@@ -8,11 +8,15 @@ export const QUEUES = Object.freeze({
   ESCALATE_CASES: 'escalate-cases',
   PURGE_CHAT: 'purge-expired-chat',
   NOTIFY_CHANNELS: 'notify-channels',
+  DEPLOY: 'deployments-run',
+  DEPLOY_TICK: 'deployments-tick',
 });
 
 const QUEUE_OPTIONS = {
   [QUEUES.SEND_EMAIL]: { retryLimit: 5, retryDelay: 10, retryBackoff: true, deleteAfterSeconds: 3600 },
   [QUEUES.NOTIFY_CHANNELS]: { retryLimit: 4, retryDelay: 15, retryBackoff: true, deleteAfterSeconds: 3600 },
+  [QUEUES.DEPLOY]: { retryLimit: 0, deleteAfterSeconds: 86_400, expireInSeconds: 3 * 3600 },
+  [QUEUES.DEPLOY_TICK]: { retryLimit: 0 },
   [QUEUES.CLEANUP]: { retryLimit: 1 },
   [QUEUES.ESCALATE_CASES]: { retryLimit: 1 },
   [QUEUES.PURGE_CHAT]: { retryLimit: 1 },

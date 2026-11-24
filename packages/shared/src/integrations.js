@@ -27,8 +27,9 @@ export const NOTIFICATION_EVENTS = Object.freeze([
   { value: 'cases', label: 'New cases', hint: 'A support case is created' },
   { value: 'workflow', label: 'Workflow alerts', hint: 'A workflow rule with an email alert fires' },
   { value: 'tasks', label: 'New tasks', hint: 'A task is created (can be noisy)' },
+  { value: 'deploys', label: 'Deployments', hint: 'A deployment or backup finishes or fails (Deployments app)' },
 ]);
-const EVENTS_FIELD = { key: 'events', label: 'Send these', type: 'multiselect', options: NOTIFICATION_EVENTS, default: ['approvals', 'big_deals', 'cases', 'workflow'], hint: 'Pick what should reach this channel.' };
+const EVENTS_FIELD = { key: 'events', label: 'Send these', type: 'multiselect', options: NOTIFICATION_EVENTS, default: ['approvals', 'big_deals', 'cases', 'workflow', 'deploys'], hint: 'Pick what should reach this channel.' };
 
 const FROM = [text('from_email', 'From address', { required: true, kind: 'email', placeholder: 'noreply@yourcompany.com', hint: 'Must be an address your provider lets you send from.' }), text('from_name', 'From name', { placeholder: 'Your Company' })];
 const AWS_REGIONS = ['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'ca-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-north-1', 'eu-south-1', 'ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2', 'sa-east-1', 'me-south-1', 'af-south-1'];

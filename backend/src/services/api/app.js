@@ -20,6 +20,7 @@ import { publicRoutes } from './routes/public.routes.js';
 import { searchRoutes } from './routes/search.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { integrationsRoutes } from './routes/integrations.routes.js';
+import { deploymentsRoutes } from './routes/deployments.routes.js';
 import { workspaceRoutes } from './routes/workspaces.routes.js';
 
 export function createApp(container, { recycler } = {}) {
@@ -29,6 +30,12 @@ export function createApp(container, { recycler } = {}) {
   app.use(helmet());
   app.use(cors({ origin: config.APP_URL, credentials: true }));
   // LiveKit posts signed webhooks as application/webhook+json; the signature covers the exact bytes, so keep them raw (before the JSON parser).
+  // Push-to-deploy webhooks (GitHub / GitLab / Gitea): signed, so the raw bytes are needed before the JSON parser.
+  if (container.deployments) {
+    app.post('/api/v1/deployments/hooks/:serviceId', express.raw({ type: '*/*', limit: '2mb' }), async (req, res, next) => {
+      try { const out = await container.deployments.handleWebhook(req.params.serviceId, { headers: req.headers, query: req.query, rawBody: req.body ?? Buffer.alloc(0) }); res.status(out.status).json(out.body); } catch (error) { next(error); }
+    });
+  }
   app.post('/api/v1/calls/livekit-webhook', express.raw({ type: '*/*', limit: '64kb' }), async (req, res, next) => {
     try { res.json(await container.calls.onWebhook(req.body, req.get('authorization'))); } catch (error) { next(error); }
   });
@@ -55,6 +62,7 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/invitations', invitationRoutes(container));
   app.use('/api/v1/setup', setupRoutes(container));
   app.use('/api/v1/integrations', integrationsRoutes(container));
+  if (container.deployments) app.use('/api/v1/deployments', deploymentsRoutes(container)); // not mounted when DEPLOYMENTS_ENABLED=false: the paths do not exist
   app.use('/api/v1/objects', objectRoutes(container));
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));

@@ -17,6 +17,7 @@ export const NAV = {
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
     { to: '/app/integrations', icon: 'layers', label: 'Integrations', minRole: 'admin' },
+    { to: '/app/deployments', icon: 'rocket', label: 'Deployments', minRole: 'admin', feature: 'deployments', prefix: true },
   ],
   groups: [
     { label: 'Documents', icon: 'folder', panel: 'documents', defaultOpen: true, items: [{ to: '/app/documents', icon: 'folder', label: 'Documents', bleed: true, panes: true }] },
@@ -38,7 +39,7 @@ const HIDDEN_PAGES = [{ to: '/app/workspaces/new', icon: 'plus', label: 'New wor
 export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
 
 /** Items a role may not see are hidden by every navigation (the API enforces the same rule). */
-export const isVisibleTo = (item, workspace) => !item.minRole || Boolean(workspace && hasRole(workspace.role, item.minRole));
+export const isVisibleTo = (item, workspace) => (!item.minRole || Boolean(workspace && hasRole(workspace.role, item.minRole))) && (!item.feature || Boolean(workspace?.features?.[item.feature])); // `feature`: a system app the install may have switched off
 /** Is this item the current page? (`end`: exact path only; otherwise it also covers sub-routes.) */
 export const isActivePath = (item, pathname) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
