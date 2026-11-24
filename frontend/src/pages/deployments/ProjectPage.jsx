@@ -141,7 +141,7 @@ export default function ProjectPage() {
             <li key={s.id}>
               <Link to={`/app/deployments/s/${s.id}`} className="flex h-full flex-col rounded-xl border border-line bg-surface p-5 transition-colors hover:border-line-strong">
                 <div className="flex items-start justify-between gap-3"><KindTile kind={s.kind} /><StatusBadge status={s.status} /></div>
-                <h3 className="mt-4 truncate text-base font-semibold text-ink">{s.name}</h3>
+                <h3 className="mt-4 flex items-center gap-2 truncate text-base font-semibold text-ink">{s.name}{s.previewBranch && <Badge tone="accent">Preview</Badge>}</h3>
                 <p className="mt-0.5 truncate font-mono text-xs text-muted">{s.appName}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5">{s.domains.slice(0, 2).map((d) => <Badge key={d} tone="neutral">{d}</Badge>)}{s.domains.length > 2 && <Badge tone="neutral">+{s.domains.length - 2}</Badge>}</div>
                 <p className="mt-auto pt-4 text-xs text-muted">Last deployed {ago(s.lastDeployedAt)}</p>

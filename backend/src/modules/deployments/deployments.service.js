@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { DATABASE_DEFAULTS, DATABASE_KINDS, DEPLOYMENT_STATUS, SERVICE_STATUS, appNameFor, cronMatches } from '@app/shared';
+import { DATABASE_DEFAULTS, DATABASE_KINDS, DEPLOYMENT_STATUS, SERVICE_STATUS, appNameFor, branchSlug, cronMatches } from '@app/shared';
 import { sql } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
@@ -157,12 +157,12 @@ export class DeploymentsService {
     if (!project) throw new NotFoundError('Project not found');
     const envs = (await this.db.execute(sql`select id, name, (env_enc is not null) as has_env from dp_environments where project_id = ${id}::uuid order by created_at`)).rows;
     const services = (await this.db.execute(sql`
-      select v.id, v.environment_id, v.kind, v.name, v.app_name, v.status, v.server_id, v.last_deployed_at,
+      select v.id, v.environment_id, v.kind, v.name, v.app_name, v.status, v.server_id, v.last_deployed_at, v.preview_branch,
         coalesce((select jsonb_agg(d.host order by d.created_at) from dp_domains d where d.service_id = v.id), '[]'::jsonb) as domains
       from dp_services v join dp_environments e on e.id = v.environment_id where e.project_id = ${id}::uuid order by v.created_at`)).rows;
     return {
       id: project.id, name: project.name, description: project.description,
-      environments: envs.map((e) => ({ id: e.id, name: e.name, hasEnv: e.has_env, services: services.filter((s) => s.environment_id === e.id).map((s) => ({ id: s.id, kind: s.kind, name: s.name, appName: s.app_name, status: s.status, serverId: s.server_id, lastDeployedAt: s.last_deployed_at, domains: s.domains })) })),
+      environments: envs.map((e) => ({ id: e.id, name: e.name, hasEnv: e.has_env, services: services.filter((s) => s.environment_id === e.id).map((s) => ({ id: s.id, kind: s.kind, name: s.name, appName: s.app_name, status: s.status, serverId: s.server_id, lastDeployedAt: s.last_deployed_at, previewBranch: s.preview_branch, domains: s.domains })) })),
     };
   }
 
@@ -220,6 +220,7 @@ export class DeploymentsService {
       id: s.id, environmentId: s.environment_id, serverId: s.server_id, kind: s.kind, name: s.name, appName: s.app_name, status: s.status,
       source: s.source, config: s.config, autoDeploy: s.auto_deploy, lastDeployedAt: s.last_deployed_at, createdAt: s.created_at,
       hasGitToken: Boolean(secrets.gitToken), hasRegistryPassword: Boolean(secrets.registryPassword), hasEnv: Boolean(s.env_enc),
+      previewOf: s.preview_of, previewBranch: s.preview_branch,
       webhookPath: `/api/v1/deployments/hooks/${s.id}`,
       domains: domains.rows.map((d) => ({ id: d.id, host: d.host, path: d.path, port: d.port, https: d.https, url: `${d.https ? 'https' : 'http'}://${d.host}${d.path === '/' ? '' : d.path}` })),
       jobs: jobs.rows.map((j) => ({ id: j.id, kind: j.kind, name: j.name, cron: j.cron, command: j.command, keep: j.keep, enabled: j.enabled, lastRunAt: j.last_run_at })),
@@ -297,6 +298,8 @@ export class DeploymentsService {
 
   async deleteService(ctx, id) {
     const s = await this.#service(ctx.workspaceId, id);
+    const { rows: previews } = await this.db.execute(sql`select id from dp_services where preview_of = ${id}::uuid`);
+    for (const p of previews) await this.deleteService(ctx, p.id);
     const server = s.server_id ? await this.#server(ctx.workspaceId, s.server_id) : null;
     let note = null;
     try {
@@ -681,11 +684,35 @@ export class DeploymentsService {
     if (!valid) return { status: 401, body: { error: 'Invalid signature' } };
     if (!s.auto_deploy) return { status: 200, body: { skipped: 'Auto deploy is off' } };
     let payload = {}; try { payload = JSON.parse(rawBody.toString('utf8') || '{}'); } catch { /* not JSON: treat as a plain trigger */ }
-    if (payload.ref && s.source?.branch && payload.ref !== `refs/heads/${s.source.branch}`) return { status: 200, body: { skipped: `Push to ${payload.ref} ignored (watching ${s.source.branch})` } };
+    if (payload.ref && s.source?.branch && payload.ref !== `refs/heads/${s.source.branch}`) {
+      if (s.config?.previews?.enabled && s.source?.type === 'git' && payload.ref.startsWith('refs/heads/')) return this.#handlePreview(s, payload.ref.slice('refs/heads/'.length), payload);
+      return { status: 200, body: { skipped: `Push to ${payload.ref} ignored (watching ${s.source.branch})` } };
+    }
     if (s.source?.type !== 'git' && s.kind === 'application') return { status: 200, body: { skipped: 'Only Git applications deploy on push' } };
     const ctx = { workspaceId: s.workspace_id, userId: null };
     const dep = await this.deploy(ctx, s.id, { title: payload.head_commit?.message ? `Push: ${String(payload.head_commit.message).split('\n')[0].slice(0, 80)}` : 'Push to repository' }).catch((e) => ({ error: e.message }));
     return dep.error ? { status: 409, body: { error: dep.error } } : { status: 202, body: { deploymentId: dep.id } };
+  }
+
+  /** A push to another branch of a service with previews on: one throw-away copy per branch, removed when the branch is deleted. */
+  async #handlePreview(parent, branch, payload) {
+    const ctx = { workspaceId: parent.workspace_id, userId: null };
+    const { rows: [existing] } = await this.db.execute(sql`select id from dp_services where preview_of = ${parent.id}::uuid and preview_branch = ${branch}`);
+    if (payload.deleted) {
+      if (existing) await this.deleteService(ctx, existing.id);
+      return { status: 200, body: { removed: Boolean(existing) } };
+    }
+    let id = existing?.id;
+    if (!id) {
+      const slug = branchSlug(branch); id = uuidv7();
+      const base = parent.config?.previews?.domain;
+      const config = { ...parent.config }; delete config.previews;
+      await this.db.execute(sql`insert into dp_services (id, workspace_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by, preview_of, preview_branch)
+        values (${id}::uuid, ${parent.workspace_id}, ${parent.environment_id}::uuid, ${parent.server_id}, ${parent.kind}, ${`${parent.name} · ${branch}`.slice(0, 60)}, ${appNameFor(`${parent.app_name}-${slug}`, rand(4))}, ${jsonOf({ ...parent.source, branch })}::jsonb, ${jsonOf(config)}::jsonb, ${parent.secrets_enc}, ${parent.env_enc}, false, ${crypto.randomBytes(24).toString('base64url')}, ${parent.created_by}, ${parent.id}::uuid, ${branch})`);
+      if (base && parent.config?.port) await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https) values (${uuidv7()}::uuid, ${parent.workspace_id}, ${id}::uuid, ${`${slug}-${parent.app_name}.${base}`.slice(0, 253)}, '/', ${parent.config.port}, true) on conflict do nothing`);
+    }
+    const dep = await this.deploy(ctx, id, { title: `Preview: ${branch}` }).catch((e) => ({ error: e.message }));
+    return dep.error ? { status: 409, body: { error: dep.error } } : { status: 202, body: { preview: id, deploymentId: dep.id } };
   }
 
   /** What a "deploy to" menu offers: ready servers only. */

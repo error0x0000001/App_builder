@@ -393,6 +393,38 @@ describe('server metrics history', () => {
   });
 });
 
+describe('preview deployments', () => {
+  it('deploys one copy per pushed branch, reuses it, and removes it when the branch is deleted', async () => {
+    const { client, ws } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const web = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Site', serverId: sid, source: { type: 'git', repository: 'https://github.com/acme/site.git', branch: 'main' }, config: { port: 3000 } })).body.service;
+    assert.equal((await client.patch(`${D}/services/${web.id}`, { config: { previews: { enabled: true, domain: 'preview.example.com' } } })).status, 200);
+    await client.put(`${D}/services/${web.id}/env`, { env: 'API=1' });
+    const { rows } = await db.execute(sql`select webhook_secret from dp_services where id = ${web.id}::uuid`);
+    const push = (body) => { const raw = JSON.stringify(body); return fetch(`${server.base}${D}/hooks/${web.id}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': `sha256=${crypto.createHmac('sha256', rows[0].webhook_secret).update(raw).digest('hex')}` }, body: raw }); };
+    server.outbox.length = 0;
+    const first = await push({ ref: 'refs/heads/feature/Login Page', head_commit: { message: 'wip' } });
+    assert.equal(first.status, 202);
+    const previews = async () => (await db.execute(sql`select s.id, s.preview_branch, s.env_enc, d.host from dp_services s left join dp_domains d on d.service_id = s.id where s.preview_of = ${web.id}::uuid`)).rows;
+    let list = await previews();
+    assert.equal(list.length, 1);
+    assert.equal(list[0].preview_branch, 'feature/Login Page');
+    assert.match(list[0].host, /^feature-login-page-site-[a-f0-9]{4}\.preview\.example\.com$/);
+    assert.ok(list[0].env_enc, 'the parent’s variables carry over');
+    assert.equal(queued().length, 1);
+    await push({ ref: 'refs/heads/feature/Login Page' });
+    assert.equal((await previews()).length, 1, 'the same branch reuses its preview');
+    assert.equal(queued().length, 2);
+    const off = await push({ ref: 'refs/heads/feature/Login Page', deleted: true });
+    assert.equal((await off.json()).removed, true);
+    assert.equal((await previews()).length, 0);
+    await client.patch(`${D}/services/${web.id}`, { config: { previews: { enabled: false } } });
+    assert.equal((await (await push({ ref: 'refs/heads/other' })).json()).skipped.includes('ignored'), true, 'previews off: other branches are ignored');
+    assert.ok(ws);
+  });
+});
+
 describe('saved credentials', () => {
   it('stores a registry login and a Git token encrypted and applies them to deployments without leaking', async () => {
     const { client } = await admin();

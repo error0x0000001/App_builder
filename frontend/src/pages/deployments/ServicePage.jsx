@@ -198,10 +198,10 @@ function MonitoringTab({ service }) {
 
 function SettingsTab({ service, onChange, onDelete }) {
   const isGit = service.source?.type === 'git'; const isImage = service.source?.type === 'docker' && service.kind === 'application';
-  const schema = z.object({ name: z.string().trim().min(1, 'Enter a name').max(60), autoDeploy: z.boolean(), image: z.string().optional(), branch: z.string().optional(), port: z.union([z.literal(''), z.coerce.number().int().min(1).max(65535)]).optional(), replicas: z.coerce.number().int().min(0).max(50) });
-  const { form, submit, formError } = useAppForm({ schema, defaultValues: { name: service.name, autoDeploy: service.autoDeploy, image: service.source?.image ?? '', branch: service.source?.branch ?? '', port: service.config?.port ?? '', replicas: service.config?.replicas ?? 1 },
+  const schema = z.object({ name: z.string().trim().min(1, 'Enter a name').max(60), autoDeploy: z.boolean(), image: z.string().optional(), branch: z.string().optional(), port: z.union([z.literal(''), z.coerce.number().int().min(1).max(65535)]).optional(), replicas: z.coerce.number().int().min(0).max(50), previews: z.boolean().optional(), previewDomain: z.string().trim().toLowerCase().optional() });
+  const { form, submit, formError } = useAppForm({ schema, defaultValues: { name: service.name, autoDeploy: service.autoDeploy, image: service.source?.image ?? '', branch: service.source?.branch ?? '', port: service.config?.port ?? '', replicas: service.config?.replicas ?? 1, previews: service.config?.previews?.enabled ?? false, previewDomain: service.config?.previews?.domain ?? '' },
     onSubmit: async (v) => {
-      const body = { name: v.name, autoDeploy: v.autoDeploy, config: { replicas: v.replicas, ...(v.port ? { port: v.port } : {}) } };
+      const body = { name: v.name, autoDeploy: v.autoDeploy, config: { replicas: v.replicas, ...(v.port ? { port: v.port } : {}), ...(isGit ? { previews: { enabled: Boolean(v.previews), domain: v.previewDomain || '' } } : {}) } };
       if (isImage) body.source = { ...service.source, image: v.image };
       if (isGit) body.source = { ...service.source, branch: v.branch };
       await deploymentsApi.updateService(service.id, body); onChange();
@@ -216,6 +216,8 @@ function SettingsTab({ service, onChange, onDelete }) {
           {service.kind === 'application' && <TextField name="port" label="Container port" type="number" />}
           {service.kind !== 'compose' && <TextField name="replicas" label="Replicas" type="number" />}
           {service.kind === 'application' && <SwitchField name="autoDeploy" label="Deploy on every push" />}
+          {isGit && <SwitchField name="previews" label="Preview deployments" description="A push to any other branch deploys a throw-away copy; deleting the branch removes it." />}
+          {isGit && form.watch('previews') && <TextField name="previewDomain" label="Preview domain" placeholder="preview.example.com" hint="Each branch gets branch-name-app.<this domain>. Point a wildcard DNS record at your server." />}
           <div className="flex justify-end"><SubmitButton size="sm">Save changes</SubmitButton></div>
         </Form>
       </Section>
