@@ -94,7 +94,7 @@ function ClusterSheet({ server, servers, onClose }) {
         <h3 className="text-sm font-semibold text-ink">Join {server.name} to another cluster</h3>
         <p className="mt-1 text-xs text-muted">Makes this server a worker of the chosen manager. It must not run services of its own.</p>
         <div className="mt-3 flex gap-2">
-          <Select aria-label="Manager server" value={managerId} onChange={(e) => setManagerId(e.target.value)} options={[{ value: '', label: others.length ? 'Choose a manager' : 'No other ready server' }, ...others.map((s) => ({ value: s.id, label: s.name }))]} className="flex-1" />
+          <Select aria-label="Manager server" value={managerId} onChange={setManagerId} options={[{ value: '', label: others.length ? 'Choose a manager' : 'No other ready server' }, ...others.map((s) => ({ value: s.id, label: s.name }))]} className="flex-1" />
           <Button size="sm" disabled={!managerId} loading={busy === 'join'} onClick={act('join', () => deploymentsApi.joinCluster(server.id, { managerId }))}>Join</Button>
         </div>
       </div>

@@ -35,7 +35,7 @@ export default function AccessPage() {
           <li key={r.userId} className="flex items-center gap-3 p-3">
             <Avatar name={r.name} size="size-9" />
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{r.name}</p><p className="truncate text-xs text-muted">{r.email}</p></div>
-            <Select aria-label={`Level for ${r.name}`} value={r.level} onChange={(e) => run(() => deploymentsApi.setAccess({ userId: r.userId, level: e.target.value }))()} options={ACCESS_LEVELS.map((l) => ({ value: l, label: LEVELS[l][0] }))} className="w-36" />
+            <Select aria-label={`Level for ${r.name}`} value={r.level} onChange={(level) => run(() => deploymentsApi.setAccess({ userId: r.userId, level }))()} options={ACCESS_LEVELS.map((l) => ({ value: l, label: LEVELS[l][0] }))} className="w-36" />
             <Button size="icon" variant="ghost" aria-label={`Remove ${r.name}`} onClick={run(() => deploymentsApi.removeAccess(r.userId))}><Icon name="trash" className="size-4" /></Button>
           </li>
         ))}
