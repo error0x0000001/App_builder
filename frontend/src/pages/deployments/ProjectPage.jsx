@@ -123,6 +123,7 @@ export default function ProjectPage() {
     <div className="space-y-5">
       <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
         {can('manager') && <Button size="sm" variant="neutral" onClick={() => setConfirm({ type: 'project' })}><Icon name="trash" className="size-4" />Delete project</Button>}
+        {can('manager') && <Button as={Link} to={`/app/deployments/templates?env=${env.id}`} size="sm" variant="neutral"><Icon name="grid" className="size-4" />From template</Button>}
         {can('manager') && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New service</Button>}
       </PageToolbar>
       <div><h1 className="text-lg font-semibold text-ink">{project.name}</h1>{project.description && <p className="text-sm text-muted">{project.description}</p>}</div>

@@ -9,6 +9,7 @@ import ProjectPage from './ProjectPage.jsx';
 import ServersPage from './ServersPage.jsx';
 import ServicePage from './ServicePage.jsx';
 import AccessPage from './AccessPage.jsx';
+import TemplatesPage from './TemplatesPage.jsx';
 import CredentialsPage from './CredentialsPage.jsx';
 import { LevelContext } from './parts.jsx';
 
@@ -23,6 +24,7 @@ export default function DeploymentsRoutes() {
     <LevelContext.Provider value={me.data.level}>
     <Routes>
       <Route index element={<OverviewPage />} />
+      <Route path="templates" element={<TemplatesPage />} />
       <Route path="credentials" element={me.data.level === 'manager' ? <CredentialsPage /> : <Navigate to="/app/deployments" replace />} />
       <Route path="access" element={<AccessPage />} />
       <Route path="servers" element={me.data.level === 'manager' ? <ServersPage /> : <Navigate to="/app/deployments" replace />} />

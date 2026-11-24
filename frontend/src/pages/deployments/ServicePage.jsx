@@ -123,20 +123,22 @@ function EnvTab({ service, secrets, reveal, onSaved }) {
 
 function DomainsTab({ service, onChange }) {
   const [adding, setAdding] = useState(false); const [error, setError] = useState(null);
-  const { form, submit, formError } = useAppForm({ schema: domainBodySchema, defaultValues: { host: '', path: '/', port: service.config?.port ?? '', https: true }, onSubmit: async (v) => { await deploymentsApi.addDomain(service.id, v); setAdding(false); form.reset(); onChange(); } });
-  const unsupported = service.kind === 'compose' || DATABASE_KINDS.includes(service.kind);
+  const { form, submit, formError } = useAppForm({ schema: z.preprocess((v) => ({ ...v, serviceName: v.serviceName || undefined }), domainBodySchema), defaultValues: { host: '', path: '/', port: service.config?.port ?? '', https: true, serviceName: '' }, onSubmit: async (v) => { await deploymentsApi.addDomain(service.id, v); setAdding(false); form.reset(); onChange(); } });
+  const unsupported = DATABASE_KINDS.includes(service.kind);
+  const compose = service.kind === 'compose';
   return (
     <Section title="Domains" description="Point the domain’s DNS at your server. HTTPS certificates are issued automatically." action={!unsupported && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />Add domain</Button>}>
       {error && <Alert tone="error" className="mb-3">{error}</Alert>}
-      {unsupported ? <p className="text-sm text-muted">{service.kind === 'compose' ? 'Compose stacks route through Traefik labels in their Compose file.' : 'Databases are not published on a domain.'}</p> : service.domains.length === 0 ? <p className="text-sm text-muted">No domains yet.</p> : (
+      {unsupported ? <p className="text-sm text-muted">Databases are not published on a domain.</p> : service.domains.length === 0 ? <p className="text-sm text-muted">No domains yet.</p> : (
         <ul className="divide-y divide-line">{service.domains.map((d) => (
-          <li key={d.id} className="flex items-center gap-3 py-3"><Icon name="link" className="size-4 text-placeholder" /><a href={d.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm font-medium text-link hover:underline">{d.url}</a><Badge tone="neutral">port {d.port}</Badge>{d.https && <Badge tone="success">HTTPS</Badge>}<Button size="icon" variant="ghost" aria-label={`Remove ${d.host}`} onClick={async () => { try { await deploymentsApi.removeDomain(service.id, d.id); onChange(); } catch (e) { setError(e.message); } }}><Icon name="trash" className="size-4" /></Button></li>
+          <li key={d.id} className="flex items-center gap-3 py-3"><Icon name="link" className="size-4 text-placeholder" /><a href={d.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm font-medium text-link hover:underline">{d.url}</a>{d.serviceName && <Badge tone="accent">{d.serviceName}</Badge>}<Badge tone="neutral">port {d.port}</Badge>{d.https && <Badge tone="success">HTTPS</Badge>}<Button size="icon" variant="ghost" aria-label={`Remove ${d.host}`} onClick={async () => { try { await deploymentsApi.removeDomain(service.id, d.id); onChange(); } catch (e) { setError(e.message); } }}><Icon name="trash" className="size-4" /></Button></li>
         ))}</ul>
       )}
       <Dialog open={adding} onClose={() => setAdding(false)} label="Add domain" className="max-w-md">
         <div className="space-y-4 p-5"><h2 className="text-base font-semibold text-ink">Add domain</h2>
           <Form form={form} onSubmit={submit} error={formError}>
             <TextField name="host" label="Domain" placeholder="app.example.com" autoFocus required />
+            {compose && <TextField name="serviceName" label="Service" placeholder="web" hint="The service name in the Compose file that serves this domain." required />}
             <div className="grid grid-cols-2 gap-3"><TextField name="path" label="Path" /><TextField name="port" label="Container port" type="number" required /></div>
             <SwitchField name="https" label="HTTPS" description="Request a Let’s Encrypt certificate." />
             <div className="flex justify-end gap-2"><Button type="button" variant="neutral" size="sm" onClick={() => setAdding(false)}>Cancel</Button><SubmitButton size="sm">Add</SubmitButton></div>
