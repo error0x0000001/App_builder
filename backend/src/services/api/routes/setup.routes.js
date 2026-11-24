@@ -25,7 +25,7 @@ function sendEntry(req, res, { body, etag }, cacheControl = 'private, no-cache')
 
 export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, securityPolicy }) {
   const router = Router();
-  const { settings, records, metrics, health, tools } = setup;
+  const { settings, records, metrics, health, tools, userDetails } = setup;
 
   // Static definitions are serialised once at boot: a request costs a hash lookup.
   const staticBodies = new Map();
@@ -60,6 +60,13 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
   };
   const need = (cond, message) => (req, res, next) => next(cond(req) ? undefined : new NotFoundError(message));
   const params = validate({ params: keyParam });
+
+  // One person, everything about them (the "user details" page). Role / profile / removal go through the Users records endpoints.
+  const userParam = z.object({ userId: uuidField });
+  router.get('/users/:userId', validate({ params: userParam }), async (req, res) => res.json(await userDetails.get(req.setupCtx.workspaceId, req.params.userId)));
+  router.post('/users/:userId/sign-out', validate({ params: userParam, body: z.object({ ids: z.array(uuidField).max(50).optional() }).optional() }), async (req, res) => {
+    res.json({ revoked: await userDetails.signOut(req.setupCtx, req.params.userId, req.body?.ids) });
+  });
 
   router.get('/tree', (req, res) => sendEntry(req, res, stat('tree', () => ({ tree: SETUP_TREE, counts: SETUP_COUNTS })), 'private, max-age=300'));
 

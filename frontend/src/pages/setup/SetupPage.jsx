@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { PageIntro } from './PageIntro.jsx';
@@ -12,7 +12,6 @@ import { useSetupPage } from './useSetupPage.js';
 export default function SetupPage() {
   const { key } = useParams();
   const query = useSetupPage(key);
-  if (key === 'user-management-settings') return <Navigate to="/app/setup/users" replace />; // a section of Users now
   return (
     <QueryState query={query}>
       {({ page, status }) => {

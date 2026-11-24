@@ -25,6 +25,7 @@ import { SettingsBindings } from '../../modules/setup/bindings.js';
 import { createSetupAdapters } from '../../modules/setup/adapters.js';
 import { HealthService } from '../../modules/setup/health.service.js';
 import { MetricsService } from '../../modules/setup/metrics.service.js';
+import { UserDetailsService } from '../../modules/setup/userDetails.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
 import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
@@ -118,6 +119,7 @@ export function createContainer({ boss }) {
   const setup = {
     settings: setupSettings, records: setupRecords, health,
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
+    userDetails: new UserDetailsService({ db, repos, cache }),
     tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };

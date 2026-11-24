@@ -22,7 +22,7 @@ describe('access', () => {
   it('serves the tree and page definitions with ETag/304', async () => {
     const tree = await owner.get(`${S}/tree`);
     assert.equal(tree.status, 200);
-    assert.equal(tree.body.counts.total, 265);
+    assert.equal(tree.body.counts.total, 264);
     const page = await owner.get(`${S}/pages/password-policies`);
     const again = await owner.request('GET', `${S}/pages/password-policies`, undefined, { 'If-None-Match': page.headers.get('etag') });
     assert.equal(again.status, 304);
@@ -154,6 +154,19 @@ describe('dashboards, health and tools', () => {
   it('the removed Adoption Manager page no longer exists', async () => {
     const gone = await owner.get(`${S}/pages/adoption-manager/metrics`);
     assert.equal(gone.status, 404);
+  });
+  it('shows one person in full and can sign them out', async () => {
+    const me = (await owner.get('/me')).body;
+    const meId = me.user?.id ?? me.id;
+    const res = await owner.get(`${S}/users/${meId}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user.id, meId);
+    assert.ok(res.body.user.email && res.body.user.roleLabel);
+    assert.ok(Array.isArray(res.body.sessions) && Array.isArray(res.body.logins) && Array.isArray(res.body.changes));
+    const stranger = await owner.get(`${S}/users/01a20419-8062-74b9-8324-000000000000`);
+    assert.equal(stranger.status, 404);
+    const noOne = await owner.post(`${S}/users/01a20419-8062-74b9-8324-000000000000/sign-out`, {});
+    assert.equal(noOne.status, 404);
   });
   it('every dashboard provider responds', async () => {
     for (const key of ['storage-usage', 'platform-cache', 'optimizer', 'readiness-assessor', 'data-integration-metrics', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant']) {

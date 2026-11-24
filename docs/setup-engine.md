@@ -1,7 +1,7 @@
 # Setup engine — design, scale model, measurements
 
 ## What it is
-One registry of 265 pages (`packages/shared/src/setup/registry.generated.json`, built from the design by `tools/setup/build-registry.cjs`)
+One registry of 264 pages (`packages/shared/src/setup/registry.generated.json`, built from the design by `tools/setup/build-registry.cjs`)
 drives a generic API (`/api/v1/setup`, admins only) and six UI templates. Adding a page = adding registry data.
 **The registry describes screens; it does not make settings do anything.** `docs/setup-status.md` (generated) lists, per page, whether it
 is real platform data, a working tool, live metrics, records, or stored-only configuration.

@@ -57,6 +57,8 @@ export const invitationsApi = {
 const page = (key, rest = '') => `/setup/pages/${key}${rest}`;
 export const setupApi = {
   tree: () => get('/setup/tree'),
+  user: (userId) => get(`/setup/users/${userId}`),
+  signOutUser: (userId, ids) => post(`/setup/users/${userId}/sign-out`, ids ? { ids } : {}),
   page: (key) => get(page(key)),
   settings: (key) => get(page(key, '/settings')),
   saveSettings: (key, version, values) => patch(page(key, '/settings'), { version, values }),

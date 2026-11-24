@@ -31,7 +31,7 @@ roles (owner/admin/member/viewer) with last-owner protection · invitations (new
 
 ## Setup area (`/app/setup`, admins only)
 
-265 pages driven by one registry (`packages/shared/src/setup/registry.generated.json`, generated from the design by `tools/setup/build-registry.cjs`)
+264 pages driven by one registry (`packages/shared/src/setup/registry.generated.json`, generated from the design by `tools/setup/build-registry.cjs`)
 and rendered by a handful of templates (list · settings form · tool · dashboard · hierarchy · specials). A page is configuration, not code.
 **What is real vs. stored-only is listed per page in [`docs/setup-status.md`](docs/setup-status.md)** (generated). Architecture, scale design,
 the Odoo research it follows and measured load-test results: [`docs/setup-engine.md`](docs/setup-engine.md).

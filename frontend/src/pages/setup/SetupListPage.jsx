@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SETUP_LIST } from '@app/shared';
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { setupApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -26,6 +26,9 @@ const GOOD = /^(active|success|enabled|deployed|ready|standard|yes|approved|comp
 const WARN = /^(inactive|pending|draft|disabled|expired|no)/i;
 const BAD = /(fatal|fail|error|invalid|denied|locked)/i;
 const tone = (v) => (BAD.test(v) ? 'danger' : GOOD.test(v) ? 'success' : WARN.test(v) ? 'warning' : 'neutral');
+
+// Rows that open their own details page instead of an edit dialog.
+const DETAIL_PAGES = { users: (row) => `/app/setup/users/${row.id}` };
 
 const dash = <span className="text-muted">—</span>;
 const PERSON = /(^|_)(created_by|modified_by|updated_by|owner|assigned_to|user|monitored_user|manager|requester)$/i;
@@ -67,6 +70,7 @@ const renderCell = (type, { key, first, subKey }) => (row) => {
 function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onOpen }) {
   const { page, adapter, views } = definition;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [search, setSearch] = useState(() => params.get('q') ?? ''); // global search deep link
   const viewOptions = (views ?? []).map((v) => (typeof v === 'string' ? { value: v, label: v } : v)); // definitions list views as plain strings
@@ -155,7 +159,7 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
             storageKey={`setup:${pageKey}`}
             loading={records.isFetching && !rows.length}
             selection={canDelete ? { selected, onToggle: toggle, onToggleAll: toggleAll } : undefined}
-            onRowClick={onOpen ?? (canEdit ? (record) => setDialog({ mode: 'edit', record }) : undefined)}
+            onRowClick={onOpen ?? (DETAIL_PAGES[pageKey] ? (record) => navigate(DETAIL_PAGES[pageKey](record)) : canEdit ? (record) => setDialog({ mode: 'edit', record }) : undefined)}
             empty={q ? `Nothing matches “${q}”` : `No ${page.name.toLowerCase()} yet`}
             footer={(
               <PaginationBar

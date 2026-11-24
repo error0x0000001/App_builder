@@ -5,7 +5,7 @@ Not "a CRM": a platform with four layers (counts from `docs/inventory/`):
 
 | Layer | Size |
 |---|---|
-| **Setup / Administration** | 265 pages in 3 groups / 14 sections |
+| **Setup / Administration** | 264 pages in 3 groups / 14 sections |
 | **CRM apps** | 7 main apps (Sales, Service, Marketing, HR, Analytics, AI studio, Setup) + 7 more (Commerce, Field Service, Revenue, Data Cloud, Digital Experiences, Slack-style chat, Tableau-style analytics) · 34 objects · 34 bespoke pages · 11 reports · 5 dashboards · 4 AI agents |
 | **Back-office / ERP** | 13 apps (accounting, purchase, inventory, manufacturing, projects, timesheets, expenses…) · 29 models |
 | **Cross-cutting** | auth (done), themes (done), global search, calendar, forecasting, notifications, audit |
