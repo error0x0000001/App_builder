@@ -88,7 +88,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
               <tr
                 key={row[rowKey]}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn('h-14 border-t border-line-strong odd:bg-[color-mix(in_srgb,var(--ink)_4.5%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
+                className={cn('h-14 border-t border-line-strong even:bg-[color-mix(in_srgb,var(--ink)_4.5%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
               >
                 {selection && <td className="pl-4 pr-0" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
                 {columns.map((c) => {
