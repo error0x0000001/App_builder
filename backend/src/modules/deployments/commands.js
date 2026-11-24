@@ -251,3 +251,17 @@ export function terminalCommand(appName, kind) {
   const pick = kind === 'compose' ? `docker ps -q --filter ${q(`label=com.docker.compose.project=${appName}`)}` : `docker ps -q --filter ${q(`name=${appName}_app`)}`;
   return `c=$(${pick} | head -1); [ -n "$c" ] || { echo "No running container for this service."; exit 1; }; exec docker exec -it "$c" sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'`;
 }
+
+// ---------- plain Docker (the Docker page) ----------
+export const CONTAINER_ID = /^[a-f0-9]{6,64}$/;
+export const dockerPsCommand = "docker ps -a --format '{{json .}}'";
+export const dockerActionCommand = (containerId, action) => {
+  if (!CONTAINER_ID.test(containerId)) throw new Error('Invalid container');
+  if (action === 'remove') return `docker rm -f ${q(containerId)}`;
+  if (['start', 'stop', 'restart'].includes(action)) return `docker ${action} ${q(containerId)}`;
+  throw new Error('Unknown action');
+};
+export const dockerLogsCommand = (containerId, tail = 300) => {
+  if (!CONTAINER_ID.test(containerId)) throw new Error('Invalid container');
+  return `docker logs --tail ${Math.max(10, Math.min(2000, Number(tail) || 300))} --timestamps ${q(containerId)} 2>&1`;
+};

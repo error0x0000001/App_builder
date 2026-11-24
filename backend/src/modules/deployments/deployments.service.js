@@ -41,6 +41,11 @@ export class DeploymentsService {
 
   async createServer(ctx, body) {
     const id = uuidv7();
+    if (body.sshKeyId) {
+      const { rows: [k] } = await this.db.execute(sql`select secret_enc from dp_credentials where id = ${body.sshKeyId}::uuid and workspace_id = ${ctx.workspaceId} and kind = 'ssh'`);
+      if (!k) throw new ValidationError([{ field: 'sshKeyId', message: 'Choose one of your saved SSH keys' }], 'Unknown SSH key');
+      body = { ...body, sshKey: this.#dec(k.secret_enc).secret };
+    }
     await this.db.execute(sql`insert into dp_servers (id, workspace_id, name, kind, host, port, username, ssh_key_enc) values (${id}::uuid, ${ctx.workspaceId}, ${body.name}, 'ssh', ${body.host}, ${body.port}, ${body.username}, ${body.sshKey ? this.#enc({ key: body.sshKey }) : null})`);
     await this.#audit(ctx, `Added server “${body.name}”`);
     return this.#serverView(await this.#server(ctx.workspaceId, id));
@@ -380,8 +385,8 @@ export class DeploymentsService {
 
   // ---------- saved credentials (registries, Git tokens) ----------
   async listCredentials(ws) {
-    const { rows } = await this.db.execute(sql`select id, kind, name, url, username, created_at from dp_credentials where workspace_id = ${ws} order by kind, name`);
-    return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, url: r.url, username: r.username, createdAt: r.created_at }));
+    const { rows } = await this.db.execute(sql`select id, kind, name, url, username, public_key, created_at from dp_credentials where workspace_id = ${ws} order by kind, name`);
+    return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, url: r.url, username: r.username, publicKey: r.public_key, createdAt: r.created_at }));
   }
 
   async createCredential(ctx, body) {
@@ -391,8 +396,29 @@ export class DeploymentsService {
     return (await this.listCredentials(ctx.workspaceId)).find((c) => c.id === id);
   }
 
+  /** A fresh ed25519 key pair: the private half is stored encrypted and never shown; the public half is for the server's authorized_keys. */
+  async generateSshKey(ctx, { name }) {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+    const raw = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32);
+    const seed = Buffer.from(privateKey.export({ format: 'jwk' }).d, 'base64url');
+    const str = (b) => { const len = Buffer.alloc(4); len.writeUInt32BE(b.length); return Buffer.concat([len, Buffer.from(b)]); };
+    const blob = Buffer.concat([str('ssh-ed25519'), str(raw)]);
+    const check = crypto.randomBytes(4);
+    let priv = Buffer.concat([check, check, str('ssh-ed25519'), str(raw), str(Buffer.concat([seed, raw])), str('quelli')]);
+    for (let i = 1; priv.length % 8 !== 0; i += 1) priv = Buffer.concat([priv, Buffer.from([i])]);
+    const count = Buffer.alloc(4); count.writeUInt32BE(1);
+    const body = Buffer.concat([Buffer.from('openssh-key-v1\0'), str('none'), str('none'), str(''), count, str(blob), str(priv)]);
+    const pem = `-----BEGIN OPENSSH PRIVATE KEY-----\n${body.toString('base64').match(/.{1,70}/g).join('\n')}\n-----END OPENSSH PRIVATE KEY-----\n`;
+    const line = `ssh-ed25519 ${blob.toString('base64')} quelli`;
+    const id = uuidv7();
+    await this.db.execute(sql`insert into dp_credentials (id, workspace_id, kind, name, secret_enc, public_key) values (${id}::uuid, ${ctx.workspaceId}, 'ssh', ${name}, ${this.#enc({ secret: pem })}, ${line})`);
+    await this.#audit(ctx, `Generated SSH key “${name}”`);
+    return (await this.listCredentials(ctx.workspaceId)).find((c) => c.id === id);
+  }
+
   async deleteCredential(ctx, id) {
     const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where workspace_id = ${ctx.workspaceId} and source->>'credentialId' = ${id}`);
+    // (servers copy an SSH key when they are created, so a key in use by a server can be deleted without breaking it)
     if (used.n > 0) throw new ConflictError(`${used.n} service${used.n === 1 ? ' uses' : 's use'} this credential. Switch them to another one first.`);
     const { rowCount } = await this.db.execute(sql`delete from dp_credentials where id = ${id}::uuid and workspace_id = ${ctx.workspaceId}`);
     if (!rowCount) throw new NotFoundError('Credential not found');
@@ -456,6 +482,56 @@ export class DeploymentsService {
     }
     await this.#audit(ctx, `Created “${label}” from the ${t.name} template`);
     return this.getService(ctx.workspaceId, id);
+  }
+
+  // ---------- cross-service views (Dokploy's Overview / Deployments / Schedules / Audit pages) ----------
+  async listAllServices(ws) {
+    const { rows } = await this.db.execute(sql`select v.id, v.kind, v.name, v.status, v.last_deployed_at, v.preview_branch, p.id as project_id, p.name as project, e.name as environment, sv.name as server,
+        (select count(*)::int from dp_domains d where d.service_id = v.id) as domains
+      from dp_services v join dp_environments e on e.id = v.environment_id join dp_projects p on p.id = e.project_id left join dp_servers sv on sv.id = v.server_id where v.workspace_id = ${ws} order by p.name, v.name`);
+    return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, status: r.status, lastDeployedAt: r.last_deployed_at, previewBranch: r.preview_branch, projectId: r.project_id, project: r.project, environment: r.environment, server: r.server, domains: r.domains }));
+  }
+
+  async listAllDeployments(ws, { limit = 100, status } = {}) {
+    const { rows } = await this.db.execute(sql`select d.id, d.kind, d.title, d.status, d.started_at, d.finished_at, d.service_id, v.name as service_name, s.name as server_name
+      from dp_deployments d left join dp_services v on v.id = d.service_id left join dp_servers s on s.id = d.server_id where d.workspace_id = ${ws} ${status ? sql`and d.status = ${status}` : sql``} order by d.id desc limit ${limit}`);
+    return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, status: r.status, serviceId: r.service_id, serviceName: r.service_name ?? r.server_name, startedAt: r.started_at, finishedAt: r.finished_at }));
+  }
+
+  async listAllJobs(ws) {
+    const { rows } = await this.db.execute(sql`select j.id, j.kind, j.name, j.cron, j.command, j.enabled, j.last_run_at, v.id as service_id, v.name as service from dp_jobs j join dp_services v on v.id = j.service_id where j.workspace_id = ${ws} order by v.name, j.name`);
+    return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, cron: r.cron, command: r.command, enabled: r.enabled, lastRunAt: r.last_run_at, serviceId: r.service_id, service: r.service }));
+  }
+
+  async auditLog(ws, { limit = 100 } = {}) {
+    const { rows } = await this.db.execute(sql`select a.id, a.summary, a.created_at, coalesce(nullif(trim(concat(u.first_name, ' ', u.last_name)), ''), u.email, 'Webhook') as who
+      from setup_audit a left join users u on u.id = a.user_id where a.workspace_id = ${ws} and a.page_key = 'deployments' order by a.id desc limit ${limit}`);
+    return rows.map((r) => ({ id: r.id, summary: r.summary, at: r.created_at, who: r.who }));
+  }
+
+  // ---------- Docker on a server (Dokploy's Docker page) ----------
+  async dockerContainers(ctx, serverId) {
+    const server = await this.#server(ctx.workspaceId, serverId);
+    const { code, output } = await this.#runnerFor(server).run(cmd.dockerPsCommand, { timeoutMs: 30_000 });
+    if (code !== 0) throw new ValidationError(undefined, 'Could not list containers. Is Docker running on this server?');
+    return output.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
+      .map((c) => ({ id: c.ID, name: c.Names, image: c.Image, state: c.State, status: c.Status, ports: c.Ports, createdAt: c.CreatedAt }));
+  }
+
+  async dockerAction(ctx, serverId, containerId, action) {
+    const server = await this.#server(ctx.workspaceId, serverId);
+    let command; try { command = cmd.dockerActionCommand(containerId, action); } catch (e) { throw new ValidationError(undefined, e.message); }
+    const { code, output } = await this.#runnerFor(server).run(command, { timeoutMs: 60_000 });
+    if (code !== 0) throw new ValidationError(undefined, output.trim().slice(-200) || 'Docker refused that.');
+    await this.#audit(ctx, `Docker ${action} on “${server.name}”: ${containerId.slice(0, 12)}`);
+    return this.dockerContainers(ctx, serverId);
+  }
+
+  async dockerLogs(ctx, serverId, containerId, tail = 300) {
+    const server = await this.#server(ctx.workspaceId, serverId);
+    let command; try { command = cmd.dockerLogsCommand(containerId, tail); } catch (e) { throw new ValidationError(undefined, e.message); }
+    const { output } = await this.#runnerFor(server).run(command, { timeoutMs: 30_000 });
+    return { log: output };
   }
 
   // ---------- domains ----------

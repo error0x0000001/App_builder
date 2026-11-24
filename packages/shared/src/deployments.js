@@ -69,6 +69,7 @@ export const serverBodySchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).default(22),
   username: z.string().trim().min(1).max(64).regex(/^[a-z_][a-z0-9_-]*$/i, 'Enter a Linux user name').default('root'),
   sshKey: z.string().trim().min(40, 'Paste the private key').max(20_000).optional(),
+  sshKeyId: z.string().uuid().optional(),
 });
 export const serverPatchSchema = serverBodySchema.partial();
 export const projectBodySchema = z.object({ name: NAME, description: z.string().trim().max(500).optional() });
@@ -159,12 +160,16 @@ export const accessBodySchema = z.object({ userId: z.string().uuid(), level: z.e
 
 /** Saved logins reused by many services: a container registry (user + password/token) or a Git access token. */
 export const credentialBodySchema = z.object({
-  kind: z.enum(['registry', 'git']),
+  kind: z.enum(['registry', 'git', 'ssh']),
   name: z.string().trim().min(1, 'Enter a name').max(60),
   url: z.string().trim().max(200).optional(),
   username: z.string().trim().max(200).optional(),
   secret: z.string().min(1, 'Enter the password or token').max(2000),
-}).superRefine((v, ctx) => { if (v.kind === 'registry' && !v.username) ctx.addIssue({ code: 'custom', path: ['username'], message: 'Enter the username' }); });
+}).superRefine((v, ctx) => {
+  if (v.kind === 'registry' && !v.username) ctx.addIssue({ code: 'custom', path: ['username'], message: 'Enter the username' });
+  if (v.kind === 'ssh' && !/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(v.secret)) ctx.addIssue({ code: 'custom', path: ['secret'], message: 'Paste a private key (it starts with -----BEGIN … PRIVATE KEY-----)' });
+});
+export const sshKeyGenerateSchema = z.object({ name: z.string().trim().min(1, 'Enter a name').max(60) });
 
 /** A branch name as a DNS-safe label: `feature/Login Page` → `feature-login-page`. */
 export const branchSlug = (branch) => String(branch).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'branch';

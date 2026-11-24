@@ -393,6 +393,53 @@ describe('server metrics history', () => {
   });
 });
 
+describe('console pages: services, queue, schedules, audit, docker, ssh keys', () => {
+  it('lists across services, drives Docker on a server with validated ids, and generates a usable SSH key', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const web = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Listed', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' } })).body.service;
+    await client.post(`${D}/services/${web.id}/jobs`, { name: 'Tick', cron: '0 1 * * *', command: 'true' });
+    await client.post(`${D}/services/${web.id}/deploy`);
+    for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+
+    const services = (await client.get(`${D}/services`)).body.services;
+    assert.ok(services.some((s) => s.name === 'Listed' && s.project === 'Shop' && s.server === 'prod-1'));
+    assert.ok((await client.get(`${D}/jobs`)).body.jobs.some((j) => j.service === 'Listed' && j.name === 'Tick'));
+    const queue = (await client.get(`${D}/queue?limit=5`)).body.deployments;
+    assert.ok(queue.length >= 1 && queue[0].serviceName);
+    assert.equal((await client.get(`${D}/queue?status=bogus`)).status, 400);
+    assert.ok((await client.get(`${D}/audit`)).body.audit.some((a) => /Created service|Created application|Created/.test(a.summary)));
+
+    const before = fake.respond;
+    fake.respond = (c) => c.startsWith('docker ps -a') ? { output: `${JSON.stringify({ ID: 'abc123def456', Names: 'web.1', Image: 'nginx', State: 'running', Status: 'Up 2 hours', Ports: '80/tcp', CreatedAt: 'x' })}\n` } : c.startsWith('docker logs') ? { output: 'hello from the container\n' } : before(c);
+    const list = (await client.get(`${D}/servers/${sid}/containers`)).body.containers;
+    assert.deepEqual([list[0].id, list[0].state], ['abc123def456', 'running']);
+    fake.commands.length = 0;
+    assert.equal((await client.post(`${D}/servers/${sid}/containers/abc123def456/restart`)).status, 200);
+    assert.ok(fake.commands.some((c) => c === "docker restart 'abc123def456'"));
+    assert.equal((await client.post(`${D}/servers/${sid}/containers/${encodeURIComponent('abc;rm -rf /')}/stop`)).status, 400);
+    assert.equal((await client.post(`${D}/servers/${sid}/containers/abc123def456/explode`)).status, 400);
+    assert.equal((await client.get(`${D}/servers/${sid}/containers/abc123def456/logs`)).body.log.trim(), 'hello from the container');
+    fake.respond = before;
+
+    const key = (await client.post(`${D}/credentials/ssh-key`, { name: 'deploy key' })).body.credential;
+    assert.match(key.publicKey, /^ssh-ed25519 [A-Za-z0-9+/=]+ quelli$/);
+    const { rows: [row] } = await db.execute(sql`select secret_enc from dp_credentials where id = ${key.id}::uuid`);
+    assert.ok(!row.secret_enc.includes('PRIVATE KEY'), 'stored encrypted');
+    const { default: ssh2 } = await import('ssh2'); const { utils } = ssh2;
+    const privateKey = svc.secretBox.decrypt(row.secret_enc);
+    const parsed = utils.parseKey(JSON.parse(privateKey).secret);
+    assert.ok(!(parsed instanceof Error), 'ssh2 accepts the generated key');
+    assert.equal(parsed.type, 'ssh-ed25519');
+    assert.equal(parsed.getPublicSSH().toString('base64'), key.publicKey.split(' ')[1], 'the public key matches the private one');
+    const made = await client.post(`${D}/servers`, { name: 'by-key', host: 'k.example.com', port: 22, username: 'root', sshKeyId: key.id });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.equal((await client.post(`${D}/servers`, { name: 'bad', host: 'k2.example.com', sshKeyId: crypto.randomUUID() })).status, 400);
+    assert.equal((await client.post(`${D}/credentials`, { kind: 'ssh', name: 'junk', secret: 'not a key' })).status, 400);
+  });
+});
+
 describe('templates', () => {
   it('lists the catalog, deploys a template as a Compose stack with routing labels and its files, and refuses bad input', async () => {
     const { client } = await admin();

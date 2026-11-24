@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { listTemplates } from '../../../modules/deployments/templates/engine.js';
 import { z } from 'zod';
-import { accessBodySchema, credentialBodySchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
+import { accessBodySchema, credentialBodySchema, sshKeyGenerateSchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { ForbiddenError } from '../../../shared/errors.js';
@@ -78,6 +78,14 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.get('/templates', need('viewer'), (req, res) => { res.set('Cache-Control', 'private, max-age=3600').json({ templates: listTemplates() }); });
   router.get('/templates/:templateId', need('viewer'), validate({ params: z.object({ templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/) }) }), (req, res) => res.json({ template: deployments.templateDetails(req.params.templateId) }));
   router.post('/environments/:id/templates', need('manager'), validate({ params: id, body: z.object({ templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/), serverId: uuidField.optional(), domain: z.string().trim().toLowerCase().max(253).regex(/^$|^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/, 'Enter a domain like app.example.com').optional(), name: z.string().trim().min(1).max(60).optional() }) }), async (req, res) => res.status(201).json({ service: await deployments.createFromTemplate(ctx(req), req.params.id, req.valid.body) }));
+  router.get('/services', need('viewer'), async (req, res) => res.json({ services: await deployments.listAllServices(ws(req)) }));
+  router.get('/jobs', need('viewer'), async (req, res) => res.json({ jobs: await deployments.listAllJobs(ws(req)) }));
+  router.get('/audit', need('manager'), async (req, res) => res.json({ audit: await deployments.auditLog(ws(req)) }));
+  router.get('/queue', need('viewer'), validate({ query: z.object({ status: z.enum(['running', 'done', 'error', 'cancelled']).optional(), limit: z.coerce.number().int().min(1).max(300).default(100) }) }), async (req, res) => res.json({ deployments: await deployments.listAllDeployments(ws(req), req.valid.query) }));
+  router.post('/credentials/ssh-key', need('manager'), validate({ body: sshKeyGenerateSchema }), async (req, res) => res.status(201).json({ credential: await deployments.generateSshKey(ctx(req), req.valid.body) }));
+  router.get('/servers/:id/containers', need('manager'), validate({ params: id }), async (req, res) => res.json({ containers: await deployments.dockerContainers(ctx(req), req.params.id) }));
+  router.post('/servers/:id/containers/:containerId/:action', need('manager'), validate({ params: id.extend({ containerId: z.string().regex(/^[a-f0-9]{6,64}$/), action: z.enum(['start', 'stop', 'restart', 'remove']) }) }), async (req, res) => res.json({ containers: await deployments.dockerAction(ctx(req), req.params.id, req.params.containerId, req.params.action) }));
+  router.get('/servers/:id/containers/:containerId/logs', need('manager'), validate({ params: id.extend({ containerId: z.string().regex(/^[a-f0-9]{6,64}$/) }), query: logQuery }), async (req, res) => res.json(await deployments.dockerLogs(ctx(req), req.params.id, req.params.containerId, req.valid.query.tail)));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
   router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
   router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));
