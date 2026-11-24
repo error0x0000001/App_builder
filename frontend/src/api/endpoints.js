@@ -55,6 +55,14 @@ export const invitationsApi = {
 };
 
 const page = (key, rest = '') => `/setup/pages/${key}${rest}`;
+export const integrationsApi = {
+  list: () => get('/integrations'),
+  save: (provider, body) => put(`/integrations/${provider}`, body),
+  test: (provider) => post(`/integrations/${provider}/test`),
+  setEnabled: (provider, enabled) => post(`/integrations/${provider}/enabled`, { enabled }),
+  disconnect: (provider) => del(`/integrations/${provider}`),
+};
+
 export const setupApi = {
   tree: () => get('/setup/tree'),
   user: (userId) => get(`/setup/users/${userId}`),

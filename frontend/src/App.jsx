@@ -28,6 +28,7 @@ const NewWorkspacePage = page(() => import('./pages/app/NewWorkspacePage.jsx'));
 const ObjectListPage = page(() => import('./pages/objects/ObjectListPage.jsx'));
 const SetupLayout = page(() => import('./pages/setup/SetupLayout.jsx'));
 const SetupPage = page(() => import('./pages/setup/SetupPage.jsx'));
+const IntegrationsPage = page(() => import('./pages/integrations/IntegrationsPage.jsx'));
 const UserDetailsPage = page(() => import('./pages/setup/UserDetailsPage.jsx'));
 const SetupHome = lazy(() => import('./pages/setup/SetupLayout.jsx').then((m) => ({ default: m.SetupHome })));
 
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="chat/join/:code" element={<JoinGroupPage />} />
               <Route path="chat/:id" element={<ChatPage />} />
               <Route path="o/:object" element={<ObjectListPage />} />
+              <Route path="integrations" element={<RequireRole minimumRole="admin" />}><Route index element={<IntegrationsPage />} /></Route>
               <Route path="setup" element={<RequireRole minimumRole="admin" />}>
                 <Route element={<SetupLayout />}>
                   <Route index element={<SetupHome />} />

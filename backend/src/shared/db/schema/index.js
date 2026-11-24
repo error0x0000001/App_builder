@@ -13,3 +13,4 @@ export * from './passwordHistory.js';
 export * from './drive.js';
 export * from './chat.js';
 export * from './accessAddons.js';
+export * from './integrations.js';

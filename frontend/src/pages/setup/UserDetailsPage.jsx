@@ -170,7 +170,7 @@ export default function UserDetailsPage() {
             <p className="truncate text-sm text-muted">{user.email}</p>
             <div className="mt-2 flex flex-wrap gap-1.5"><Badge tone="accent">{user.roleLabel}</Badge>{user.profile && <Badge hue={badgeHue(user.profile)}>{user.profile}</Badge>}<Badge tone={user.active ? 'success' : 'neutral'} dot>{user.active ? 'Active' : 'Deactivated'}</Badge>{user.mfaEnabled && <Badge hue="teal">2-step on</Badge>}</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 pt-3"><LoginAsButton userId={user.id} />{!isMe && <Button size="sm" variant="neutral" className="text-danger" onClick={() => setConfirmRemove(true)}><Icon name="trash" className="size-4" />Remove</Button>}</div>
+          <div className="flex flex-wrap items-center gap-2 pt-3"><LoginAsButton userId={user.id} />{!isMe && <Button size="sm" variant="neutral" className="text-danger!" onClick={() => setConfirmRemove(true)}><Icon name="trash" className="size-4" />Remove</Button>}</div>
         </div>
       </Card>
 

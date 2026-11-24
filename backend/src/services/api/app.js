@@ -19,6 +19,7 @@ import { objectRoutes } from './routes/objects.routes.js';
 import { publicRoutes } from './routes/public.routes.js';
 import { searchRoutes } from './routes/search.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
+import { integrationsRoutes } from './routes/integrations.routes.js';
 import { workspaceRoutes } from './routes/workspaces.routes.js';
 
 export function createApp(container, { recycler } = {}) {
@@ -53,6 +54,7 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/workspaces', workspaceRoutes(container));
   app.use('/api/v1/invitations', invitationRoutes(container));
   app.use('/api/v1/setup', setupRoutes(container));
+  app.use('/api/v1/integrations', integrationsRoutes(container));
   app.use('/api/v1/objects', objectRoutes(container));
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));

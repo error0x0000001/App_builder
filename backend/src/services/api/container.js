@@ -30,6 +30,7 @@ import { RecordsService } from '../../modules/setup/records.service.js';
 import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
 import { createAccessAddons } from '../../modules/access/addons.service.js';
+import { IntegrationsService } from '../../modules/integrations/integrations.service.js';
 import { SearchService } from '../../modules/search/search.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
@@ -128,6 +129,7 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
+  const integrations = new IntegrationsService({ db, secretBox, repos, allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS });
   const features = Object.freeze({ accessAddons: Boolean(addons) });
-  return { features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }
