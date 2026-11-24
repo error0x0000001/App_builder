@@ -10,3 +10,6 @@ dist
 # Uploaded Documents (local StorageDriver)
 storage/
 backend/storage/
+
+# Redis snapshot written when redis-server is started inside backend/
+dump.rdb
