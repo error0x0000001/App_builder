@@ -8,11 +8,13 @@ import { IntegrationsService } from '../src/modules/integrations/integrations.se
 import { db } from '../src/shared/db/index.js';
 import { SecretBox } from '../src/shared/security/crypto.js';
 import { signAwsV4 } from '../src/shared/security/signing.js';
+import crypto from 'node:crypto';
+import { ChannelNotifier, createNotifyJob } from '../src/modules/integrations/channelNotifier.js';
 import { Client, PASSWORD, registerUser, startServer, uniqueEmail } from './helpers.js';
 
-let server; let smtp; let s3;
-before(async () => { server = await startServer(); smtp = await fakeSmtp(); s3 = await fakeS3(); });
-after(async () => { smtp.close(); s3.close(); await server.stop(); });
+let server; let smtp; let s3; let hook;
+before(async () => { server = await startServer(); smtp = await fakeSmtp(); s3 = await fakeS3(); hook = await fakeHook(); });
+after(async () => { smtp.close(); s3.close(); hook.close(); await server.stop(); });
 
 const I = '/integrations';
 
@@ -57,6 +59,16 @@ function fakeS3(accessKey = 'AKIATESTKEY') {
     res.statusCode = !good ? 403 : req.url === '/files' ? 200 : 404; res.end();
   });
   return new Promise((resolve) => srv.listen(0, '127.0.0.1', () => resolve({ port: srv.address().port, seen, close: () => srv.close() })));
+}
+
+/** A chat-webhook receiver: records every POST (path, headers, body) and answers 200, or 500 on /broken. */
+function fakeHook() {
+  const received = [];
+  const srv = http.createServer((req, res) => {
+    let body = ''; req.on('data', (c) => { body += c; });
+    req.on('end', () => { received.push({ path: req.url, headers: req.headers, body }); res.statusCode = req.url.startsWith('/broken') ? 500 : 200; res.end('ok'); });
+  });
+  return new Promise((resolve) => srv.listen(0, '127.0.0.1', () => resolve({ port: srv.address().port, received, url: (path) => `http://127.0.0.1:${srv.address().port}${path}`, close: () => srv.close() })));
 }
 
 async function admin() {
@@ -197,5 +209,83 @@ describe('request signing', () => {
   it('produces the signature AWS publishes for its own GET Object example', () => {
     const h = signAwsV4({ method: 'GET', url: 'https://examplebucket.s3.amazonaws.com/test.txt', region: 'us-east-1', accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', headers: { Range: 'bytes=0-9' }, payloadHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', now: new Date('2013-05-24T00:00:00Z') });
     assert.match(h.authorization, /Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41$/);
+  });
+});
+
+describe('notification channels (Slack, Teams, Discord, webhook)', () => {
+  const connect = async (client, provider, path, events, extra = {}) => {
+    const res = await client.put(`${I}/${provider}`, { config: { events }, secrets: { [provider === 'webhook' ? 'url' : 'webhook_url']: hook.url(path), ...extra } });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const tested = await client.post(`${I}/${provider}/test`);
+    assert.equal(tested.body.integration.status, 'connected', JSON.stringify(tested.body));
+    assert.equal((await client.post(`${I}/${provider}/enabled`, { enabled: true })).status, 200);
+  };
+
+  it('each provider posts its own message shape when tested; several can be on at once', async () => {
+    const { client } = await admin();
+    hook.received.length = 0;
+    await connect(client, 'slack', '/slack', ['cases']);
+    await connect(client, 'teams', '/teams', ['approvals']);
+    await connect(client, 'discord', '/discord', ['cases', 'big_deals']);
+    await connect(client, 'webhook', '/hook', ['workflow'], { signing_secret: 'whsec-123' });
+    const by = Object.fromEntries(hook.received.map((r) => [r.path, r]));
+    assert.match(JSON.parse(by['/slack'].body).text, /\*Cloudbase connection test\*/);
+    assert.equal(JSON.parse(by['/teams'].body).attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
+    assert.equal(JSON.parse(by['/discord'].body).embeds[0].title, 'Cloudbase connection test');
+    const hookBody = by['/hook'].body;
+    assert.equal(JSON.parse(hookBody).event, 'test');
+    assert.equal(by['/hook'].headers['x-cloudbase-signature'], `sha256=${crypto.createHmac('sha256', 'whsec-123').update(hookBody).digest('hex')}`, 'the body is signed with the secret');
+    const states = (await client.get(I)).body.integrations;
+    assert.deepEqual(['slack', 'teams', 'discord', 'webhook'].map((k) => states.find((i) => i.key === k).enabled), [true, true, true, true], 'messaging is not exclusive');
+    assert.deepEqual(states.find((i) => i.key === 'webhook').secretsSet.sort(), ['signing_secret', 'url']);
+    assert.ok(!JSON.stringify(states).includes('whsec-123'));
+  });
+
+  it('reports a channel that answers with an error, and refuses an unknown event', async () => {
+    const { client } = await admin();
+    await client.put(`${I}/slack`, { config: { events: ['cases'] }, secrets: { webhook_url: hook.url('/broken') } });
+    const t = await client.post(`${I}/slack/test`);
+    assert.equal(t.body.integration.status, 'error');
+    assert.match(t.body.integration.statusMessage, /HTTP 500/);
+    assert.equal((await client.put(`${I}/slack`, { config: { events: ['everything'] }, secrets: { webhook_url: hook.url('/x') } })).status, 400);
+  });
+
+  it('only channels that asked for an event receive it, one job each, and delivery happens in the worker', async () => {
+    const { client, ws } = await admin();
+    await connect(client, 'slack', '/s2', ['cases']);
+    await connect(client, 'discord', '/d2', ['approvals']);
+    const queued = [];
+    const notifier = new ChannelNotifier({ boss: { send: async (q, payload) => queued.push(payload) }, integrations: server.container.integrations });
+    await notifier.post(ws, { kind: 'cases', title: 'New case: Printer', text: 'A case was created.', link: 'http://localhost:5173/app/o/Case?open=1' });
+    assert.deepEqual(queued.map((j) => j.provider), ['slack']);
+    await notifier.post(ws, { kind: 'tasks', title: 'x', text: 'y' });
+    assert.equal(queued.length, 1, 'nobody asked for tasks');
+    hook.received.length = 0;
+    await createNotifyJob(server.container.integrations, { allowPrivate: true })({ data: queued[0] });
+    const got = hook.received.find((r) => r.path === '/s2');
+    assert.match(JSON.parse(got.body).text, /\*New case: Printer\*\nA case was created\.\n<http:\/\/localhost:5173\/app\/o\/Case\?open=1\|Open in Cloudbase>/);
+    await client.post(`${I}/slack/enabled`, { enabled: false });
+    hook.received.length = 0;
+    await new Promise((r) => setTimeout(r, 5100));
+    await createNotifyJob(server.container.integrations, { allowPrivate: true })({ data: queued[0] });
+    assert.equal(hook.received.length, 0, 'a channel that was turned off meanwhile is not posted to');
+  });
+
+  it('real events reach the channel: a new case and an approval request', async () => {
+    const { client } = await admin();
+    await connect(client, 'slack', '/events', ['cases', 'approvals']);
+    const cur = await client.get('/setup/pages/support-settings/settings');
+    await client.patch('/setup/pages/support-settings/settings', { version: cur.body.version, values: { notify_case_owner: true } });
+    server.outbox.length = 0;
+    const made = await client.post('/objects/Case/records', { subject: 'Printer on fire' });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    const job = server.outbox.find((j) => j.provider === 'slack' && j.kind === 'cases');
+    assert.ok(job, 'a channel job was queued for the new case');
+    assert.match(job.title, /New case/);
+    assert.match(job.link, /\/app\/o\/Case\?open=/);
+    await client.post('/setup/pages/approval-processes/records', { process_name: 'Hot leads', object: 'Lead', status: 'Active', criteria_field: 'Rating', criteria_operator: 'equals', criteria_value: 'Hot', approver: 'boss@example.com' });
+    server.outbox.length = 0;
+    await client.post('/objects/Lead/records', { name: 'Ada', company: 'Analytical', rating: 'Hot' });
+    assert.ok(server.outbox.some((j) => j.provider === 'slack' && j.kind === 'approvals'), 'an approval request is posted too');
   });
 });

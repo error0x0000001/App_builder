@@ -7,10 +7,12 @@ export const QUEUES = Object.freeze({
   EXPIRE_PASSWORDS: 'setup-expire-passwords',
   ESCALATE_CASES: 'escalate-cases',
   PURGE_CHAT: 'purge-expired-chat',
+  NOTIFY_CHANNELS: 'notify-channels',
 });
 
 const QUEUE_OPTIONS = {
   [QUEUES.SEND_EMAIL]: { retryLimit: 5, retryDelay: 10, retryBackoff: true, deleteAfterSeconds: 3600 },
+  [QUEUES.NOTIFY_CHANNELS]: { retryLimit: 4, retryDelay: 15, retryBackoff: true, deleteAfterSeconds: 3600 },
   [QUEUES.CLEANUP]: { retryLimit: 1 },
   [QUEUES.ESCALATE_CASES]: { retryLimit: 1 },
   [QUEUES.PURGE_CHAT]: { retryLimit: 1 },

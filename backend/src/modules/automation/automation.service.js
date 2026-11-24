@@ -1,4 +1,5 @@
 import { APPROVAL_STATUS, RULE_COLLECTIONS, fieldKey } from '@app/shared';
+import { config } from '../../shared/config.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import { matchesCriteria } from './criteria.js';
 
@@ -11,7 +12,12 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
  * acts when it is Active, matches the object, passes its criteria AND has its action configured — otherwise it is inert.
  */
 export class AutomationService {
-  constructor({ repos, cache, mail, logger, settings }) { Object.assign(this, { repos, cache, mail, logger, settings }); }
+  constructor({ repos, cache, mail, logger, settings, notifier = null }) { Object.assign(this, { repos, cache, mail, logger, settings, notifier }); }
+
+  /** Also post to the workspace's connected chat channels (Slack, Teams, Discord, webhook) that asked for this kind of event. */
+  #channel(ws, kind, title, text, def, row) {
+    return this.notifier?.post(ws, { kind, title, text, link: def && row ? `${config.APP_URL}/app/o/${def.key}?open=${row.id}` : undefined });
+  }
 
   rules(ws, collection) {
     return this.cache.rememberValue(`r:${ws}:${collection}`, 'rules', { ttlMs: 30_000 }, async () =>
@@ -72,7 +78,7 @@ export class AutomationService {
       if ((mode === 'update' && !everyEdit) || !matchesCriteria(rule, { ...current.data, ...patch })) continue;
       const { action_type: type, action_field: field, action_value: value } = rule.data;
       if (type === 'Field update' && field) patch[fieldKey(field)] = value ?? '';
-      else if (type === 'Email alert') await this.#email(ws, field?.includes('@') ? field : current.data[fieldKey(field ?? '')], rule.name, value);
+      else if (type === 'Email alert') { await this.#email(ws, field?.includes('@') ? field : current.data[fieldKey(field ?? '')], rule.name, value); await this.#channel(ws, 'workflow', rule.name, value ?? '', def, current); }
       else if (type === 'Create task' && value) {
         await this.repos.setupRecords.insert(ws, objectColl('Task'), { label: value, status: 'Open', data: { subject: value, status: 'Open', related_to: current.label, created_by_rule: rule.name }, createdBy: ctx.userId });
         await this.cache.bump(`r:${ws}:${objectColl('Task')}`);
@@ -91,6 +97,7 @@ export class AutomationService {
       if (process) {
         Object.assign(patch, { approval_status: APPROVAL_STATUS.PENDING, approval_process: process.name, approver: process.data.approver });
         await this.#email(ws, process.data.approver, `Approval needed: ${current.label}`, `${process.name} requires your decision on ${def.key} “${current.label}”.`);
+        await this.#channel(ws, 'approvals', `Approval needed: ${current.label}`, `${process.name} requires a decision on ${def.key} “${current.label}”.`, def, current);
       }
     }
 
@@ -108,13 +115,16 @@ export class AutomationService {
       const threshold = Number(String(s.big_deal_amount ?? '').replace(/[^0-9.]/g, ''));
       if (s.enable_big_deal_alerts === true && threshold > 0 && amount >= threshold && !row.data.big_deal_alerted) {
         await this.#email(ws, owner, `Big deal: ${row.label}`, `${row.label} is worth ${row.data.amount}, above the big-deal threshold (${s.big_deal_amount}).`);
+        await this.#channel(ws, 'big_deals', `Big deal: ${row.label}`, `${row.label} is worth ${row.data.amount}, above the big-deal threshold (${s.big_deal_amount}).`, def, row);
         row.data = { ...row.data, big_deal_alerted: true };
         await this.repos.setupRecords.update(ws, objectColl(def.key), row.id, { data: { big_deal_alerted: true } });
       }
     } else if (def.key === 'Case' && mode === 'create' && (await this.settings.values(ws, 'support-settings')).notify_case_owner === true) {
       await this.#email(ws, owner, `New case: ${row.label}`, `A case was assigned to you: ${row.label}.`);
+      await this.#channel(ws, 'cases', `New case: ${row.label}`, `A case was created${owner ? ` for ${owner}` : ''}: ${row.label}.`, def, row);
     } else if (def.key === 'Task' && mode === 'create' && (await this.settings.values(ws, 'activity-settings')).enable_task_notifications === true) {
       await this.#email(ws, owner, `New task: ${row.label}`, `A task was assigned to you: ${row.label}.`);
+      await this.#channel(ws, 'tasks', `New task: ${row.label}`, `A task was created${owner ? ` for ${owner}` : ''}: ${row.label}.`, def, row);
     }
   }
 

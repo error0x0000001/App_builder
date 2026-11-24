@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 import { signAwsV4, signAzureSharedKey } from '../../shared/security/signing.js';
 import { resolveTarget, safeRequest } from '../../shared/net/safeRequest.js';
@@ -90,17 +91,43 @@ async function testMapTiler(config, secrets, opts) {
   return res.status === 200 ? ok('The key works') : fail(describeStatus(res.status, 'MapTiler'));
 }
 
-async function testSlack(config, secrets, opts) {
-  const url = new URL(secrets.webhook_url);
-  if (url.hostname !== 'hooks.slack.com') return fail('That is not a Slack webhook (it should start with https://hooks.slack.com/).');
-  const res = await safeRequest(secrets.webhook_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: { text: 'Cloudbase connection test — you can ignore this message.' }, ...opts });
-  return res.status === 200 ? ok('A test message was posted') : fail(`Slack answered HTTP ${res.status}: ${res.body.slice(0, 80)}`);
+const HOSTS = {
+  slack: (u) => u.hostname === 'hooks.slack.com' || u.hostname.endsWith('.slack.com'),
+  discord: (u) => ['discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com'].includes(u.hostname) && u.pathname.startsWith('/api/webhooks/'),
+  teams: (u) => ['.webhook.office.com', '.logic.azure.com', '.powerplatform.com', '.office.com'].some((suffix) => u.hostname.endsWith(suffix)),
+};
+const HOST_HINT = { slack: 'a Slack webhook (https://hooks.slack.com/…)', discord: 'a Discord webhook (https://discord.com/api/webhooks/…)', teams: 'a Microsoft Teams Workflows webhook' };
+const webhookUrl = (provider, secrets) => (provider === 'webhook' ? secrets.url : secrets.webhook_url);
+
+/** What each channel receives for one notification: { title, text, link, kind }. */
+function formatMessage(provider, { title, text, link, kind }, config, secrets) {
+  if (provider === 'slack') return { body: { text: `*${title}*\n${text}${link ? `\n<${link}|Open in Cloudbase>` : ''}` } };
+  if (provider === 'discord') return { body: { username: 'Cloudbase', embeds: [{ title: title.slice(0, 250), description: text.slice(0, 3500), ...(link ? { url: link } : {}), color: 0x7f56d9 }] } };
+  if (provider === 'teams') {
+    return { body: { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body: [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', wrap: true }, { type: 'TextBlock', text: text, wrap: true }], actions: link ? [{ type: 'Action.OpenUrl', title: 'Open in Cloudbase', url: link }] : [] } }] } };
+  }
+  const payload = { event: kind ?? 'notification', title, text, link: link ?? null, sentAt: new Date().toISOString() };
+  const raw = JSON.stringify(payload);
+  const headers = { 'user-agent': 'Cloudbase-Webhook/1' };
+  if (secrets.signing_secret) headers['x-cloudbase-signature'] = `sha256=${crypto.createHmac('sha256', secrets.signing_secret).update(raw).digest('hex')}`;
+  return { body: raw, headers };
 }
+
+/** Posts one notification through a messaging provider. `allowPrivate` also lifts the public-host rule (self-hosted Mattermost, your own endpoint). */
+export async function deliverNotification(provider, config, secrets, message, { allowPrivate = false } = {}) {
+  const url = webhookUrl(provider, secrets);
+  let target; try { target = new URL(url); } catch { return fail('That is not a valid URL.'); }
+  if (!allowPrivate && HOSTS[provider] && !HOSTS[provider](target)) return fail(`That is not ${HOST_HINT[provider]}.`);
+  const { body, headers = {} } = formatMessage(provider, message, config, secrets);
+  const res = await safeRequest(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body, allowPrivate });
+  return res.status >= 200 && res.status < 300 ? ok('Delivered') : fail(`${provider === 'webhook' ? 'Your endpoint' : provider} answered HTTP ${res.status}${res.body ? `: ${res.body.slice(0, 80)}` : ''}`);
+}
+const testNotify = (provider) => (config, secrets, opts) => deliverNotification(provider, config, secrets, { kind: 'test', title: 'Cloudbase connection test', text: 'If you can read this, Cloudbase can post here. You can ignore this message.', link: null }, opts);
 
 const TESTERS = {
   smtp: (c, s, o) => testSmtp('smtp', c, s, o), ses: (c, s, o) => testSmtp('ses', c, s, o),
   s3: (c, s, o) => testS3('s3', c, s, o), minio: (c, s, o) => testS3('minio', c, s, o),
-  azure_blob: testAzure, cloudinary: testCloudinary, google_maps: testGoogleMaps, openstreetmap: testOsm, maptiler: testMapTiler, slack: testSlack,
+  azure_blob: testAzure, cloudinary: testCloudinary, google_maps: testGoogleMaps, openstreetmap: testOsm, maptiler: testMapTiler, slack: testNotify('slack'), teams: testNotify('teams'), discord: testNotify('discord'), webhook: testNotify('webhook'),
 };
 
 /** Checks a provider's credentials for real (a signed request or a sign-in). Never throws: every failure becomes a readable message. */

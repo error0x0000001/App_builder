@@ -31,6 +31,7 @@ import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
 import { createAccessAddons } from '../../modules/access/addons.service.js';
 import { IntegrationsService } from '../../modules/integrations/integrations.service.js';
+import { ChannelNotifier } from '../../modules/integrations/channelNotifier.js';
 import { SearchService } from '../../modules/search/search.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
@@ -99,7 +100,9 @@ export function createContainer({ boss }) {
   const health = new HealthService({ settings: setupSettings });
   const settingsReader = new SettingsReader({ repos, cache });
   const emailPolicy = new EmailPolicyService({ settings: settingsReader });
-  const automation = new AutomationService({ repos, cache, mail, logger, settings: settingsReader });
+  const integrations = new IntegrationsService({ db, secretBox, repos, allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS });
+  const notifier = new ChannelNotifier({ boss, integrations, logger });
+  const automation = new AutomationService({ repos, cache, mail, notifier, logger, settings: settingsReader });
   const escalation = new EscalationService({ repos, automation, cache, logger });
   const seedSetup = (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key));
   const addons = createAccessAddons({ enabled: config.ACCESS_ADDONS_ENABLED, db, cache, repos, seed: seedSetup }); // null when ACCESS_ADDONS_ENABLED=false: the feature never runs
@@ -129,7 +132,6 @@ export function createContainer({ boss }) {
   };
   const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
-  const integrations = new IntegrationsService({ db, secretBox, repos, allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS });
   const features = Object.freeze({ accessAddons: Boolean(addons) });
   return { integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

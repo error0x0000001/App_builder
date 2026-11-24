@@ -17,6 +17,7 @@ import { ChatRetentionService } from '../../modules/chat/retention.service.js';
 import { LocalStorageDriver } from '../../shared/storage/localStorage.js';
 import { createCleanupJob } from './jobs/cleanup.js';
 import { createSendEmailJob } from './jobs/sendEmail.js';
+import { ChannelNotifier, createNotifyJob } from '../../modules/integrations/channelNotifier.js';
 import { SecretBox } from '../../shared/security/crypto.js';
 import { IntegrationsService } from '../../modules/integrations/integrations.service.js';
 
@@ -26,12 +27,13 @@ const cache = createCache();
 const integrations = new IntegrationsService({ db, secretBox: new SecretBox(config.ENCRYPTION_KEY), repos, allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS });
 const cleanup = new CleanupService({ repos, logger });
 const chatRetention = new ChatRetentionService({ db, storage: new LocalStorageDriver(config.STORAGE_DIR), logger });
-const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), logger, settings: new SettingsReader({ repos, cache }) }) });
+const escalation = new EscalationService({ repos, cache, logger, automation: new AutomationService({ repos, cache, mail: new MailService({ boss }), notifier: new ChannelNotifier({ boss, integrations, logger }), logger, settings: new SettingsReader({ repos, cache }) }) });
 const passwordExpiry = new PasswordExpiryService({ repos, oneTime: new OneTimeTokenService({ repos, pepper: config.JWT_SECRET }), mail: new MailService({ boss }), logger });
 
 // Register new jobs here: queue name -> handler (one job per call, parallelism via batchSize).
 const handlers = {
   [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, workspaceMailer: integrations.mailerFor(), emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
+  [QUEUES.NOTIFY_CHANNELS]: createNotifyJob(integrations, { allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS }),
   [QUEUES.CLEANUP]: createCleanupJob(cleanup),
   [QUEUES.ESCALATE_CASES]: () => escalation.run(),
   [QUEUES.PURGE_CHAT]: () => chatRetention.purgeExpired(),

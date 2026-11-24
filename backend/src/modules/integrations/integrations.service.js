@@ -1,4 +1,4 @@
-import { INTEGRATIONS, getIntegration, publicFieldKeys, secretFieldKeys } from '@app/shared';
+import { INTEGRATIONS, getIntegration, publicFieldKeys, requiredSecretKeys } from '@app/shared';
 import { sql } from 'drizzle-orm';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import { createSmtpTransport, smtpSettings, testProvider } from './testers.js';
@@ -51,7 +51,7 @@ export class IntegrationsService {
     const stored = existing?.secrets_enc ? JSON.parse(this.secretBox.decrypt(existing.secrets_enc)) : {};
     const merged = { ...stored };
     for (const [k, v] of Object.entries(secrets)) if (typeof v === 'string' && v.trim()) merged[k] = v.trim();
-    const missing = secretFieldKeys(key).filter((k) => !merged[k]);
+    const missing = requiredSecretKeys(key).filter((k) => !merged[k]);
     if (missing.length) throw new ValidationError(missing.map((k) => ({ field: `secrets.${k}`, message: `${def.fields.find((f) => f.key === k).label} is required` })));
     const plain = Object.fromEntries(publicFieldKeys(key).filter((k) => config[k] !== undefined && config[k] !== '').map((k) => [k, config[k]]));
     const enc = this.secretBox.encrypt(JSON.stringify(merged));
@@ -118,6 +118,18 @@ export class IntegrationsService {
     const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from workspace_integrations where workspace_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)}) limit 1`);
     const row = rows[0];
     const value = row ? { key: row.provider, version: row.version, config: row.config, secrets: JSON.parse(this.secretBox.decrypt(row.secrets_enc)) } : null;
+    this.#live.set(k, { value, until: Date.now() + TTL_MS });
+    return value;
+  }
+
+  /** Every live provider of a category (for categories where several can be on, like messaging). Cached a few seconds. */
+  async resolveAll(ws, category) {
+    const k = `${ws}:${category}:all`;
+    const hit = this.#live.get(k);
+    if (hit && hit.until > Date.now()) return hit.value;
+    const keys = INTEGRATIONS.filter((i) => i.category === category).map((i) => i.key);
+    const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from workspace_integrations where workspace_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)})`);
+    const value = rows.map((row) => ({ key: row.provider, version: row.version, config: row.config, secrets: JSON.parse(this.secretBox.decrypt(row.secrets_enc)) }));
     this.#live.set(k, { value, until: Date.now() + TTL_MS });
     return value;
   }

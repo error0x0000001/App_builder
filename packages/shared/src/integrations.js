@@ -17,7 +17,18 @@ export const INTEGRATION_CATEGORIES = Object.freeze([
 
 const text = (key, label, extra = {}) => ({ key, label, type: 'text', ...extra });
 const secret = (key, label, extra = {}) => ({ key, label, type: 'secret', required: true, ...extra });
+const optionalSecret = (key, label, extra = {}) => secret(key, label, { required: false, ...extra });
 const select = (key, label, options, extra = {}) => ({ key, label, type: 'select', options, ...extra });
+
+/** What can post to a channel. Each notifying integration lets the admin pick which of these it receives. */
+export const NOTIFICATION_EVENTS = Object.freeze([
+  { value: 'approvals', label: 'Approval requests', hint: 'A record is waiting for someone to approve it' },
+  { value: 'big_deals', label: 'Big deals', hint: 'An opportunity passes the big-deal amount' },
+  { value: 'cases', label: 'New cases', hint: 'A support case is created' },
+  { value: 'workflow', label: 'Workflow alerts', hint: 'A workflow rule with an email alert fires' },
+  { value: 'tasks', label: 'New tasks', hint: 'A task is created (can be noisy)' },
+]);
+const EVENTS_FIELD = { key: 'events', label: 'Send these', type: 'multiselect', options: NOTIFICATION_EVENTS, default: ['approvals', 'big_deals', 'cases', 'workflow'], hint: 'Pick what should reach this channel.' };
 
 const FROM = [text('from_email', 'From address', { required: true, kind: 'email', placeholder: 'noreply@yourcompany.com', hint: 'Must be an address your provider lets you send from.' }), text('from_name', 'From name', { placeholder: 'Your Company' })];
 const AWS_REGIONS = ['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'ca-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-north-1', 'eu-south-1', 'ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2', 'sa-east-1', 'me-south-1', 'af-south-1'];
@@ -106,15 +117,35 @@ export const INTEGRATIONS = Object.freeze([
     fields: [secret('api_key', 'API key', { hint: 'Enable the Maps JavaScript and Geocoding APIs for this key.' }), text('map_id', 'Map ID', { placeholder: 'Optional' })],
   },
   {
-    key: 'slack', tile: '#', category: 'messaging', name: 'Slack', hue: 'pink', live: false,
-    description: 'Post workspace notifications to a Slack channel through an incoming webhook.',
-    uses: ['Automation alerts to a channel'],
-    fields: [secret('webhook_url', 'Incoming webhook URL', { kind: 'url', hint: 'Create it in Slack under Apps › Incoming Webhooks.' })],
+    key: 'slack', tile: '#', category: 'messaging', name: 'Slack', hue: 'pink', live: true,
+    description: 'Post notifications to a Slack channel through an incoming webhook. Mattermost and Rocket.Chat webhooks work too.',
+    uses: ['Approval requests, big deals, new cases and workflow alerts in a channel', 'Choose which events reach it'],
+    fields: [secret('webhook_url', 'Incoming webhook URL', { kind: 'url', hint: 'Create it in Slack under Apps › Incoming Webhooks. “Test connection” posts one message.' }), EVENTS_FIELD],
+  },
+  {
+    key: 'teams', tile: 'T', category: 'messaging', name: 'Microsoft Teams', hue: 'indigo', live: true,
+    description: 'Post notifications to a Teams channel through a Workflows webhook.',
+    uses: ['Approval requests, big deals, new cases and workflow alerts in a channel', 'Choose which events reach it'],
+    fields: [secret('webhook_url', 'Workflows webhook URL', { kind: 'url', hint: 'In Teams: channel › Workflows › “Post to a channel when a webhook request is received”. “Test connection” posts one card.' }), EVENTS_FIELD],
+  },
+  {
+    key: 'discord', tile: 'D', category: 'messaging', name: 'Discord', hue: 'purple', live: true,
+    description: 'Post notifications to a Discord channel through a webhook.',
+    uses: ['Approval requests, big deals, new cases and workflow alerts in a channel', 'Choose which events reach it'],
+    fields: [secret('webhook_url', 'Webhook URL', { kind: 'url', hint: 'Channel settings › Integrations › Webhooks. “Test connection” posts one message.' }), EVENTS_FIELD],
+  },
+  {
+    key: 'webhook', tile: '{ }', category: 'messaging', name: 'Webhook', hue: 'teal', live: true,
+    description: 'Send each notification as JSON to your own endpoint, signed so you can verify it came from Cloudbase.',
+    uses: ['Any system that can receive an HTTPS POST: Zapier, n8n, Make, your own service', 'Choose which events it receives'],
+    fields: [secret('url', 'Endpoint URL', { kind: 'url' }), optionalSecret('signing_secret', 'Signing secret', { hint: 'Optional. When set, every request carries an X-Cloudbase-Signature header: sha256= and the HMAC-SHA256 of the body.' }), EVENTS_FIELD],
   },
 ]);
 
 export const getIntegration = (key) => INTEGRATIONS.find((i) => i.key === key) ?? null;
 export const secretFieldKeys = (key) => (getIntegration(key)?.fields ?? []).filter((f) => f.type === 'secret').map((f) => f.key);
+/** Secret fields that must exist before the provider can be saved (optional ones may stay empty). */
+export const requiredSecretKeys = (key) => (getIntegration(key)?.fields ?? []).filter((f) => f.type === 'secret' && f.required !== false).map((f) => f.key);
 export const publicFieldKeys = (key) => (getIntegration(key)?.fields ?? []).filter((f) => f.type !== 'secret').map((f) => f.key);
 
 const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i;
@@ -123,6 +154,7 @@ function fieldSchema(field) {
   let base;
   if (field.type === 'number') base = z.coerce.number({ invalid_type_error: `${label} must be a number` }).int().min(field.min ?? 0).max(field.max ?? 1_000_000);
   else if (field.type === 'select') base = z.enum(field.options.map((o) => (typeof o === 'string' ? o : o.value)));
+  else if (field.type === 'multiselect') base = z.array(z.enum(field.options.map((o) => o.value))).max(field.options.length);
   else if (field.kind === 'email') base = z.string().trim().email(`${label} must be an email address`).max(200);
   else if (field.kind === 'url') base = z.string().trim().url(`${label} must be a full URL`).max(500).refine((v) => /^https?:\/\//i.test(v), `${label} must start with http:// or https://`);
   else if (field.kind === 'host') base = z.string().trim().regex(HOST, `${label} must be a host name like smtp.example.com`);
@@ -140,7 +172,8 @@ export function integrationBodySchema(key) {
   const config = {}; const secrets = {};
   for (const field of def.fields) {
     const schema = fieldSchema(field);
-    if (field.type === 'secret') secrets[field.key] = schema.optional();
+    if (field.type === 'secret') secrets[field.key] = schema.optional().or(z.literal('').transform(() => undefined));
+    else if (field.type === 'multiselect') config[field.key] = schema;
     else config[field.key] = field.required ? schema : schema.optional().or(z.literal('').transform(() => undefined));
   }
   return z.object({ config: z.object(config).strict(), secrets: z.object(secrets).strict().optional() });

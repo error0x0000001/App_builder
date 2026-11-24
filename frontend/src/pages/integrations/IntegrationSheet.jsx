@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { INTEGRATION_CATEGORIES, integrationBodySchema, secretFieldKeys } from '@app/shared';
+import { INTEGRATION_CATEGORIES, integrationBodySchema, requiredSecretKeys } from '@app/shared';
 import { useMemo, useState } from 'react';
+import { Controller, useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 import { integrationsApi } from '../../api/endpoints.js';
 import { Form } from '../../components/forms/Form.jsx';
@@ -8,6 +9,7 @@ import { PasswordField, SelectField, TextField } from '../../components/forms/fi
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
+import { Checkbox } from '../../components/ui/Checkbox.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { Logo } from '../../components/ui/Logo.jsx';
@@ -16,10 +18,28 @@ import { Switch } from '../../components/ui/Switch.jsx';
 import { ProviderTile, STATUS } from './parts.jsx';
 
 const dotted = 'border-t border-dotted border-line-strong';
+const USE_LABEL = { email: (n) => `Send email through ${n}`, storage: (n) => `Store files in ${n}`, maps: (n) => `Use ${n} for maps`, messaging: (n) => `Post notifications to ${n}` };
+
+/** A group of checkboxes bound to an array value (which events a channel receives). */
+function CheckGroup({ name, field }) {
+  const { control } = useFormContext();
+  return (
+    <Controller name={name} control={control} render={({ field: f }) => (
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-medium text-ink">{field.label}</legend>
+        {field.options.map((o) => (
+          <Checkbox key={o.value} checked={(f.value ?? []).includes(o.value)} onChange={(e) => f.onChange(e.target.checked ? [...(f.value ?? []), o.value] : (f.value ?? []).filter((v) => v !== o.value))}
+            label={<span><span className="font-medium">{o.label}</span><span className="block text-xs text-muted">{o.hint}</span></span>} />
+        ))}
+        {field.hint && <p className="text-xs text-muted">{field.hint}</p>}
+      </fieldset>
+    )} />
+  );
+}
 
 /** The form's initial values: stored settings, then each field's default. Secrets start empty — the stored value never reaches the browser. */
 const initialValues = (def, state) => ({
-  config: Object.fromEntries(def.fields.filter((f) => f.type !== 'secret').map((f) => [f.key, state.config?.[f.key] ?? f.default ?? ''])),
+  config: Object.fromEntries(def.fields.filter((f) => f.type !== 'secret').map((f) => [f.key, state.config?.[f.key] ?? f.default ?? (f.type === 'multiselect' ? [] : '')])),
   secrets: Object.fromEntries(def.fields.filter((f) => f.type === 'secret').map((f) => [f.key, ''])),
 });
 
@@ -38,7 +58,7 @@ export function IntegrationSheet({ def, state, onClose }) {
   const schema = useMemo(() => {
     const api = integrationBodySchema(def.key);
     return z.preprocess((v) => ({ ...v, secrets: Object.fromEntries(Object.entries(v?.secrets ?? {}).filter(([, x]) => x)) }), api).superRefine((value, ctx) => {
-      for (const key of secretFieldKeys(def.key)) {
+      for (const key of requiredSecretKeys(def.key)) {
         if (!value.secrets?.[key] && !secretsSaved.has(key)) ctx.addIssue({ code: 'custom', path: ['secrets', key], message: `${def.fields.find((f) => f.key === key).label} is required` });
       }
     });
@@ -93,6 +113,7 @@ export function IntegrationSheet({ def, state, onClose }) {
         <Form form={form} onSubmit={submit} error={formError} id={`integration-${def.key}`}>
           {def.fields.map((f) => {
             const name = f.type === 'secret' ? `secrets.${f.key}` : `config.${f.key}`;
+            if (f.type === 'multiselect') return <CheckGroup key={f.key} name={name} field={f} />;
             if (f.type === 'select') return <SelectField key={f.key} name={name} label={f.label} hint={f.hint} options={f.options} required={f.required} />;
             if (f.type === 'secret') return <PasswordField key={f.key} name={name} label={f.label} autoComplete="off" placeholder={secretsSaved.has(f.key) ? '•••••••• saved — leave blank to keep' : undefined} hint={f.hint} required={f.required && !secretsSaved.has(f.key)} />;
             return <TextField key={f.key} name={name} label={f.label} hint={f.hint} placeholder={f.placeholder} required={f.required} type={f.type === 'number' ? 'number' : 'text'} autoComplete="off" />;
@@ -103,7 +124,7 @@ export function IntegrationSheet({ def, state, onClose }) {
       {state.saved && (
         <section aria-label="Use it" className={`${dotted} pt-4`}>
           <Switch
-            label={`Use ${def.name} for ${category.label.toLowerCase()}`}
+            label={USE_LABEL[def.category](def.name)}
             description={state.status === 'connected' ? 'It is connected. Turning it on makes Cloudbase use it.' : 'Available once the connection test passes.'}
             checked={state.enabled} disabled={busy === 'enable' || (state.status !== 'connected' && !state.enabled)}
             onChange={(e) => toggle(e.target.checked)}
