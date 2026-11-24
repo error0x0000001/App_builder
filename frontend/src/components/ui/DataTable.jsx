@@ -65,7 +65,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
             {columns.map((c, i) => <col key={c.key} style={{ width: widths[i] }} />)}
           </colgroup>
           <thead>
-            <tr className="h-11 border-b border-line-strong bg-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-ink">
+            <tr className="h-11 border-b border-line-strong bg-[color-mix(in_srgb,var(--ink)_9%,var(--surface))] text-left text-xs font-semibold uppercase tracking-wide text-ink">
               {selection && <th scope="col" className="pl-4 pr-0"><Checkbox aria-label="Select all" checked={allSelected} onChange={(e) => selection.onToggleAll(e.target.checked)} /></th>}
               {columns.map((c) => {
                 const sortable = c.sortable && onSort;
@@ -88,7 +88,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
               <tr
                 key={row[rowKey]}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn('h-14 border-t border-line-strong odd:bg-gray-100', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
+                className={cn('h-14 border-t border-line-strong odd:bg-[color-mix(in_srgb,var(--ink)_4.5%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
               >
                 {selection && <td className="pl-4 pr-0" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
                 {columns.map((c) => {

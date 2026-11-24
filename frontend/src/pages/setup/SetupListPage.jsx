@@ -36,7 +36,8 @@ const PERSON = /(^|_)(created_by|modified_by|updated_by|owner|assigned_to|user|m
 const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
 
 /** Rich, coloured cells (Untitled UI tables are never plain text): two-line names, dotted status badges, hue tags, avatars. */
-const renderCell = (type, { key, first, subKey }) => (row) => {
+const ROLE_HUE = { Owner: 'purple', Admin: 'indigo', Member: 'blue', Viewer: 'teal' };
+const renderCell = (type, { key, first, subKey, people, pageKey }) => (row) => {
   const v = row[key];
   const empty = v === undefined || v === null || v === '';
   if (first) {
@@ -44,10 +45,16 @@ const renderCell = (type, { key, first, subKey }) => (row) => {
     const sub = subKey ? row[subKey] : null;
     return (
       <span className="flex min-w-0 items-center gap-3">
+        {people && <Avatar name={String(v)} size="size-9" />}
         <span className="min-w-0"><span className="block truncate font-medium text-ink">{String(v)}</span>{sub ? <span className="block truncate text-xs text-muted">{String(sub)}</span> : null}</span>
       </span>
     );
   }
+  if (pageKey === 'users' && !empty) { // people: role, profile and state as colour tags that follow the theme
+    if (key === 'role') return <Badge hue={ROLE_HUE[v] ?? hueOf(v)}>{String(v)}</Badge>;
+    if (key === 'profile') return <Badge hue={hueOf(v)}>{String(v)}</Badge>;
+  }
+  if (pageKey === 'users' && key === 'active') return row.active ? <Badge tone="success" dot>Active</Badge> : <Badge tone="warning" dot>Invited</Badge>;
   if (type === 'check' || v === true || v === false || v === 'true' || v === 'false') {
     const on = v === true || v === 'true';
     if (empty && type !== 'check') return dash;
@@ -118,16 +125,17 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const total = totalKnown.n === undefined ? undefined : `${totalKnown.n.toLocaleString()}${totalKnown.capped ? '+' : ''}`;
 
   const columns = useMemo(() => {
-    const subKey = page.columns.slice(1).find((c) => DESCRIPTION.test(c.key))?.key;
+    const people = pageKey === 'users'; // name + email under it with an avatar; username / alias / email columns would only repeat it
+    const subKey = people ? 'email' : page.columns.slice(1).find((c) => DESCRIPTION.test(c.key))?.key;
     const firstType = adapter?.columnTypes?.[page.columns[0]?.key] ?? page.columns[0]?.type;
     const richFirst = firstType === 'text' || firstType === 'link' || firstType === undefined;
-    return page.columns.filter((c) => !(richFirst && subKey && c.key === subKey)).map((c) => {
+    return page.columns.filter((c) => !(richFirst && subKey && c.key === subKey) && !(people && (c.key === 'alias' || c.key === 'username'))).map((c) => {
       const i = page.columns.indexOf(c);
       const type = adapter?.columnTypes?.[c.key] ?? c.type;
       const first = i === 0 && (type === 'text' || type === 'link' || type === undefined);
-      return { key: c.key, label: c.label, sortable: !adapter, width: first ? 280 : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined }) };
+      return { key: c.key, label: c.label, sortable: !adapter, width: first ? 300 : people ? (c.key === 'profile' ? 200 : 140) : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined, people: first && people, pageKey }) };
     });
-  }, [page.columns, adapter]);
+  }, [page.columns, adapter, pageKey]);
 
   const refresh = () => invalidateSetupData(queryClient);
   const remove = async () => { await setupApi.deleteRecords(pageKey, [...selected]); setSelected(new Set()); await refresh(); };
