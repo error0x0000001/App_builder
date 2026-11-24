@@ -22,11 +22,12 @@
   color-scheme: light;
 }
 [data-theme="dark"] {
-  /* pitch-black page + neutral near-black surfaces (Untitled's dark mode, desaturated to true neutrals) */
-  --gray-25: #0a0a0b; --gray-50: #0f0f11; --gray-100: #141416; --gray-200: #232326; --gray-300: #323236; --gray-400: #6b6b72;
-  --gray-500: #8b8b92; --gray-600: #a1a1a8; --gray-700: #cecfd2; --gray-800: #e4e4e7; --gray-900: #ededee;
-  --bg: #000000; --surface: #0a0a0b; --surface-2: #141416; --line: #232326; --line-strong: #323236; --inset: #000000;
-  --ink: #ededee; --muted: #a1a1a8; --placeholder: #6b6b72;
+  /* Material-style dark: a soft charcoal page (#121212) with paper surfaces stepping lighter as they rise (#1e1e1e, #262626) — no pitch black.
+     Text follows Material's emphasis levels (~87% / 60% / 38% white); the accent and semantic hues are lifted for contrast on grey. */
+  --gray-25: #161616; --gray-50: #1b1b1b; --gray-100: #212121; --gray-200: #2e2e2e; --gray-300: #424242; --gray-400: #757575;
+  --gray-500: #9e9e9e; --gray-600: #b3b3b3; --gray-700: #cccccc; --gray-800: #e0e0e0; --gray-900: #eeeeee;
+  --bg: #121212; --surface: #1e1e1e; --surface-2: #262626; --line: #2e2e2e; --line-strong: #424242; --inset: #1e1e1e;
+  --ink: #e3e3e3; --muted: #a6a6a6; --placeholder: #7a7a7a;
   --danger: #f97066; --success: #47cd89; --warning: #fdb022;
   --fi-blue: #53b1fd; --fi-purple: #9b8afb; --fi-pink: #f670c7; --fi-orange: #ff692e; --fi-teal: #2ed3b7; --fi-indigo: #8098f9;
   --hero-1: #1a2a4d; --hero-2: #2a2552; --hero-3: #0c1019; --orb-a: #6b9bff; --orb-b: #16264d;
@@ -45,10 +46,10 @@
   --sidebar-primary: var(--accent); --sidebar-primary-ink: var(--accent-ink);
 }
 [data-theme="dark"] {
-  --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #1b1626; --accent-ink: #ffffff;
+  --accent: #7f56d9; --accent-hover: #9e77ed; --accent-soft: #2a2140; --accent-ink: #ffffff;
   --link: #b692f6; --ring: rgba(158, 119, 237, 0.28);
-  --chrome: #050506;
-  --sidebar: #050506; --sidebar-ink: #ededee; --sidebar-muted: #a1a1a8; --sidebar-line: #1f1f22; --sidebar-accent: #161618; --rail: #0c0c0e;
+  --chrome: #121212; /* around the page card in the Inset style: the card (#1e1e1e) sits above it */
+  --sidebar: #181818; --sidebar-ink: #e3e3e3; --sidebar-muted: #a6a6a6; --sidebar-line: #2a2a2a; --sidebar-accent: #262626; --rail: #222222;
 }
 
 /* graphite: the earlier near-black accent */
