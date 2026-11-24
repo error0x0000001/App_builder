@@ -148,6 +148,13 @@
       "when": 1795549100000,
       "tag": "0020_deployments_metrics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795549200000,
+      "tag": "0021_deployments_credentials",
+      "breakpoints": true
     }
   ]
 }

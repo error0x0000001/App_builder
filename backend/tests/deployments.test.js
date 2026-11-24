@@ -393,6 +393,32 @@ describe('server metrics history', () => {
   });
 });
 
+describe('saved credentials', () => {
+  it('stores a registry login and a Git token encrypted and applies them to deployments without leaking', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const reg = (await client.post(`${D}/credentials`, { kind: 'registry', name: 'GHCR', url: 'ghcr.io', username: 'acme-bot', secret: 'ghp_RegistrySecretValue1' })).body.credential;
+    const git = (await client.post(`${D}/credentials`, { kind: 'git', name: 'GitHub', secret: 'ghp_GitSecretValue2' })).body.credential;
+    assert.equal(JSON.stringify((await client.get(`${D}/credentials`)).body).includes('ghp_'), false, 'secrets are never returned');
+    assert.equal((await client.post(`${D}/credentials`, { kind: 'registry', name: 'bad', secret: 'x' })).status, 400);
+    const stored = await db.execute(sql`select secret_enc from dp_credentials`);
+    assert.ok(stored.rows.every((r) => !r.secret_enc.includes('ghp_')));
+
+    const web = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Private', serverId: sid, source: { type: 'docker', image: 'ghcr.io/acme/web:1', credentialId: reg.id } })).body.service;
+    assert.equal((await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Wrong', serverId: sid, source: { type: 'docker', image: 'ghcr.io/acme/web:1', credentialId: git.id } })).status, 400, 'a Git token is not a registry login');
+    fake.commands.length = 0;
+    await client.post(`${D}/services/${web.id}/deploy`);
+    for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+    assert.ok(fake.commands.some((c) => c.includes('docker login') && c.includes("'acme-bot'") && c.includes("'ghcr.io'")), 'logs in with the saved registry');
+    const dep = (await client.get(`${D}/services/${web.id}/deployments`)).body.deployments[0];
+    const log = (await client.get(`${D}/deployments/${dep.id}`)).body.deployment.log;
+    assert.equal(log.includes('RegistrySecretValue'), false);
+    assert.equal((await client.delete(`${D}/credentials/${reg.id}`)).status, 409, 'in use');
+    assert.equal((await client.delete(`${D}/credentials/${git.id}`)).status, 200);
+  });
+});
+
 describe('access levels', () => {
   async function member(boss, ws) {
     const email = uniqueEmail();

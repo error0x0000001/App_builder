@@ -228,6 +228,12 @@ export class DeploymentsService {
 
   async getService(ws, id) { return this.#serviceView(await this.#service(ws, id)); }
 
+  async #checkCredential(ws, source) {
+    if (!source?.credentialId) return;
+    const { rows: [c] } = await this.db.execute(sql`select kind from dp_credentials where id = ${source.credentialId}::uuid and workspace_id = ${ws}`);
+    if (!c || c.kind !== (source.type === 'git' ? 'git' : 'registry')) throw new ValidationError(undefined, 'Choose one of your saved credentials of the right kind.');
+  }
+
   #splitSecrets(source) {
     const clean = { ...source }; const secrets = {};
     for (const [field, key] of Object.entries(SECRET_SOURCE_KEYS)) { if (clean[field]) secrets[key] = clean[field]; delete clean[field]; }
@@ -238,6 +244,7 @@ export class DeploymentsService {
     await this.#environment(ctx.workspaceId, environmentId);
     if (body.serverId) await this.#server(ctx.workspaceId, body.serverId);
     const id = uuidv7(); const appName = appNameFor(body.name, rand(4));
+    await this.#checkCredential(ctx.workspaceId, body.source);
     const { clean, secrets } = this.#splitSecrets(body.source ?? {});
     const config = { replicas: 1, volumes: [], publishedPorts: [], ...(body.config ?? {}) };
     if (DATABASE_KINDS.includes(body.kind)) {
@@ -260,6 +267,7 @@ export class DeploymentsService {
     let source = cur.source;
     if (patch.source) {
       if (cur.kind !== 'application') throw new ValidationError(undefined, 'Only applications have a source');
+      await this.#checkCredential(ctx.workspaceId, patch.source);
       const split = this.#splitSecrets(patch.source);
       source = split.clean; Object.assign(secrets, split.secrets);
       if (patch.source.type === 'git' && !patch.source.token && source.type === 'git') { /* keep the stored token */ }
@@ -326,6 +334,28 @@ export class DeploymentsService {
     await this.db.execute(sql`delete from dp_access where workspace_id = ${ctx.workspaceId} and user_id = ${userId}::uuid`);
     await this.#audit(ctx, 'Removed a member’s Deployments access');
     return this.listAccess(ctx.workspaceId);
+  }
+
+  // ---------- saved credentials (registries, Git tokens) ----------
+  async listCredentials(ws) {
+    const { rows } = await this.db.execute(sql`select id, kind, name, url, username, created_at from dp_credentials where workspace_id = ${ws} order by kind, name`);
+    return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, url: r.url, username: r.username, createdAt: r.created_at }));
+  }
+
+  async createCredential(ctx, body) {
+    const id = uuidv7();
+    await this.db.execute(sql`insert into dp_credentials (id, workspace_id, kind, name, url, username, secret_enc) values (${id}::uuid, ${ctx.workspaceId}, ${body.kind}, ${body.name}, ${body.url || null}, ${body.username || null}, ${this.#enc({ secret: body.secret })})`);
+    await this.#audit(ctx, `Saved ${body.kind === 'git' ? 'Git' : 'registry'} credential “${body.name}”`);
+    return (await this.listCredentials(ctx.workspaceId)).find((c) => c.id === id);
+  }
+
+  async deleteCredential(ctx, id) {
+    const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where workspace_id = ${ctx.workspaceId} and source->>'credentialId' = ${id}`);
+    if (used.n > 0) throw new ConflictError(`${used.n} service${used.n === 1 ? ' uses' : 's use'} this credential. Switch them to another one first.`);
+    const { rowCount } = await this.db.execute(sql`delete from dp_credentials where id = ${id}::uuid and workspace_id = ${ctx.workspaceId}`);
+    if (!rowCount) throw new NotFoundError('Credential not found');
+    await this.#audit(ctx, 'Deleted a saved credential');
+    return this.listCredentials(ctx.workspaceId);
   }
 
   // ---------- domains ----------
@@ -463,6 +493,10 @@ export class DeploymentsService {
     const serverId = svc?.server_id ?? dep.server_id;
     const server = serverId ? (await this.db.execute(sql`select * from dp_servers where id = ${serverId}::uuid`)).rows[0] : null;
     const secrets = svc ? this.#dec(svc.secrets_enc) : {};
+    if (svc?.source?.credentialId) {
+      const { rows: [c] } = await this.db.execute(sql`select kind, url, username, secret_enc from dp_credentials where id = ${svc.source.credentialId}::uuid and workspace_id = ${svc.workspace_id}`);
+      if (c) { const secret = this.#dec(c.secret_enc).secret; if (c.kind === 'git') secrets.gitToken = secret; else Object.assign(secrets, { registryPassword: secret, registryUser: c.username, registryUrl: c.url }); }
+    }
     const hidden = [secrets.gitToken, secrets.gitToken && Buffer.from(`x-access-token:${secrets.gitToken}`).toString('base64'), secrets.registryPassword, secrets.dbPassword, ...Object.values(svc ? cmd.parseEnv(this.#dec(svc.env_enc).env) : {})];
     let buffer = ''; let chain = Promise.resolve();
     const flush = () => { const text = cmd.redact(buffer, hidden); buffer = ''; chain = chain.then(() => this.#append(deploymentId, text)).catch(() => {}); return chain; };
@@ -533,7 +567,7 @@ export class DeploymentsService {
       if (!img) throw new Error('No image to roll back to.');
     } else if (source.type === 'docker') {
       img = source.image;
-      await step(`Pulling ${img}`, cmd.pullCommand({ image: img, registryUser: source.registryUser, registryPassword: secrets.registryPassword, registryUrl: source.registryUrl }), { timeoutMs: 15 * 60_000 });
+      await step(`Pulling ${img}`, cmd.pullCommand({ image: img, registryUser: source.registryUser ?? secrets.registryUser, registryPassword: secrets.registryPassword, registryUrl: source.registryUrl ?? secrets.registryUrl }), { timeoutMs: 15 * 60_000 });
     } else if (source.type === 'git') {
       const cloned = await step(`Cloning ${source.repository} (${source.branch})`, cmd.cloneCommand({ ...source, token: secrets.gitToken }, svc.app_name), { timeoutMs: 10 * 60_000 });
       result.commit = cloned.output.trim().split('\n').pop()?.slice(0, 40);

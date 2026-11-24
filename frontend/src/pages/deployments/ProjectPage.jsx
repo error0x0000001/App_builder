@@ -28,8 +28,8 @@ const clean = (v) => {
   if (v.kind === 'application') {
     const s = v.source ?? {};
     out.source = s.type === 'git'
-      ? { type: 'git', repository: s.repository, branch: s.branch || 'main', buildType: s.buildType || 'dockerfile', buildPath: s.buildPath || '.', dockerfile: s.dockerfile || 'Dockerfile', ...(s.token ? { token: s.token } : {}), ...(s.publishDirectory ? { publishDirectory: s.publishDirectory } : {}) }
-      : { type: 'docker', image: s.image, ...(s.registryUser ? { registryUser: s.registryUser, registryPassword: s.registryPassword, registryUrl: s.registryUrl || undefined } : {}) };
+      ? { type: 'git', ...(s.credentialId ? { credentialId: s.credentialId } : {}), repository: s.repository, branch: s.branch || 'main', buildType: s.buildType || 'dockerfile', buildPath: s.buildPath || '.', dockerfile: s.dockerfile || 'Dockerfile', ...(s.token ? { token: s.token } : {}), ...(s.publishDirectory ? { publishDirectory: s.publishDirectory } : {}) }
+      : { type: 'docker', image: s.image, ...(s.credentialId ? { credentialId: s.credentialId } : {}), ...(s.registryUser ? { registryUser: s.registryUser, registryPassword: s.registryPassword, registryUrl: s.registryUrl || undefined } : {}) };
     if (v.config?.port) out.config = { port: v.config.port };
   }
   if (v.kind === 'compose') out.config = { composeFile: v.config?.composeFile };
@@ -42,10 +42,12 @@ function NewServiceSheet({ environment, servers, onClose, onCreated }) {
   const [kind, setKind] = useState(null);
   const { form, submit, formError } = useAppForm({
     schema: formSchema,
-    defaultValues: { kind: 'application', name: '', serverId: '', autoDeploy: true, source: { type: 'docker', image: '', repository: '', branch: 'main', buildType: 'dockerfile', buildPath: '.', dockerfile: 'Dockerfile', token: '' }, config: { port: '', composeFile: '', database: { name: '', user: '' } } },
+    defaultValues: { kind: 'application', name: '', serverId: '', autoDeploy: true, source: { type: 'docker', image: '', credentialId: '', repository: '', branch: 'main', buildType: 'dockerfile', buildPath: '.', dockerfile: 'Dockerfile', token: '' }, config: { port: '', composeFile: '', database: { name: '', user: '' } } },
     onSubmit: async (values) => { const { service } = await deploymentsApi.addService(environment.id, values); onCreated(service); },
   });
   const sourceType = form.watch('source.type');
+  const creds = useQuery({ queryKey: ['deployments', 'credentials'], queryFn: deploymentsApi.credentials });
+  const credOptions = (kindName) => [{ value: '', label: 'None (public, or enter below)' }, ...(creds.data?.credentials ?? []).filter((c) => c.kind === kindName).map((c) => ({ value: c.id, label: c.name }))];
   const ready = servers.filter((s) => s.status === 'ready');
   const options = [{ value: '', label: ready.length ? 'Choose a server' : 'No ready server yet' }, ...ready.map((s) => ({ value: s.id, label: s.name }))];
   return (
@@ -65,13 +67,17 @@ function NewServiceSheet({ environment, servers, onClose, onCreated }) {
             <>
               <SelectField name="source.type" label="Source" options={[{ value: 'docker', label: 'Docker image' }, { value: 'git', label: 'Git repository' }]} />
               {sourceType === 'docker' ? (
-                <TextField name="source.image" label="Image" placeholder="ghcr.io/acme/web:latest" required />
+                <>
+                  <TextField name="source.image" label="Image" placeholder="ghcr.io/acme/web:latest" required />
+                  <SelectField name="source.credentialId" label="Registry login" options={credOptions('registry')} hint="Needed for a private image. Save one in Deployments › Credentials." />
+                </>
               ) : (
                 <>
                   <TextField name="source.repository" label="Repository URL" placeholder="https://github.com/acme/web.git" required />
                   <div className="grid grid-cols-2 gap-3"><TextField name="source.branch" label="Branch" /><SelectField name="source.buildType" label="Build" options={[{ value: 'dockerfile', label: 'Dockerfile' }, { value: 'nixpacks', label: 'Nixpacks' }, { value: 'railpack', label: 'Railpack' }, { value: 'static', label: 'Static site' }]} /></div>
                   <div className="grid grid-cols-2 gap-3"><TextField name="source.buildPath" label="Build path" /><TextField name="source.dockerfile" label="Dockerfile" /></div>
-                  <TextField name="source.token" label="Access token" type="password" autoComplete="off" hint="Only for a private repository. Stored encrypted." />
+                  <SelectField name="source.credentialId" label="Git login" options={credOptions('git')} hint="Saved in Deployments › Credentials." />
+                  <TextField name="source.token" label="Or an access token for this service" type="password" autoComplete="off" hint="Only for a private repository. Stored encrypted." />
                 </>
               )}
               <TextField name="config.port" label="Container port" type="number" placeholder="3000" hint="The port the app listens on, used when you add a domain." />

@@ -202,7 +202,7 @@ function SettingsTab({ service, onChange, onDelete }) {
   const { form, submit, formError } = useAppForm({ schema, defaultValues: { name: service.name, autoDeploy: service.autoDeploy, image: service.source?.image ?? '', branch: service.source?.branch ?? '', port: service.config?.port ?? '', replicas: service.config?.replicas ?? 1 },
     onSubmit: async (v) => {
       const body = { name: v.name, autoDeploy: v.autoDeploy, config: { replicas: v.replicas, ...(v.port ? { port: v.port } : {}) } };
-      if (isImage) body.source = { type: 'docker', image: v.image };
+      if (isImage) body.source = { ...service.source, image: v.image };
       if (isGit) body.source = { ...service.source, branch: v.branch };
       await deploymentsApi.updateService(service.id, body); onChange();
     } });

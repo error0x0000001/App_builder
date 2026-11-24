@@ -45,6 +45,7 @@ export default function OverviewPage() {
   return (
     <div className="space-y-6">
       <PageToolbar meta={data ? `${data.projects.length} project${data.projects.length === 1 ? '' : 's'} · ${data.servers.length} server${data.servers.length === 1 ? '' : 's'}` : undefined}>
+        {can('manager') && <Button as={Link} to="/app/deployments/credentials" size="sm" variant="neutral"><Icon name="key" className="size-4" />Credentials</Button>}
         {can('manager') && <Button as={Link} to="/app/deployments/access" size="sm" variant="neutral"><Icon name="users" className="size-4" />Access</Button>}
         {can('manager') && <Button as={Link} to="/app/deployments/servers" size="sm" variant="neutral"><Icon name="server" className="size-4" />Servers</Button>}
         {can('manager') && <Button size="sm" onClick={() => setCreating(true)}><Icon name="plus" className="size-4" />New project</Button>}

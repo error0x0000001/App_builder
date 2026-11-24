@@ -86,6 +86,7 @@ export const sourceSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('docker'),
     image: z.string().trim().max(300).regex(IMAGE, 'Enter an image like nginx:1.27 or ghcr.io/org/app:tag'),
+    credentialId: z.string().uuid().optional(),
     registryUser: z.string().trim().max(200).optional(), registryPassword: z.string().max(500).optional(), registryUrl: z.string().trim().max(200).optional(),
   }),
   z.object({
@@ -93,6 +94,7 @@ export const sourceSchema = z.discriminatedUnion('type', [
     repository: z.string().trim().url('Enter the repository URL').max(500).refine((u) => /^https:\/\//i.test(u), 'Use an https:// repository URL'),
     branch: z.string().trim().regex(BRANCH, 'Enter a branch name').default('main'),
     token: z.string().max(500).optional(),
+    credentialId: z.string().uuid().optional(),
     buildType: z.enum(BUILD_TYPES).default('dockerfile'),
     buildPath: z.string().trim().max(200).regex(SAFE_PATH, 'Use a plain relative path').default('.'),
     dockerfile: z.string().trim().max(200).regex(SAFE_PATH, 'Use a plain relative path').default('Dockerfile'),
@@ -151,3 +153,12 @@ export const ACCESS_LEVELS = ['viewer', 'deployer', 'manager'];
 export const accessRank = (level) => ACCESS_LEVELS.indexOf(level);
 export const hasAccess = (have, need) => accessRank(have) >= accessRank(need) && accessRank(have) >= 0;
 export const accessBodySchema = z.object({ userId: z.string().uuid(), level: z.enum(ACCESS_LEVELS) });
+
+/** Saved logins reused by many services: a container registry (user + password/token) or a Git access token. */
+export const credentialBodySchema = z.object({
+  kind: z.enum(['registry', 'git']),
+  name: z.string().trim().min(1, 'Enter a name').max(60),
+  url: z.string().trim().max(200).optional(),
+  username: z.string().trim().max(200).optional(),
+  secret: z.string().min(1, 'Enter the password or token').max(2000),
+}).superRefine((v, ctx) => { if (v.kind === 'registry' && !v.username) ctx.addIssue({ code: 'custom', path: ['username'], message: 'Enter the username' }); });

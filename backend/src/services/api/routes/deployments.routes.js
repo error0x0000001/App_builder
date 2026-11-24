@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { accessBodySchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
+import { accessBodySchema, credentialBodySchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { ForbiddenError } from '../../../shared/errors.js';
@@ -68,6 +68,9 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.post('/services/:id/jobs/:jobId/run', need('deployer'), rateLimit.ip('deploy-job-run', 60, 600), validate({ params: idJob }), async (req, res) => res.status(202).json({ deployment: await deployments.runJob(ctx(req), req.params.id, req.params.jobId) }));
 
   router.get('/servers/:id/metrics', need('viewer'), validate({ params: id, query: z.object({ hours: z.coerce.number().int().min(1).max(168).default(24) }) }), async (req, res) => res.json({ metrics: await deployments.serverMetrics(ws(req), req.params.id, req.valid.query.hours) }));
+  router.get('/credentials', need('viewer'), async (req, res) => res.json({ credentials: await deployments.listCredentials(ws(req)) }));
+  router.post('/credentials', need('manager'), validate({ body: credentialBodySchema }), async (req, res) => res.status(201).json({ credential: await deployments.createCredential(ctx(req), req.valid.body) }));
+  router.delete('/credentials/:id', need('manager'), validate({ params: id }), async (req, res) => res.json({ credentials: await deployments.deleteCredential(ctx(req), req.params.id) }));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
   router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
   router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));
