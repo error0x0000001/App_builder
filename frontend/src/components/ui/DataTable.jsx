@@ -57,7 +57,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
   const total = widths.reduce((a, b) => a + b, 0) + (selection ? SELECT_WIDTH : 0);
   const span = columns.length + (selection ? 1 : 0);
   return (
-    <div className={cn('overflow-hidden rounded-lg border border-line-strong bg-surface', className)}>
+    <div className={cn('overflow-hidden rounded-xl border border-line bg-surface', className)}>
       <div className="overflow-x-auto">
         <table className="table-fixed border-collapse text-sm" style={{ width: total, minWidth: '100%' }}>
           <colgroup>
@@ -65,7 +65,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
             {columns.map((c, i) => <col key={c.key} style={{ width: widths[i] }} />)}
           </colgroup>
           <thead>
-            <tr className="h-11 border-b border-line-strong bg-[color-mix(in_srgb,var(--ink)_9%,var(--surface))] text-left text-xs font-semibold uppercase tracking-wide text-ink">
+            <tr className="h-11 border-b border-line bg-[color-mix(in_srgb,var(--ink)_5%,var(--surface))] text-left text-xs font-semibold text-muted">
               {selection && <th scope="col" className="pl-4 pr-0"><Checkbox aria-label="Select all" checked={allSelected} onChange={(e) => selection.onToggleAll(e.target.checked)} /></th>}
               {columns.map((c) => {
                 const sortable = c.sortable && onSort;
@@ -73,7 +73,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
                 return (
                   <th key={c.key} scope="col" aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : undefined} className={cn('relative px-4 font-semibold', ALIGN[c.align])}>
                     {sortable ? (
-                      <button type="button" onClick={() => onSort(c.key)} title={`Sort by ${c.label}`} className={cn('inline-flex max-w-full items-center gap-1 rounded uppercase tracking-wide outline-none focus-visible:ring-2 focus-visible:ring-accent', c.align === 'right' && 'flex-row-reverse')}>
+                      <button type="button" onClick={() => onSort(c.key)} title={`Sort by ${c.label}`} className={cn('inline-flex max-w-full items-center gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-accent', c.align === 'right' && 'flex-row-reverse')}>
                         <span className="truncate">{c.label}</span><SortIcon dir={dir} />
                       </button>
                     ) : <span className="block truncate">{c.label}</span>}
@@ -88,23 +88,23 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
               <tr
                 key={row[rowKey]}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn('h-14 border-t border-line-strong even:bg-[color-mix(in_srgb,var(--ink)_4.5%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
+                className={cn('h-14 border-t border-line even:bg-[color-mix(in_srgb,var(--ink)_3%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
               >
                 {selection && <td className="pl-4 pr-0" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
                 {columns.map((c) => {
                   const value = c.render ? c.render(row) : row[c.key];
-                  return <td key={c.key} title={!c.wrap && (typeof value === 'string' || typeof value === 'number') ? String(value) : undefined} className={cn('border-l border-line-strong px-4 py-1.5 text-ink first:border-l-0', c.wrap ? 'whitespace-normal break-words' : 'truncate', ALIGN[c.align], c.className)}>{value}</td>;
+                  return <td key={c.key} title={!c.wrap && (typeof value === 'string' || typeof value === 'number') ? String(value) : undefined} className={cn('border-l border-line px-4 py-1.5 text-ink first:border-l-0', c.wrap ? 'whitespace-normal break-words' : 'truncate', ALIGN[c.align], c.className)}>{value}</td>;
                 })}
               </tr>
             ))}
             {!rows.length && !loading && (
-              <tr className="border-t border-line-strong"><td colSpan={span} className="px-3 py-10 text-center text-muted">{empty}</td></tr>
+              <tr className="border-t border-line"><td colSpan={span} className="px-3 py-10 text-center text-muted">{empty}</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      {loading && <div className="flex justify-center border-t border-line-strong py-6"><Spinner /></div>}
-      {footer && <div className="border-t border-line-strong px-3 py-2">{footer}</div>}
+      {loading && <div className="flex justify-center border-t border-line py-6"><Spinner /></div>}
+      {footer && <div className="border-t border-line px-3 py-2">{footer}</div>}
     </div>
   );
 }
