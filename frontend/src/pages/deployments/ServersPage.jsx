@@ -6,7 +6,7 @@ import { AreaChart, ChartLegend } from '../../components/ui/charts/AreaChart.jsx
 import { z } from 'zod';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Form } from '../../components/forms/Form.jsx';
-import { SubmitButton, TextField, TextareaField } from '../../components/forms/fields.jsx';
+import { SelectField, SubmitButton, TextField, TextareaField } from '../../components/forms/fields.jsx';
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -23,10 +23,16 @@ import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { TerminalView } from './TerminalView.jsx';
 import { LogView, StatusBadge, useDeploymentLog } from './parts.jsx';
 
+const addServerSchema = z.preprocess((v) => ({ ...v, sshKey: v.sshKey || undefined, sshKeyId: v.sshKeyId || undefined }), serverBodySchema.superRefine((v, ctx) => {
+  if (!v.sshKey && !v.sshKeyId) ctx.addIssue({ code: 'custom', path: ['sshKey'], message: 'Paste a private key or choose a saved one' });
+}));
+
 function AddServerSheet({ onClose }) {
   const queryClient = useQueryClient();
+  const creds = useQuery({ queryKey: ['deployments', 'credentials'], queryFn: deploymentsApi.credentials });
+  const keys = (creds.data?.credentials ?? []).filter((c) => c.kind === 'ssh');
   const { form, submit, formError } = useAppForm({
-    schema: serverBodySchema, defaultValues: { name: '', host: '', port: 22, username: 'root', sshKey: '' },
+    schema: addServerSchema, defaultValues: { name: '', host: '', port: 22, username: 'root', sshKey: '', sshKeyId: '' },
     onSubmit: async (values) => { await deploymentsApi.addServer(values); await queryClient.invalidateQueries({ queryKey: ['deployments'] }); onClose(); },
   });
   return (
@@ -36,7 +42,8 @@ function AddServerSheet({ onClose }) {
         <TextField name="name" label="Name" placeholder="prod-1" required />
         <div className="grid grid-cols-3 gap-3"><div className="col-span-2"><TextField name="host" label="Host or IP" placeholder="203.0.113.10" required /></div><TextField name="port" label="Port" type="number" /></div>
         <TextField name="username" label="User" hint="A user that can run Docker (root, or in the docker group)." />
-        <TextareaField name="sshKey" label="Private key" rows={7} required className="font-mono text-xs" hint="Create one with ssh-keygen -t ed25519, add the .pub file to ~/.ssh/authorized_keys on the server, and paste the private key here." />
+        {keys.length > 0 && <SelectField name="sshKeyId" label="Saved SSH key" options={[{ value: '', label: 'Paste a key instead' }, ...keys.map((k) => ({ value: k.id, label: k.name }))]} hint="Manage keys under Deployment settings › Git, registry & SSH." />}
+        {!form.watch('sshKeyId') && <TextareaField name="sshKey" label="Private key" rows={7} className="font-mono text-xs" hint="Create one with ssh-keygen -t ed25519, add the .pub file to ~/.ssh/authorized_keys on the server, and paste the private key here. Or generate one under Deployment settings." />}
       </Form>
     </Sheet>
   );

@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { cn } from '../lib/cn.js';
-import { isVisibleTo, NAV } from './navigation.js';
+import { isActivePath, isVisibleTo, NAV } from './navigation.js';
 import { useSearch } from './SearchContext.jsx';
 import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 
@@ -35,11 +35,12 @@ function useNavBadge(item) {
 
 function PanelRow({ item }) {
   const { activeWorkspace } = useAuth();
+  const { pathname } = useLocation();
   const badge = useNavBadge(item);
   const canCreate = item.create && hasRole(activeWorkspace?.role, 'member');
   return (
     <li className="flex items-center">
-      <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(ROW, isActive && 'bg-sidebar-accent')}>
+      <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(ROW, (isActive || isActivePath(item, pathname)) && 'bg-sidebar-accent')}>
         <Icon name={item.icon} className="size-5.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {badge != null && <span className="rounded-md bg-sidebar-accent px-1.5 text-xs leading-5 text-sidebar-muted">{badge}</span>}

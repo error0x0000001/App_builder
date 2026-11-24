@@ -9,6 +9,12 @@ import ProjectPage from './ProjectPage.jsx';
 import ServersPage from './ServersPage.jsx';
 import ServicePage from './ServicePage.jsx';
 import AccessPage from './AccessPage.jsx';
+import ServicesPage from './ServicesPage.jsx';
+import QueuePage from './QueuePage.jsx';
+import SchedulesPage from './SchedulesPage.jsx';
+import AuditPage from './AuditPage.jsx';
+import MonitoringPage from './MonitoringPage.jsx';
+import DockerPage from './DockerPage.jsx';
 import TemplatesPage from './TemplatesPage.jsx';
 import CredentialsPage from './CredentialsPage.jsx';
 import { LevelContext } from './parts.jsx';
@@ -20,10 +26,17 @@ export default function DeploymentsRoutes() {
   const me = useQuery({ queryKey: ['deployments', 'me'], queryFn: deploymentsApi.me, retry: false });
   if (me.isPending) return <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>;
   if (me.isError) return <div className="grid place-items-center gap-3 py-20 text-center"><FeaturedIcon icon="lock" color="warning" size="xl" /><div><p className="text-base font-semibold text-ink">You don’t have access to Deployments</p><p className="text-sm text-muted">Ask a workspace admin to give you access.</p></div></div>;
+  const manager = me.data.level === 'manager';
   return (
     <LevelContext.Provider value={me.data.level}>
     <Routes>
       <Route index element={<OverviewPage />} />
+      <Route path="services" element={<ServicesPage />} />
+      <Route path="queue" element={<QueuePage />} />
+      <Route path="monitoring" element={<MonitoringPage />} />
+      <Route path="schedules" element={<SchedulesPage />} />
+      <Route path="docker" element={manager ? <DockerPage /> : <Navigate to="/app/deployments" replace />} />
+      <Route path="audit" element={manager ? <AuditPage /> : <Navigate to="/app/deployments" replace />} />
       <Route path="templates" element={<TemplatesPage />} />
       <Route path="credentials" element={me.data.level === 'manager' ? <CredentialsPage /> : <Navigate to="/app/deployments" replace />} />
       <Route path="access" element={<AccessPage />} />

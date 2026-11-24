@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Badge } from '../../components/ui/Badge.jsx';
 import { Button } from '../../components/ui/Button.jsx';
+import { Sheet } from '../../components/ui/Sheet.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { cn } from '../../lib/cn.js';
 import { formatRelative } from '../../lib/format.js';
@@ -104,3 +105,14 @@ const RANK = ['viewer', 'deployer', 'manager'];
 export const LevelContext = createContext('viewer');
 /** `can('deployer')` — whether this person's Deployments level is at least that (the server enforces it too; this only hides what would be refused). */
 export function useCan() { const level = useContext(LevelContext); return (need) => RANK.indexOf(level) >= RANK.indexOf(need); }
+
+export function LogSheet({ deploymentId, onClose }) {
+  const { log, info } = useDeploymentLog(deploymentId);
+  return (
+    <Sheet open onClose={onClose} title={info?.title ?? 'Deployment'} description={info ? `${info.kind} · started ${ago(info.startedAt)}` : undefined} width="w-[44rem]">
+      {info && <div className="mb-3 flex items-center gap-2"><StatusBadge status={info.status} of="deployment" />{info.commit && <Badge tone="neutral">{info.commit.slice(0, 7)}</Badge>}<span className="text-xs text-muted">{duration(info.startedAt, info.finishedAt)}</span></div>}
+      <LogView text={log} height="h-[70vh]" empty="Waiting for output…" />
+    </Sheet>
+  );
+}
+

@@ -21,6 +21,7 @@ import { Tabs } from '../../components/ui/Tabs.jsx';
 import { Textarea } from '../../components/ui/Textarea.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { TerminalView } from './TerminalView.jsx';
+import { LogSheet } from './parts.jsx';
 import { CopyField, KINDS, KindTile, LogView, StatusBadge, ago, duration, useCan, useDeploymentLog } from './parts.jsx';
 
 const Section = ({ title, description, action, children }) => (
@@ -30,16 +31,6 @@ const Section = ({ title, description, action, children }) => (
   </section>
 );
 const Row = ({ label, children }) => <div className="flex items-baseline justify-between gap-4 border-t border-line py-2.5 text-sm first:border-t-0"><dt className="text-muted">{label}</dt><dd className="min-w-0 truncate text-right font-medium text-ink">{children}</dd></div>;
-
-function LogSheet({ deploymentId, onClose }) {
-  const { log, info } = useDeploymentLog(deploymentId);
-  return (
-    <Sheet open onClose={onClose} title={info?.title ?? 'Deployment'} description={info ? `${info.kind} · started ${ago(info.startedAt)}` : undefined} width="w-[44rem]">
-      {info && <div className="mb-3 flex items-center gap-2"><StatusBadge status={info.status} of="deployment" />{info.commit && <Badge tone="neutral">{info.commit.slice(0, 7)}</Badge>}<span className="text-xs text-muted">{duration(info.startedAt, info.finishedAt)}</span></div>}
-      <LogView text={log} height="h-[70vh]" empty="Waiting for output…" />
-    </Sheet>
-  );
-}
 
 function Overview({ service, secrets, reveal, openLog }) {
   const isDb = DATABASE_KINDS.includes(service.kind);
