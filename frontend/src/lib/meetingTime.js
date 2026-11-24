@@ -27,7 +27,7 @@ export function meetingPhase(iso, now = Date.now()) {
 /** Downloads an .ics file so the meeting can be added to any calendar app. */
 export function downloadIcs({ id, title, iso, url }) {
   const start = new Date(iso);
-  const text = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cloudbase//Chat//EN', 'BEGIN:VEVENT', `UID:${id}@cloudbase`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(start.getTime() + MEETING_LENGTH_MS))}`,
+  const text = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Quelli//Chat//EN', 'BEGIN:VEVENT', `UID:${id}@quelli`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(start.getTime() + MEETING_LENGTH_MS))}`,
     `SUMMARY:${title.replace(/[,;\\]/g, ' ')}`, `DESCRIPTION:Join: ${url}`, `URL:${url}`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([text], { type: 'text/calendar' }));

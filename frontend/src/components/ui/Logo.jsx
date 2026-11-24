@@ -10,7 +10,7 @@ export function Logo({ className = '', size = 'md', tone = 'page', markOnly = fa
       <svg viewBox="0 0 48 32" className={`${s.box} shrink-0 ${t.mark}`} aria-hidden="true">
         <path d="M38 14.5a8.5 8.5 0 0 0-16.2-3A7.5 7.5 0 1 0 14 26h23a6 6 0 0 0 1-11.5z" />
       </svg>
-      {!markOnly && <span className={`${s.text} font-semibold tracking-tight`}>cloudbase</span>}
+      {!markOnly && <span className={`${s.text} font-semibold tracking-tight`}>quelli</span>}
     </div>
   );
 }

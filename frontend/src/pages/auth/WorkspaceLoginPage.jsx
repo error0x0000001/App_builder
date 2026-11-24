@@ -21,7 +21,7 @@ export default function WorkspaceLoginPage() {
   return (
     <AuthCard title="Find your workspace" description="Enter your workspace URL to go to your company’s login page." footer={<TextLink to="/login">Back to login</TextLink>}>
       <Form form={form} onSubmit={submit} error={formError}>
-        <TextField name="workspace" label="Workspace URL" prefix="https://" suffix={<span className="text-sm text-muted">.cloudbase.app</span>} placeholder="your-company" autoCapitalize="none" autoComplete="off" hint="Letters, numbers and hyphens only." />
+        <TextField name="workspace" label="Workspace URL" prefix="https://" suffix={<span className="text-sm text-muted">.quelli.app</span>} placeholder="your-company" autoCapitalize="none" autoComplete="off" hint="Letters, numbers and hyphens only." />
         <SubmitButton fullWidth>Continue</SubmitButton>
       </Form>
     </AuthCard>

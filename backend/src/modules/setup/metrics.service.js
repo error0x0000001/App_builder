@@ -22,7 +22,7 @@ export class MetricsService {
       optimizer: (ws) => this.#optimizer(ws),
       'readiness-assessor': () => notEnabled('Einstein readiness', 'Scoring models are not enabled for this workspace'),
       'data-integration-metrics': (ws) => this.#integration(ws),
-      'data-com-licenses-and-limits': () => notEnabled('Data.com', 'This add-on is not part of Cloudbase'),
+      'data-com-licenses-and-limits': () => notEnabled('Data.com', 'This add-on is not part of Quelli'),
       'lightning-experience-transition-assistant': () => notEnabled('Transition assistant', 'Not applicable — every user is already on the current experience'),
     };
   }

@@ -229,12 +229,12 @@ describe('notification channels (Slack, Teams, Discord, webhook)', () => {
     await connect(client, 'discord', '/discord', ['cases', 'big_deals']);
     await connect(client, 'webhook', '/hook', ['workflow'], { signing_secret: 'whsec-123' });
     const by = Object.fromEntries(hook.received.map((r) => [r.path, r]));
-    assert.match(JSON.parse(by['/slack'].body).text, /\*Cloudbase connection test\*/);
+    assert.match(JSON.parse(by['/slack'].body).text, /\*Quelli connection test\*/);
     assert.equal(JSON.parse(by['/teams'].body).attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
-    assert.equal(JSON.parse(by['/discord'].body).embeds[0].title, 'Cloudbase connection test');
+    assert.equal(JSON.parse(by['/discord'].body).embeds[0].title, 'Quelli connection test');
     const hookBody = by['/hook'].body;
     assert.equal(JSON.parse(hookBody).event, 'test');
-    assert.equal(by['/hook'].headers['x-cloudbase-signature'], `sha256=${crypto.createHmac('sha256', 'whsec-123').update(hookBody).digest('hex')}`, 'the body is signed with the secret');
+    assert.equal(by['/hook'].headers['x-quelli-signature'], `sha256=${crypto.createHmac('sha256', 'whsec-123').update(hookBody).digest('hex')}`, 'the body is signed with the secret');
     const states = (await client.get(I)).body.integrations;
     assert.deepEqual(['slack', 'teams', 'discord', 'webhook'].map((k) => states.find((i) => i.key === k).enabled), [true, true, true, true], 'messaging is not exclusive');
     assert.deepEqual(states.find((i) => i.key === 'webhook').secretsSet.sort(), ['signing_secret', 'url']);
@@ -263,7 +263,7 @@ describe('notification channels (Slack, Teams, Discord, webhook)', () => {
     hook.received.length = 0;
     await createNotifyJob(server.container.integrations, { allowPrivate: true })({ data: queued[0] });
     const got = hook.received.find((r) => r.path === '/s2');
-    assert.match(JSON.parse(got.body).text, /\*New case: Printer\*\nA case was created\.\n<http:\/\/localhost:5173\/app\/o\/Case\?open=1\|Open in Cloudbase>/);
+    assert.match(JSON.parse(got.body).text, /\*New case: Printer\*\nA case was created\.\n<http:\/\/localhost:5173\/app\/o\/Case\?open=1\|Open in Quelli>/);
     await client.post(`${I}/slack/enabled`, { enabled: false });
     hook.received.length = 0;
     await new Promise((r) => setTimeout(r, 5100));

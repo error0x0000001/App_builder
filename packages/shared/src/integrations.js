@@ -5,7 +5,7 @@ import { z } from 'zod';
  * which fields it needs, which are secret — and both the API (validation, what is encrypted) and the UI (the form) are generated from it.
  * Add a provider = one entry here + one `test` in backend/src/modules/integrations/testers.js.
  *
- * `live: true`  = something in Cloudbase already uses it once it is connected and enabled.
+ * `live: true`  = something in Quelli already uses it once it is connected and enabled.
  * `live: false` = it can be connected and tested, but no feature consumes it yet (the UI says so; nothing pretends otherwise).
  */
 export const INTEGRATION_CATEGORIES = Object.freeze([
@@ -37,7 +37,7 @@ const S3_FIELDS = [
   text('region', 'Region', { required: true, placeholder: 'us-east-1' }),
   text('access_key_id', 'Access key ID', { required: true }),
   secret('secret_access_key', 'Secret access key'),
-  text('prefix', 'Folder prefix', { placeholder: 'cloudbase/', hint: 'Optional. Everything is stored under this path.' }),
+  text('prefix', 'Folder prefix', { placeholder: 'quelli/', hint: 'Optional. Everything is stored under this path.' }),
 ];
 
 export const INTEGRATIONS = Object.freeze([
@@ -84,7 +84,7 @@ export const INTEGRATIONS = Object.freeze([
     fields: [
       text('account_name', 'Storage account', { required: true, placeholder: 'mycompanystorage' }),
       secret('account_key', 'Account key'),
-      text('container', 'Container', { required: true, placeholder: 'cloudbase' }),
+      text('container', 'Container', { required: true, placeholder: 'quelli' }),
       text('endpoint_suffix', 'Endpoint suffix', { default: 'core.windows.net', placeholder: 'core.windows.net', hint: 'Only change for sovereign clouds.' }),
     ],
   },
@@ -92,7 +92,7 @@ export const INTEGRATIONS = Object.freeze([
     key: 'cloudinary', tile: 'Cl', category: 'storage', name: 'Cloudinary', hue: 'indigo', live: false,
     description: 'Images and video with on-the-fly resizing and delivery through Cloudinary.',
     uses: ['Image and media attachments'],
-    fields: [text('cloud_name', 'Cloud name', { required: true }), text('api_key', 'API key', { required: true }), secret('api_secret', 'API secret'), text('folder', 'Folder', { placeholder: 'cloudbase' })],
+    fields: [text('cloud_name', 'Cloud name', { required: true }), text('api_key', 'API key', { required: true }), secret('api_secret', 'API secret'), text('folder', 'Folder', { placeholder: 'quelli' })],
   },
   {
     key: 'openstreetmap', tile: 'OSM', category: 'maps', name: 'OpenStreetMap (vector)', hue: 'teal', live: false,
@@ -136,9 +136,9 @@ export const INTEGRATIONS = Object.freeze([
   },
   {
     key: 'webhook', tile: '{ }', category: 'messaging', name: 'Webhook', hue: 'teal', live: true,
-    description: 'Send each notification as JSON to your own endpoint, signed so you can verify it came from Cloudbase.',
+    description: 'Send each notification as JSON to your own endpoint, signed so you can verify it came from Quelli.',
     uses: ['Any system that can receive an HTTPS POST: Zapier, n8n, Make, your own service', 'Choose which events it receives'],
-    fields: [secret('url', 'Endpoint URL', { kind: 'url' }), optionalSecret('signing_secret', 'Signing secret', { hint: 'Optional. When set, every request carries an X-Cloudbase-Signature header: sha256= and the HMAC-SHA256 of the body.' }), EVENTS_FIELD],
+    fields: [secret('url', 'Endpoint URL', { kind: 'url' }), optionalSecret('signing_secret', 'Signing secret', { hint: 'Optional. When set, every request carries an X-Quelli-Signature header: sha256= and the HMAC-SHA256 of the body.' }), EVENTS_FIELD],
   },
 ]);
 

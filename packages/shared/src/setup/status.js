@@ -46,12 +46,12 @@ export function setupStatus(p) {
   if (ACCESS_PAGES[p.key]) return { status: 'Working (enforced)', level: 'real', note: ACCESS_PAGES[p.key] };
   if (p.kind === 'special') return { status: 'Real data + engine', level: 'real', note: `Dedicated page (${p.special}).` };
   if (p.kind === 'dashboard') return NOT_ENABLED.has(p.key)
-    ? { status: 'Reports "not enabled"', level: 'notEnabled', note: 'The feature behind this dashboard does not exist in Cloudbase.' }
+    ? { status: 'Reports "not enabled"', level: 'notEnabled', note: 'The feature behind this dashboard does not exist in Quelli.' }
     : { status: 'Live metrics', level: 'real', note: 'Computed from real data, cached 60 s.' };
   if (p.kind === 'info') {
     if (SETUP_TOOLS[p.key]) return { status: 'Working tool', level: 'real', note: `Handler: ${SETUP_TOOLS[p.key].handler}.` };
     return EXTERNAL.test(p.key)
-      ? { status: 'External product', level: 'external', note: 'A connector to a product Cloudbase does not include; the request is audited and nothing else happens.' }
+      ? { status: 'External product', level: 'external', note: 'A connector to a product Quelli does not include; the request is audited and nothing else happens.' }
       : { status: 'Recorded only', level: 'recorded', note: 'The request is audited; the tool engine is not built.' };
   }
   if (p.kind === 'tree') return { status: 'Records', level: 'real', note: 'Hierarchy stored as parent-linked records.' };
@@ -60,7 +60,7 @@ export function setupStatus(p) {
     const full = !dead.length || INTAKE.has(p.key);
     return { status: INTAKE.has(p.key) ? 'Public intake endpoint' : 'Enforced by the platform', level: full ? 'real' : 'partial', note: `${consumed.length} of ${all.length} settings change behaviour${dead.length ? `; stored only: ${dead.join(', ')}` : ''}.` };
   }
-  if (p.kind === 'form') return { status: 'Stored only', level: 'stored', note: 'Saved, versioned and audited. No code in Cloudbase reads these values yet.' };
+  if (p.kind === 'form') return { status: 'Stored only', level: 'stored', note: 'Saved, versioned and audited. No code in Quelli reads these values yet.' };
   return p.engine
     ? { status: 'Stored only', level: 'stored', note: 'Records are managed here; the behaviour they describe is not built.' }
     : { status: 'Records', level: 'real', note: 'Managed records (create / edit / delete / search).' };

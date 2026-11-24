@@ -31,7 +31,7 @@ function WorkspaceMenuContent({ side, align, className }) {
   );
 }
 
-/** The cloudbase mark IS the workspace switcher — click it to see, switch or add a workspace. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
+/** The quelli mark IS the workspace switcher — click it to see, switch or add a workspace. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
 export function WorkspaceSwitcherLogo({ compact = false }) {
   const { activeWorkspace } = useAuth();
   const name = activeWorkspace?.name ?? 'No workspace';

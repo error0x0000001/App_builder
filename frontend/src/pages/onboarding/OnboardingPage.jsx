@@ -41,7 +41,7 @@ function CompanyStep({ workspace, onSaved }) {
 }
 
 const COPY = [
-  { title: (name) => `Welcome${name ? `, ${name}` : ''}! Tell us about you`, text: 'We’ll tailor Cloudbase to the way you work.' },
+  { title: (name) => `Welcome${name ? `, ${name}` : ''}! Tell us about you`, text: 'We’ll tailor Quelli to the way you work.' },
   { title: () => 'About your company', text: 'This is your workspace — you can change it any time.' },
   { title: () => 'Invite your team', text: 'Teammates get an email to set a password and join. You can also do this later.' },
 ];
@@ -71,7 +71,7 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-4">
             <InviteForm workspaceId={activeWorkspace.id} />
-            <div className="flex justify-between"><Button variant="neutral" onClick={() => setStep(1)}>Back</Button><Button onClick={launch}>Launch Cloudbase</Button></div>
+            <div className="flex justify-between"><Button variant="neutral" onClick={() => setStep(1)}>Back</Button><Button onClick={launch}>Launch Quelli</Button></div>
           </div>
         )}
       </Card>

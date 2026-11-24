@@ -1,6 +1,6 @@
 # Documents · Chat · Meet — design and phases
 
-Three modules inside Cloudbase, built one after the other on the same rails (workspace tenancy, roles, record permissions, global search,
+Three modules inside Quelli, built one after the other on the same rails (workspace tenancy, roles, record permissions, global search,
 Untitled UI look). This file is the design reference; `docs/setup-status.md`-style honesty applies: each phase lists what is **built and
 verified** and what is **not**.
 

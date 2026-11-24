@@ -43,7 +43,7 @@ const schema = z.object({
   INVITATION_TTL_DAYS: z.coerce.number().default(7),
 
   MAIL_TRANSPORT: z.enum(['smtp', 'log']).default('log'),
-  MAIL_FROM: z.string().default('Cloudbase <noreply@cloudbase.example>'),
+  MAIL_FROM: z.string().default('Quelli <noreply@quelli.example>'),
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().default(1025),
   SMTP_USER: z.string().optional(),

@@ -17,7 +17,7 @@ export default function HomePage() {
         <Card className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-lg font-semibold text-ink">{activeWorkspace.name}</p>
-            <p className="text-sm text-muted">{activeWorkspace.slug}.cloudbase.app</p>
+            <p className="text-sm text-muted">{activeWorkspace.slug}.quelli.app</p>
           </div>
           <Badge tone="accent">{ROLE_LABELS[activeWorkspace.role]}</Badge>
         </Card>

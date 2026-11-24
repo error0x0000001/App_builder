@@ -55,7 +55,7 @@ export class LinkPreviewService {
       const url = new URL(urlString);
       if (!['http:', 'https:'].includes(url.protocol) || (url.port && !['80', '443'].includes(url.port)) || url.username || url.password) return reject(new Error('Blocked URL'));
       if (net.isIP(url.hostname) && isPrivateAddress(url.hostname)) return reject(new Error('Blocked address'));
-      const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, { method: 'GET', lookup: safeLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'CloudbaseLinkPreview/1.0', Accept: 'text/html' } }, (res) => {
+      const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, { method: 'GET', lookup: safeLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'QuelliLinkPreview/1.0', Accept: 'text/html' } }, (res) => {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
           res.resume();
           if (redirects >= MAX_REDIRECTS) return reject(new Error('Too many redirects'));

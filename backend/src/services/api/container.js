@@ -69,7 +69,7 @@ export function createContainer({ boss }) {
   const hasher = new PasswordHasher();
   const tokens = new TokenService({ secret: config.JWT_SECRET, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS });
   const secretBox = new SecretBox(config.ENCRYPTION_KEY);
-  const totp = new TotpService({ issuer: 'Cloudbase' });
+  const totp = new TotpService({ issuer: 'Quelli' });
   const mail = new MailService({ boss });
   const audit = new AuditService({ repos, logger });
   const oneTime = new OneTimeTokenService({ repos, pepper: config.JWT_SECRET });

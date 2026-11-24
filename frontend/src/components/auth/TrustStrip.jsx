@@ -8,7 +8,7 @@ export function TrustStrip() {
         <p className="text-sm font-semibold text-ink">Protected sign-in</p>
         <p className="text-xs text-muted">Two-factor authentication · encrypted sessions · full audit trail</p>
       </div>
-      <span className="hidden text-xs text-muted sm:block">© 2026 Cloudbase</span>
+      <span className="hidden text-xs text-muted sm:block">© 2026 Quelli</span>
     </div>
   );
 }

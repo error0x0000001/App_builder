@@ -43,4 +43,4 @@ export const isVisibleTo = (item, workspace) => !item.minRole || Boolean(workspa
 export const isActivePath = (item, pathname) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
 const matches = (item, pathname) => item.to === pathname || (item.prefix && pathname.startsWith(`${item.to}/`));
-export const pageFor = (pathname) => [...NAV_ITEMS, ...HIDDEN_PAGES].find((item) => matches(item, pathname)) ?? { icon: 'home', label: 'Cloudbase' };
+export const pageFor = (pathname) => [...NAV_ITEMS, ...HIDDEN_PAGES].find((item) => matches(item, pathname)) ?? { icon: 'home', label: 'Quelli' };

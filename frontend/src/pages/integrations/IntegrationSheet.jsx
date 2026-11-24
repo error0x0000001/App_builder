@@ -82,7 +82,7 @@ export function IntegrationSheet({ def, state, onClose }) {
       </div>
 
       <section aria-label="What it is used for" className={`${dotted} pt-4`}>
-        <h4 className="mb-2 text-sm font-semibold text-ink">{def.live ? 'Once on, Cloudbase uses it for' : 'Planned use'}</h4>
+        <h4 className="mb-2 text-sm font-semibold text-ink">{def.live ? 'Once on, Quelli uses it for' : 'Planned use'}</h4>
         <ul className="space-y-1.5">{def.uses.map((u) => <li key={u} className="flex items-start gap-2 text-sm text-muted"><Icon name="check" className={`mt-0.5 size-4 shrink-0 ${def.live ? 'text-success' : 'text-placeholder'}`} />{u}</li>)}</ul>
         {!def.live && <p className="mt-2 text-xs text-muted">You can connect and test it now; features will start using it as they are built. Until then it has no effect.</p>}
       </section>
@@ -106,7 +106,7 @@ export function IntegrationSheet({ def, state, onClose }) {
         <section aria-label="Use it" className={`${dotted} pt-4`}>
           <Switch
             label={USE_LABEL[def.category](def.name)}
-            description={state.status === 'connected' ? 'It is connected. Turning it on makes Cloudbase use it.' : 'Available once the connection test passes.'}
+            description={state.status === 'connected' ? 'It is connected. Turning it on makes Quelli use it.' : 'Available once the connection test passes.'}
             checked={state.enabled} disabled={busy === 'enable' || (state.status !== 'connected' && !state.enabled)}
             onChange={(e) => toggle(e.target.checked)}
           />

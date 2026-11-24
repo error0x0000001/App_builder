@@ -75,12 +75,12 @@ async function testGoogleMaps(config, secrets, opts) {
 }
 
 async function testOsm(config, secrets, opts) {
-  const style = await safeRequest(config.style_url, { headers: { accept: 'application/json', 'user-agent': `Cloudbase (${config.contact_email})` }, maxBytes: 512 * 1024, ...opts });
+  const style = await safeRequest(config.style_url, { headers: { accept: 'application/json', 'user-agent': `Quelli (${config.contact_email})` }, maxBytes: 512 * 1024, ...opts });
   if (style.status !== 200) return fail(describeStatus(style.status, 'The style server'));
   let json; try { json = JSON.parse(style.body); } catch { return fail('That address did not return a map style (style.json).'); }
   if (!Array.isArray(json.layers) || json.version !== 8) return fail('That is not a MapLibre style (expected version 8 with layers).');
   if (config.geocoder_url) {
-    const geo = await safeRequest(`${config.geocoder_url.replace(/\/$/, '')}/status.php?format=json`, { headers: { 'user-agent': `Cloudbase (${config.contact_email})` }, ...opts });
+    const geo = await safeRequest(`${config.geocoder_url.replace(/\/$/, '')}/status.php?format=json`, { headers: { 'user-agent': `Quelli (${config.contact_email})` }, ...opts });
     if (geo.status !== 200) return fail(`The map style loads, but the geocoder answered HTTP ${geo.status}.`);
   }
   return ok('Map style loads' + (config.geocoder_url ? ' and the geocoder answers' : ''));
@@ -101,15 +101,15 @@ const webhookUrl = (provider, secrets) => (provider === 'webhook' ? secrets.url 
 
 /** What each channel receives for one notification: { title, text, link, kind }. */
 function formatMessage(provider, { title, text, link, kind }, config, secrets) {
-  if (provider === 'slack') return { body: { text: `*${title}*\n${text}${link ? `\n<${link}|Open in Cloudbase>` : ''}` } };
-  if (provider === 'discord') return { body: { username: 'Cloudbase', embeds: [{ title: title.slice(0, 250), description: text.slice(0, 3500), ...(link ? { url: link } : {}), color: 0x7f56d9 }] } };
+  if (provider === 'slack') return { body: { text: `*${title}*\n${text}${link ? `\n<${link}|Open in Quelli>` : ''}` } };
+  if (provider === 'discord') return { body: { username: 'Quelli', embeds: [{ title: title.slice(0, 250), description: text.slice(0, 3500), ...(link ? { url: link } : {}), color: 0x7f56d9 }] } };
   if (provider === 'teams') {
-    return { body: { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body: [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', wrap: true }, { type: 'TextBlock', text: text, wrap: true }], actions: link ? [{ type: 'Action.OpenUrl', title: 'Open in Cloudbase', url: link }] : [] } }] } };
+    return { body: { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body: [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', wrap: true }, { type: 'TextBlock', text: text, wrap: true }], actions: link ? [{ type: 'Action.OpenUrl', title: 'Open in Quelli', url: link }] : [] } }] } };
   }
   const payload = { event: kind ?? 'notification', title, text, link: link ?? null, sentAt: new Date().toISOString() };
   const raw = JSON.stringify(payload);
-  const headers = { 'user-agent': 'Cloudbase-Webhook/1' };
-  if (secrets.signing_secret) headers['x-cloudbase-signature'] = `sha256=${crypto.createHmac('sha256', secrets.signing_secret).update(raw).digest('hex')}`;
+  const headers = { 'user-agent': 'Quelli-Webhook/1' };
+  if (secrets.signing_secret) headers['x-quelli-signature'] = `sha256=${crypto.createHmac('sha256', secrets.signing_secret).update(raw).digest('hex')}`;
   return { body: raw, headers };
 }
 
@@ -122,7 +122,7 @@ export async function deliverNotification(provider, config, secrets, message, { 
   const res = await safeRequest(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body, allowPrivate });
   return res.status >= 200 && res.status < 300 ? ok('Delivered') : fail(`${provider === 'webhook' ? 'Your endpoint' : provider} answered HTTP ${res.status}${res.body ? `: ${res.body.slice(0, 80)}` : ''}`);
 }
-const testNotify = (provider) => (config, secrets, opts) => deliverNotification(provider, config, secrets, { kind: 'test', title: 'Cloudbase connection test', text: 'If you can read this, Cloudbase can post here. You can ignore this message.', link: null }, opts);
+const testNotify = (provider) => (config, secrets, opts) => deliverNotification(provider, config, secrets, { kind: 'test', title: 'Quelli connection test', text: 'If you can read this, Quelli can post here. You can ignore this message.', link: null }, opts);
 
 const TESTERS = {
   smtp: (c, s, o) => testSmtp('smtp', c, s, o), ses: (c, s, o) => testSmtp('ses', c, s, o),

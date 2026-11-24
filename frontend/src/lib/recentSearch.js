@@ -1,4 +1,4 @@
-const KEY = 'cloudbase.recentSearch';
+const KEY = 'quelli.recentSearch';
 const MAX = 5;
 
 /** Last few results the person opened from global search (per browser; never required for anything to work). */

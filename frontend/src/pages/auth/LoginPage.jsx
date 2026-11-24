@@ -40,7 +40,7 @@ export default function LoginPage() {
   return (
     <AuthCard
       title={workspace.data ? `Sign in to ${workspace.data.name}` : 'Welcome back'}
-      description="Sign in to access your Cloudbase workspace"
+      description="Sign in to access your Quelli workspace"
       footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/workspace">Use workspace URL</TextLink></>}
     >
       {params.get('error') === 'oauth' && <Alert tone="error">Google sign-in failed. Please try again.</Alert>}

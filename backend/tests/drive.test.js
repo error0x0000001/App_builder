@@ -237,7 +237,7 @@ describe('documents: access control', () => {
 
 describe('storage driver', () => {
   it('streams to disk with a checksum, enforces the size limit and cleans up', async () => {
-    const driver = new LocalStorageDriver('/tmp/cloudbase-driver-test');
+    const driver = new LocalStorageDriver('/tmp/quelli-driver-test');
     const { size, checksum } = await driver.put('a/b/one', Readable.from([Buffer.from('hello '), Buffer.from('world')]));
     assert.equal(size, 11);
     assert.equal(checksum, 'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9');

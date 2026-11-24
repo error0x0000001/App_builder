@@ -33,7 +33,7 @@ export class SettingsBindings {
           const [storage, api] = await Promise.all([this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws)]);
           const mb = storage.reduce((n, r) => n + r.bytes, 0) / 1e6;
           return {
-            organization_name: w.name, salesforce_com_organization_id: w.id, created: date(w.createdAt), edition: 'Enterprise', instance: 'Cloudbase Cloud',
+            organization_name: w.name, salesforce_com_organization_id: w.id, created: date(w.createdAt), edition: 'Enterprise', instance: 'Quelli Cloud',
             used_data_space: `${mb.toFixed(1)} MB`, used_file_space: '0 MB', api_requests_last_24_hours: api.toLocaleString('en-US'), streaming_api_events_last_24_hours: '0',
           };
         },

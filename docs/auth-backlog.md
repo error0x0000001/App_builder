@@ -1,6 +1,6 @@
 # Auth backlog — not yet built
 
-Source: the Cloudbase design file (`setup-clone_2.html`) compared with what is implemented.
+Source: the Quelli design file (`setup-clone_2.html`) compared with what is implemented.
 Status: **Todo** unless noted. Items marked ◇ were only seen as menu entries / demo pages in the HTML, so their exact behaviour needs a spec before building.
 
 ## A. From the HTML's user-facing auth screens
