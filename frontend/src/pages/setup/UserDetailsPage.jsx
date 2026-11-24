@@ -162,7 +162,7 @@ export default function UserDetailsPage() {
     <div className="space-y-5">
       <BackLink />
       <Card className="overflow-hidden p-0">
-        <div aria-hidden="true" className="h-32 w-full" style={{ background: `linear-gradient(to top right, hsl(${hue} 90% 80%), hsl(${(hue + 55) % 360} 100% 94%))` }} />
+        <div aria-hidden="true" className="cover-banner h-32 w-full" style={{ background: `linear-gradient(to top right, hsl(${hue} 90% 80%), hsl(${(hue + 55) % 360} 100% 94%))` }} />
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-5 pb-5 sm:px-6">
           <div className="-mt-12 rounded-full bg-surface p-1 ring-1 ring-line"><Avatar name={user.name} src={user.avatar} size="size-24" status={sessions.length ? 'online' : undefined} className="text-3xl" /></div>
           <div className="min-w-0 flex-1 pt-3">

@@ -10,7 +10,7 @@ export function ProfileHeader({ name, src, status, subtitle, tags, actions, avat
   const hue = hueOf(name ?? '');
   return (
     <header className={cn('pb-1', className)}>
-      <div className="px-2"><div aria-hidden="true" className="h-24 w-full rounded-xl" style={{ background: `linear-gradient(to top right, hsl(${hue} 90% 80%), hsl(${(hue + 55) % 360} 100% 94%))` }} /></div>
+      <div className="px-2"><div aria-hidden="true" className="cover-banner h-24 w-full rounded-xl" style={{ background: `linear-gradient(to top right, hsl(${hue} 90% 80%), hsl(${(hue + 55) % 360} 100% 94%))` }} /></div>
       <div className="-mt-10 flex flex-col gap-3 px-4">
         <div className="relative w-fit rounded-full bg-surface p-1 ring-1 ring-line">{avatar ?? <Avatar name={name} src={src} size="size-20" status={status} className="text-2xl" />}</div>
         <div className="min-w-0">
