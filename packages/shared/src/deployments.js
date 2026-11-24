@@ -112,6 +112,7 @@ export const configSchema = z.object({
   volumes: z.array(z.object({ name: z.string().trim().regex(/^[a-z0-9][a-z0-9_.-]{0,60}$/i, 'Use letters, numbers, - _ .'), path: z.string().trim().regex(/^\/[A-Za-z0-9._\-/]*$/, 'Use an absolute path') })).max(20).default([]),
   publishedPorts: z.array(z.object({ published: z.coerce.number().int().min(1).max(65535), target: z.coerce.number().int().min(1).max(65535), protocol: z.enum(['tcp', 'udp']).default('tcp') })).max(20).default([]),
   composeFile: z.string().max(200_000).optional(),
+  templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/).optional(),
   previews: z.object({ enabled: z.boolean().default(false), domain: z.string().trim().toLowerCase().regex(HOST, 'Enter a domain like preview.example.com').optional().or(z.literal('')) }).optional(),
   database: z.object({ name: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,62}$/).default('app'), user: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,31}$/).default('app'), password: z.string().min(8).max(128).optional() }).optional(),
 });
@@ -134,6 +135,7 @@ export const domainBodySchema = z.object({
   path: z.string().trim().regex(/^\/[A-Za-z0-9._\-/]*$/, 'A path starts with /').default('/'),
   port: z.coerce.number().int().min(1).max(65535),
   https: z.boolean().default(true),
+  serviceName: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/, 'Use the service name from the Compose file').optional(),
 });
 const jobObject = z.object({
   kind: z.enum(['command', 'backup']).default('command'),

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { listTemplates } from '../../../modules/deployments/templates/engine.js';
 import { z } from 'zod';
 import { accessBodySchema, credentialBodySchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
@@ -74,6 +75,9 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.get('/servers/:id/nodes', need('viewer'), validate({ params: id }), async (req, res) => res.json({ nodes: await deployments.clusterNodes(ctx(req), req.params.id) }));
   router.post('/servers/:id/join', need('manager'), validate({ params: id, body: z.object({ managerId: uuidField, role: z.enum(['worker', 'manager']).default('worker') }) }), async (req, res) => res.json({ nodes: await deployments.joinCluster(ctx(req), req.params.id, req.valid.body) }));
   router.post('/servers/:id/nodes/:nodeId/:action', need('manager'), validate({ params: id.extend({ nodeId: z.string().regex(/^[a-z0-9]{10,40}$/), action: z.enum(['drain', 'active', 'remove']) }) }), async (req, res) => res.json({ nodes: await deployments.nodeAction(ctx(req), req.params.id, req.params.nodeId, req.params.action) }));
+  router.get('/templates', need('viewer'), (req, res) => { res.set('Cache-Control', 'private, max-age=3600').json({ templates: listTemplates() }); });
+  router.get('/templates/:templateId', need('viewer'), validate({ params: z.object({ templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/) }) }), (req, res) => res.json({ template: deployments.templateDetails(req.params.templateId) }));
+  router.post('/environments/:id/templates', need('manager'), validate({ params: id, body: z.object({ templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/), serverId: uuidField.optional(), domain: z.string().trim().toLowerCase().max(253).regex(/^$|^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/, 'Enter a domain like app.example.com').optional(), name: z.string().trim().min(1).max(60).optional() }) }), async (req, res) => res.status(201).json({ service: await deployments.createFromTemplate(ctx(req), req.params.id, req.valid.body) }));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
   router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
   router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));

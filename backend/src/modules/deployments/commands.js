@@ -1,3 +1,4 @@
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { DATABASE_DEFAULTS } from '@app/shared';
 
 /**
@@ -15,7 +16,7 @@ export const serviceName = (appName) => `${appName}_app`;
 
 const b64 = (text) => Buffer.from(text, 'utf8').toString('base64');
 /** Writes a file on the server without any shell-quoting risk (content travels base64-encoded), owner-only. */
-export const writeFileCmd = (path, content) => `umask 077; mkdir -p "$(dirname ${q(path)})"; printf %s ${q(b64(content))} | base64 -d > ${q(path)}`;
+export const writeFileCmd = (path, content, { open = false } = {}) => `umask ${open ? '022' : '077'}; mkdir -p "$(dirname ${q(path)})"; printf %s ${q(b64(content))} | base64 -d > ${q(path)}`;
 
 /** Replaces known secret strings in log text so a token never lands in a stored log. */
 export const redact = (text, secrets = []) => secrets.filter((s) => s && String(s).length >= 4).reduce((t, s) => t.split(String(s)).join('•••'), String(text));
@@ -45,10 +46,12 @@ export const serverSetupScript = ({ acmeEmail }) => [
   `docker network inspect ${NETWORK} >/dev/null 2>&1 || docker network create --driver overlay --attachable ${NETWORK}`,
   'echo "== Traefik =="',
   `mkdir -p ${BASE_DIR}/stacks ${BASE_DIR}/builds`,
+  `if docker service inspect quelli-traefik >/dev/null 2>&1 && ! docker service inspect quelli-traefik --format '{{json .Spec.TaskTemplate.ContainerSpec.Args}}' | grep -q providers.docker; then echo "Updating Traefik to also route Compose containers"; docker service rm quelli-traefik >/dev/null; sleep 3; fi`,
   'docker service inspect quelli-traefik >/dev/null 2>&1 && echo "Traefik is already running" || docker service create --detach --name quelli-traefik'
     + ' --constraint node.role==manager --publish mode=host,target=80,published=80 --publish mode=host,target=443,published=443'
     + ` --network ${NETWORK} --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly --mount type=volume,source=quelli-traefik-certs,target=/letsencrypt`
     + ` traefik:v3.1 --providers.swarm.endpoint=unix:///var/run/docker.sock --providers.swarm.exposedByDefault=false --providers.swarm.network=${NETWORK}`
+    + ` --providers.docker=true --providers.docker.exposedByDefault=false --providers.docker.network=${NETWORK}`
     + ' --entrypoints.web.address=:80 --entrypoints.websecure.address=:443'
     + ` --certificatesresolvers.letsencrypt.acme.tlschallenge=true --certificatesresolvers.letsencrypt.acme.email=${q(acmeEmail)} --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json`,
   'echo "== Done =="',
@@ -145,9 +148,38 @@ export function buildCommand(source, appName, tag, env = {}) {
 }
 
 export const applyStackCommand = (appName, doc) => `${writeFileCmd(stackFile(appName), JSON.stringify(doc, null, 2))} && docker stack deploy --detach=true --with-registry-auth --prune --compose-file ${q(stackFile(appName))} ${q(appName)}`;
-export const composeUpCommand = (appName, composeFile, env) => {
+/**
+ * Adds Traefik routing to a Compose file: container labels on each routed service and the shared network, so the one Traefik on the
+ * server reaches it (same router shape as `traefikLabels`, with the docker provider's network label).
+ */
+export function composeRouting(composeText, appName, domains) {
+  if (!domains.length) return composeText;
+  const doc = parseYaml(composeText);
+  if (!doc?.services) throw new Error('The Compose file has no services');
+  doc.networks = { ...(doc.networks ?? {}), [NETWORK]: { external: true, name: NETWORK } };
+  const byService = new Map();
+  for (const d of domains) { if (!(d.serviceName in doc.services)) throw new Error(`Domain ${d.host} points at “${d.serviceName}”, which is not in the Compose file`); byService.set(d.serviceName, [...(byService.get(d.serviceName) ?? []), d]); }
+  for (const [name, list] of byService) {
+    const service = doc.services[name] ?? {};
+    const existing = Array.isArray(service.labels) ? Object.fromEntries(service.labels.map((l) => { const i = String(l).indexOf('='); return i < 0 ? [l, ''] : [l.slice(0, i), l.slice(i + 1)]; })) : (service.labels ?? {});
+    const labels = traefikLabels(`${appName}-${name}`, list.map((d) => ({ ...d, port: d.port })));
+    delete labels['traefik.swarm.network'];
+    labels['traefik.docker.network'] = NETWORK;
+    service.labels = { ...existing, ...labels };
+    if (!service.networks) service.networks = ['default', NETWORK];
+    else if (Array.isArray(service.networks)) { if (!service.networks.includes(NETWORK)) service.networks.push(NETWORK); }
+    else service.networks[NETWORK] = service.networks[NETWORK] ?? {};
+    doc.services[name] = service;
+  }
+  return stringifyYaml(doc);
+}
+
+/** The project lives in `<dir>/code` (compose + .env) with template files beside it in `<dir>/files`, so `../files/x` works in the Compose file. */
+export const composeUpCommand = (appName, composeFile, env, mounts = []) => {
   const dir = `${BASE_DIR}/compose/${appName}`;
-  return `${writeFileCmd(`${dir}/docker-compose.yml`, composeFile)} && ${writeFileCmd(`${dir}/.env`, Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n'))} && docker compose -p ${q(appName)} --project-directory ${q(dir)} -f ${q(`${dir}/docker-compose.yml`)} up -d --remove-orphans --pull always`;
+  const files = mounts.map((m) => writeFileCmd(`${dir}/files/${m.path}`, m.content, { open: true }));
+  return [...files, writeFileCmd(`${dir}/code/docker-compose.yml`, composeFile), writeFileCmd(`${dir}/code/.env`, Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n')),
+    `docker compose -p ${q(appName)} --project-directory ${q(`${dir}/code`)} -f ${q(`${dir}/code/docker-compose.yml`)} up -d --remove-orphans --pull always`].join(' && ');
 };
 export const composeDownCommand = (appName) => `docker compose -p ${q(appName)} down --remove-orphans; rm -rf ${q(`${BASE_DIR}/compose/${appName}`)}`;
 

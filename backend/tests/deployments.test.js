@@ -393,6 +393,49 @@ describe('server metrics history', () => {
   });
 });
 
+describe('templates', () => {
+  it('lists the catalog, deploys a template as a Compose stack with routing labels and its files, and refuses bad input', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const list = (await client.get(`${D}/templates`)).body.templates;
+    assert.ok(list.length > 600 && list.some((t) => t.id === 'plausible'));
+    const detail = (await client.get(`${D}/templates/plausible`)).body.template;
+    assert.ok(detail.services.includes('plausible') && detail.mounts.length >= 1 && detail.compose.includes('services:'));
+    assert.equal((await client.get(`${D}/templates/nope-nothing`)).status, 404);
+    assert.equal((await client.get(`${D}/templates/..%2Fetc`)).status, 400);
+
+    const created = await client.post(`${D}/environments/${env.id}/templates`, { templateId: 'plausible', serverId: sid, domain: 'stats.example.com' });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const service = created.body.service;
+    assert.equal(service.kind, 'compose');
+    assert.deepEqual(service.domains.map((d) => [d.host, d.serviceName, d.port, d.https]), [['stats.example.com', 'plausible', 8000, true]]);
+
+    fake.commands.length = 0;
+    await client.post(`${D}/services/${service.id}/deploy`);
+    for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+    const script = fake.commands.find((c) => c.includes('docker compose'));
+    assert.ok(script, 'brought up with docker compose');
+    assert.ok(script.includes('clickhouse-config.xml'), 'template files are written');
+    const composeB64 = [...script.matchAll(/printf %s '([A-Za-z0-9+/=]+)' \| base64 -d > '[^']*docker-compose\.yml'/g)][0][1];
+    const doc = Buffer.from(composeB64, 'base64').toString();
+    assert.match(doc, /traefik\.http\.routers\.[^\n]*Host\(`stats\.example\.com`\)/);
+    assert.match(doc, /traefik\.docker\.network: quelli-network/);
+    assert.match(doc, /external: true/);
+    const envB64 = [...script.matchAll(/printf %s '([A-Za-z0-9+/=]+)' \| base64 -d > '[^']*\/code\/\.env'/g)][0][1];
+    assert.match(Buffer.from(envB64, 'base64').toString(), /SECRET_KEY_BASE=[A-Za-z0-9+/=]{80,}/);
+    const revealed = (await client.post(`${D}/services/${service.id}/secrets`)).body.env;
+    assert.match(revealed, /BASE_URL=http:\/\/stats\.example\.com/);
+
+    assert.equal((await client.post(`${D}/environments/${env.id}/templates`, { templateId: 'ghost', serverId: sid })).status, 400, 'a domain is needed on a server with a hostname');
+    assert.equal((await client.post(`${D}/environments/${env.id}/templates`, { templateId: 'ghost', serverId: sid, domain: 'stats.example.com' })).status, 409, 'domain already used');
+    assert.equal((await client.post(`${D}/environments/${env.id}/templates`, { templateId: 'nope', serverId: sid, domain: 'x.example.com' })).status, 404);
+    const extra = await client.post(`${D}/services/${service.id}/domains`, { host: 'two.example.com', port: 80, https: false });
+    assert.equal(extra.status, 400, 'a Compose domain must name its service');
+    assert.equal((await client.post(`${D}/services/${service.id}/domains`, { host: 'two.example.com', port: 80, https: false, serviceName: 'plausible' })).status, 201);
+  });
+});
+
 describe('web terminal', () => {
   const open = async (token, frame) => {
     const ws = new WebSocket(server.base.replace('http', 'ws').replace('/api/v1', '/api/v1/deployments/terminal'));

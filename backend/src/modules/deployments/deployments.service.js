@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { DATABASE_DEFAULTS, DATABASE_KINDS, DEPLOYMENT_STATUS, SERVICE_STATUS, appNameFor, branchSlug, cronMatches } from '@app/shared';
 import { sql } from 'drizzle-orm';
+import { describeTemplate, findTemplate, renderTemplate } from './templates/engine.js';
 import { v7 as uuidv7 } from 'uuid';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import * as cmd from './commands.js';
@@ -250,7 +251,7 @@ export class DeploymentsService {
 
   async #serviceView(s) {
     const [domains, jobs] = await Promise.all([
-      this.db.execute(sql`select id, host, path, port, https from dp_domains where service_id = ${s.id}::uuid order by created_at`),
+      this.db.execute(sql`select id, host, path, port, https, service_name from dp_domains where service_id = ${s.id}::uuid order by created_at`),
       this.db.execute(sql`select id, kind, name, cron, command, keep, enabled, last_run_at from dp_jobs where service_id = ${s.id}::uuid order by created_at`),
     ]);
     const secrets = this.#dec(s.secrets_enc);
@@ -260,7 +261,7 @@ export class DeploymentsService {
       hasGitToken: Boolean(secrets.gitToken), hasRegistryPassword: Boolean(secrets.registryPassword), hasEnv: Boolean(s.env_enc),
       previewOf: s.preview_of, previewBranch: s.preview_branch,
       webhookPath: `/api/v1/deployments/hooks/${s.id}`,
-      domains: domains.rows.map((d) => ({ id: d.id, host: d.host, path: d.path, port: d.port, https: d.https, url: `${d.https ? 'https' : 'http'}://${d.host}${d.path === '/' ? '' : d.path}` })),
+      domains: domains.rows.map((d) => ({ id: d.id, host: d.host, path: d.path, port: d.port, https: d.https, serviceName: d.service_name, url: `${d.https ? 'https' : 'http'}://${d.host}${d.path === '/' ? '' : d.path}` })),
       jobs: jobs.rows.map((j) => ({ id: j.id, kind: j.kind, name: j.name, cron: j.cron, command: j.command, keep: j.keep, enabled: j.enabled, lastRunAt: j.last_run_at })),
     };
   }
@@ -415,13 +416,56 @@ export class DeploymentsService {
     return session;
   }
 
+  // ---------- templates (the open-source catalog) ----------
+  templateDetails(id) {
+    const t = findTemplate(id);
+    if (!t) throw new NotFoundError('Template not found');
+    const { compose, toml, ...meta } = t;
+    return { ...meta, compose, toml, ...describeTemplate(t) };
+  }
+
+  /** The base host a template's domains are built from when the person gives none: `<name>-<rand>.<ip>.traefik.me` for an IP server. */
+  #defaultDomain(name, server) {
+    const ip = server?.host && /^\d{1,3}(\.\d{1,3}){3}$/.test(server.host) ? server.host : null;
+    return ip ? `${appNameFor(name, rand(4))}.${ip}.traefik.me` : null;
+  }
+
+  /** Creates a Compose service from a catalog template: secrets generated, domains and files from the template, env pre-filled. */
+  async createFromTemplate(ctx, environmentId, { templateId, serverId, domain, name }) {
+    const t = findTemplate(templateId);
+    if (!t) throw new NotFoundError('Template not found');
+    await this.#environment(ctx.workspaceId, environmentId);
+    const server = serverId ? await this.#server(ctx.workspaceId, serverId) : null;
+    const base = (domain || this.#defaultDomain(t.id, server) || '').trim().toLowerCase();
+    if (!base) throw new ValidationError([{ field: 'domain', message: 'Enter the domain this will be served on' }], 'Enter a domain');
+    let rendered;
+    try { rendered = renderTemplate(t, { domain: base, mailDomain: base }); } catch (e) { throw new ValidationError(undefined, `This template cannot be deployed: ${e.message}`); }
+    const https = !/\.traefik\.me$/.test(base);
+    const id = uuidv7(); const label = (name || t.name).slice(0, 60); const appName = appNameFor(label, rand(4));
+    const config = { replicas: 1, volumes: [], publishedPorts: [], composeFile: rendered.compose, composeMounts: rendered.mounts, templateId: t.id };
+    await this.db.execute(sql`insert into dp_services (id, workspace_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by)
+      values (${id}::uuid, ${ctx.workspaceId}, ${environmentId}::uuid, ${serverId ?? null}, 'compose', ${label}, ${appName}, '{}'::jsonb, ${jsonOf(config)}::jsonb, ${this.#enc({})}, ${this.#enc({ env: rendered.env })}, false, ${crypto.randomBytes(24).toString('base64url')}, ${ctx.userId})`);
+    try {
+      for (const d of rendered.domains) {
+        await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${id}::uuid, ${d.host}, ${d.path}, ${d.port}, ${https}, ${d.serviceName})`);
+      }
+    } catch (e) {
+      await this.db.execute(sql`delete from dp_services where id = ${id}::uuid`); // nothing half-made is left behind
+      if (e.code === '23505') throw new ConflictError('One of this template’s domains is already used by another service. Choose a different domain.');
+      throw e;
+    }
+    await this.#audit(ctx, `Created “${label}” from the ${t.name} template`);
+    return this.getService(ctx.workspaceId, id);
+  }
+
   // ---------- domains ----------
   async addDomain(ctx, serviceId, body) {
     const s = await this.#service(ctx.workspaceId, serviceId);
-    if (s.kind === 'compose') throw new ValidationError(undefined, 'Add domains to Compose stacks with Traefik labels in the Compose file.');
+    if (s.kind === 'compose' && !body.serviceName) throw new ValidationError([{ field: 'serviceName', message: 'Choose which service of the Compose file serves this domain' }], 'Choose a service');
+    if (s.kind !== 'compose' && body.serviceName) throw new ValidationError(undefined, 'Only Compose stacks route to a named service.');
     if (DATABASE_KINDS.includes(s.kind)) throw new ValidationError(undefined, 'Databases are not published on a domain.');
     try {
-      await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${serviceId}::uuid, ${body.host}, ${body.path}, ${body.port}, ${body.https})`);
+      await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${serviceId}::uuid, ${body.host}, ${body.path}, ${body.port}, ${body.https}, ${body.serviceName ?? null})`);
     } catch (e) { if (e.code === '23505') throw new ConflictError('That domain and path is already used by a service in this workspace.'); throw e; }
     await this.#audit(ctx, `Added domain ${body.host} to “${s.name}”`);
     return this.#reapply(ctx, s, `Domain ${body.host} added`);
@@ -598,11 +642,12 @@ export class DeploymentsService {
     const source = svc.source ?? {}; const cfg = svc.config ?? {};
     const sharedEnv = this.#dec((await this.db.execute(sql`select env_enc from dp_environments where id = ${svc.environment_id}::uuid`)).rows[0]?.env_enc).env;
     const env = { ...cmd.parseEnv(sharedEnv), ...cmd.parseEnv(this.#dec(svc.env_enc).env) };
-    const domains = (await this.db.execute(sql`select host, path, port, https from dp_domains where service_id = ${svc.id}::uuid order by created_at`)).rows;
+    const domains = (await this.db.execute(sql`select host, path, port, https, service_name from dp_domains where service_id = ${svc.id}::uuid order by created_at`)).rows;
     for (const d of domains) if (!d.port) d.port = cfg.port ?? 80;
 
     if (svc.kind === 'compose') {
-      await step('Starting the Compose stack', cmd.composeUpCommand(svc.app_name, cfg.composeFile, env), { timeoutMs: 20 * 60_000 });
+      const routed = cmd.composeRouting(cfg.composeFile, svc.app_name, domains.filter((d) => d.service_name).map((d) => ({ host: d.host, path: d.path, port: d.port, https: d.https, serviceName: d.service_name })));
+      await step('Starting the Compose stack', cmd.composeUpCommand(svc.app_name, routed, env, cfg.composeMounts ?? []), { timeoutMs: 20 * 60_000 });
       return;
     }
     let img = image;
