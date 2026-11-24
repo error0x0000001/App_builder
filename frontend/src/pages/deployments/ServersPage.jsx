@@ -20,6 +20,7 @@ import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
 import { Select } from '../../components/ui/Select.jsx';
 import { Sheet } from '../../components/ui/Sheet.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
+import { TerminalView } from './TerminalView.jsx';
 import { LogView, StatusBadge, useDeploymentLog } from './parts.jsx';
 
 function AddServerSheet({ onClose }) {
@@ -102,6 +103,10 @@ function ClusterSheet({ server, servers, onClose }) {
   );
 }
 
+function ShellSheet({ server, onClose }) {
+  return <Sheet open onClose={onClose} title={`${server.name} — terminal`} description="A shell on the server itself. Everything you type runs as the server’s SSH user." width="w-[48rem]"><TerminalView serverId={server.id} height="h-[75vh]" /></Sheet>;
+}
+
 function StatsSheet({ server, onClose }) {
   const stats = useQuery({ queryKey: ['deployments', 'server-stats', server.id], queryFn: () => deploymentsApi.serverStats(server.id), refetchInterval: 8000, retry: false });
   const history = useQuery({ queryKey: ['deployments', 'server-metrics', server.id], queryFn: () => deploymentsApi.serverMetrics(server.id), refetchInterval: 60_000 });
@@ -133,7 +138,7 @@ function StatsSheet({ server, onClose }) {
 export default function ServersPage() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['deployments', 'servers'], queryFn: deploymentsApi.servers, refetchInterval: 10_000 });
-  const [adding, setAdding] = useState(false); const [setup, setSetup] = useState(null); const [log, setLog] = useState(null); const [stats, setStats] = useState(null); const [cluster, setCluster] = useState(null);
+  const [adding, setAdding] = useState(false); const [setup, setSetup] = useState(null); const [log, setLog] = useState(null); const [stats, setStats] = useState(null); const [cluster, setCluster] = useState(null); const [shell, setShell] = useState(null);
   const [confirm, setConfirm] = useState(null); const [busy, setBusy] = useState(null); const [error, setError] = useState(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['deployments'] });
   const test = async (s) => { setBusy(s.id); setError(null); try { await deploymentsApi.testServer(s.id); await refresh(); } catch (e) { setError(e.message); } finally { setBusy(null); } };
@@ -151,6 +156,7 @@ export default function ServersPage() {
             <DropdownMenuItem icon="rocket" onSelect={() => setSetup(s)}>Set up server</DropdownMenuItem>
             <DropdownMenuItem icon="activity" onSelect={() => setStats(s)}>Usage</DropdownMenuItem>
             <DropdownMenuItem icon="layers" onSelect={() => setCluster(s)}>Cluster</DropdownMenuItem>
+            <DropdownMenuItem icon="terminal" onSelect={() => setShell(s)}>Terminal</DropdownMenuItem>
             <DropdownMenuItem icon="trash" onSelect={() => setConfirm(s)}>Remove</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -169,6 +175,7 @@ export default function ServersPage() {
       {setup && <SetupDialog server={setup} onClose={() => setSetup(null)} onStarted={(id) => { setLog({ id, title: `Setting up ${setup.name}` }); setSetup(null); refresh(); }} />}
       {log && <LogSheet id={log.id} title={log.title} onClose={() => { setLog(null); refresh(); }} />}
       {stats && <StatsSheet server={stats} onClose={() => setStats(null)} />}
+      {shell && <ShellSheet server={shell} onClose={() => setShell(null)} />}
       {cluster && <ClusterSheet server={cluster} servers={query.data?.servers ?? []} onClose={() => setCluster(null)} />}
       <ConfirmDialog open={Boolean(confirm)} danger confirmLabel="Remove server" title={`Remove ${confirm?.name}?`} description="Quelli forgets the server and its key. Anything running on it keeps running." onConfirm={async () => { try { await deploymentsApi.deleteServer(confirm.id); await refresh(); } catch (e) { setError(e.message); } }} onClose={() => setConfirm(null)} />
     </div>

@@ -1,6 +1,7 @@
 import { config } from '../../shared/config.js';
 import { QUEUES } from '../../shared/queue.js';
 import { DeploymentsService } from './deployments.service.js';
+import { TerminalHub } from './terminal.js';
 import { LocalRunner, RunnerError, SshRunner } from './runner.js';
 
 /** Which runner talks to a server: SSH to the machine the workspace connected, or the API's own machine when the install allows it. */
@@ -17,3 +18,5 @@ export function createDeployments({ enabled, runnerFactory = defaultRunnerFactor
   if (!enabled) return null;
   return new DeploymentsService({ ...deps, queues: QUEUES, appUrl: config.APP_URL, runnerFactory });
 }
+
+export const createTerminals = ({ deployments, ...deps }) => (deployments ? new TerminalHub({ deployments, ...deps }) : null);

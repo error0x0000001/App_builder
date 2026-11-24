@@ -399,6 +399,22 @@ export class DeploymentsService {
     return this.listCredentials(ctx.workspaceId);
   }
 
+  // ---------- terminal ----------
+  /** Opens an interactive shell in a service's container, or on a server's own shell. The caller (the socket tier) has checked the manager level. */
+  async openTerminal(ctx, { serviceId, serverId, cols, rows, onData, onClose }) {
+    let server; let command; let label;
+    if (serviceId) {
+      const s = await this.#service(ctx.workspaceId, serviceId);
+      if (!s.server_id) throw new ValidationError(undefined, 'This service has no server.');
+      server = await this.#server(ctx.workspaceId, s.server_id); command = cmd.terminalCommand(s.app_name, s.kind); label = `“${s.name}”`;
+    } else {
+      server = await this.#server(ctx.workspaceId, serverId); command = 'bash -l'; label = `server “${server.name}”`;
+    }
+    const session = await this.#runnerFor(server).interactive(`bash -lc ${cmd.q(command)}`, { cols, rows, onData, onClose });
+    await this.#audit(ctx, `Opened a terminal in ${label}`);
+    return session;
+  }
+
   // ---------- domains ----------
   async addDomain(ctx, serviceId, body) {
     const s = await this.#service(ctx.workspaceId, serviceId);

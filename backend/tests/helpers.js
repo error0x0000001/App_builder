@@ -11,6 +11,7 @@ export async function startServer() {
   const container = createContainer({ boss });
   const server = createApp(container).listen(0);
   container.realtime.attach(server);
+  container.terminals?.attach(server);
   const base = `http://127.0.0.1:${server.address().port}/api/v1`;
   return {
     base, outbox, container, wsUrl: `ws://127.0.0.1:${server.address().port}/api/v1/realtime`,

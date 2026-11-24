@@ -49,6 +49,28 @@ export class SshRunner {
   }
 }
 
+/** Same as run() but with a terminal attached: returns { write, resize, close }; `onData` gets output, `onClose` fires once when the session ends. */
+SshRunner.prototype.interactive = async function interactive(command, { cols = 80, rows = 24, onData, onClose } = {}) {
+  const { host, port, username, privateKey, hostKey } = this.server;
+  const target = await resolveTarget(host, { allowPrivate: this.allowPrivate }).catch((e) => { throw new RunnerError(e.message); });
+  return new Promise((resolve, reject) => {
+    const conn = new Client(); let stream; let ended = false; let seen;
+    const end = (reason) => { if (ended) return; ended = true; conn.end(); onClose?.(reason); };
+    conn.on('ready', () => {
+      conn.exec(command, { pty: { cols, rows, term: 'xterm-256color' } }, (error, s) => {
+        if (error) { conn.end(); return reject(new RunnerError(error.message)); }
+        stream = s; s.on('data', (c) => onData?.(c.toString('utf8'))); s.stderr.on('data', (c) => onData?.(c.toString('utf8'))); s.on('close', () => end('exit'));
+        return resolve({ write: (d) => stream.write(d), resize: (c, r) => stream.setWindow(r, c, 0, 0), close: () => { try { stream.close(); } catch { /* already closed */ } end('closed'); } });
+      });
+    });
+    conn.on('error', (error) => { if (!stream) reject(new RunnerError(error.level === 'client-authentication' ? 'The server rejected the SSH key' : error.message)); else end('error'); });
+    conn.connect({
+      host: target.address, port, username, privateKey, readyTimeout: 20_000, keepaliveInterval: 15_000,
+      hostVerifier: (key) => { seen = fingerprintOf(key); if (hostKey && hostKey !== seen) { reject(new RunnerError('The server’s SSH host key changed.')); return false; } if (!hostKey) this.onHostKey?.(seen); return true; },
+    });
+  });
+};
+
 export class LocalRunner {
   run(command, { onData, signal, timeoutMs = 30 * 60_000 } = {}) {
     return new Promise((resolve, reject) => {
@@ -72,5 +94,12 @@ export class FakeRunner {
     const r = (await this.respond(command)) ?? { code: 0, output: '' };
     if (r.output) onData?.(r.output);
     return { code: r.code ?? 0, output: r.output ?? '' };
+  }
+
+  /** Records the command and echoes what is typed, so the socket layer can be tested without a server. */
+  async interactive(command, { onData, onClose } = {}) {
+    this.commands.push(command); this.sessions = (this.sessions ?? 0) + 1;
+    let open = true;
+    return { write: (d) => open && onData?.(`echo:${d}`), resize: (c, r) => { this.lastSize = [c, r]; }, close: () => { if (open) { open = false; onClose?.('closed'); } } };
   }
 }

@@ -393,6 +393,48 @@ describe('server metrics history', () => {
   });
 });
 
+describe('web terminal', () => {
+  const open = async (token, frame) => {
+    const ws = new WebSocket(server.base.replace('http', 'ws').replace('/api/v1', '/api/v1/deployments/terminal'));
+    const events = []; let closeCode = null;
+    ws.onmessage = (m) => events.push(JSON.parse(m.data)); ws.onclose = (e) => { closeCode = e.code; };
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    ws.send(JSON.stringify({ type: 'auth', token, ...frame }));
+    const until = async (fn, ms = 3000) => { const t = Date.now(); while (Date.now() - t < ms) { const hit = fn(); if (hit) return hit; await new Promise((r) => setTimeout(r, 20)); } throw new Error(`timed out: ${JSON.stringify(events)} ${closeCode}`); };
+    return { ws, events, until, code: () => closeCode };
+  };
+  it('bridges a manager to a shell in the service, and refuses everyone else', async () => {
+    const { client, ws: wsId } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const service = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Shell', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' } })).body.service;
+    fake.commands.length = 0;
+    const t = await open(client.token, { serviceId: service.id, cols: 100, rows: 30 });
+    await t.until(() => t.events.find((e) => e.type === 'ready'));
+    assert.ok(fake.commands.some((c) => c.includes('docker exec -it')), 'runs docker exec with a terminal');
+    t.ws.send(JSON.stringify({ type: 'data', data: 'ls\n' }));
+    assert.equal((await t.until(() => t.events.find((e) => e.type === 'data'))).data, 'echo:ls\n');
+    t.ws.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
+    await t.until(() => fake.lastSize?.[0] === 120);
+    t.ws.close();
+    const audit = await db.execute(sql`select count(*)::int as n from setup_audit where workspace_id = ${wsId} and summary like 'Opened a terminal%'`);
+    assert.equal(audit.rows[0].n, 1);
+
+    const bad = await open('garbage', {});
+    await bad.until(() => bad.code() === 4401);
+    // a deployer (not manager) is refused
+    const email = uniqueEmail();
+    await client.post(`/workspaces/${wsId}/invitations`, { invitations: [{ email, role: 'member' }] });
+    const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
+    const person = new Client(server.base);
+    await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
+    await person.post(`/workspaces/${wsId}/switch`);
+    await client.put(`${D}/access`, { userId: (await person.get('/me')).body.user.id, level: 'deployer' });
+    const denied = await open(person.token, { serviceId: service.id });
+    await denied.until(() => denied.code() === 4403);
+  });
+});
+
 describe('swarm cluster', () => {
   it('lists nodes, joins a server to a manager with a redacted token, and drains or removes nodes', async () => {
     const { client } = await admin();

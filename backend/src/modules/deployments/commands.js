@@ -213,3 +213,9 @@ export const nodeActionCommand = (nodeId, action) => {
   if (action === 'remove') return `docker node update --availability drain ${q(nodeId)} >/dev/null 2>&1; docker node rm --force ${q(nodeId)}`;
   throw new Error('Unknown action');
 };
+
+/** An interactive shell inside the service's first running container (bash when it has it, else sh). */
+export function terminalCommand(appName, kind) {
+  const pick = kind === 'compose' ? `docker ps -q --filter ${q(`label=com.docker.compose.project=${appName}`)}` : `docker ps -q --filter ${q(`name=${appName}_app`)}`;
+  return `c=$(${pick} | head -1); [ -n "$c" ] || { echo "No running container for this service."; exit 1; }; exec docker exec -it "$c" sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'`;
+}

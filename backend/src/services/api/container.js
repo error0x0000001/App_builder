@@ -32,7 +32,7 @@ import { AccessService } from '../../modules/access/access.service.js';
 import { createAccessAddons } from '../../modules/access/addons.service.js';
 import { IntegrationsService } from '../../modules/integrations/integrations.service.js';
 import { ChannelNotifier } from '../../modules/integrations/channelNotifier.js';
-import { createDeployments } from '../../modules/deployments/index.js';
+import { createDeployments, createTerminals } from '../../modules/deployments/index.js';
 import { SearchService } from '../../modules/search/search.service.js';
 import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
 import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
@@ -131,9 +131,10 @@ export function createContainer({ boss }) {
     addons,
     tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
   };
-  const close = async () => { await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
+  const close = async () => { await terminals?.close(); await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
   const deployments = createDeployments({ enabled: config.DEPLOYMENTS_ENABLED, db, secretBox, repos, integrations, notifier, boss, logger });
+  const terminals = createTerminals({ deployments, tokens, membershipLookup, logger });
   const features = Object.freeze({ accessAddons: Boolean(addons), deployments: Boolean(deployments) });
-  return { deployments, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
 }

@@ -17,6 +17,7 @@ async function startWorker() {
     if (stopping) return;
     stopping = true;
     logger.info('API shutting down');
+    await container.terminals?.close();
     await container.realtime.close(); // WebSockets are long-lived: close them first so server.close() can finish
     const closed = new Promise((resolve) => server.close(resolve)); // also closes idle keep-alive connections
     const force = setTimeout(() => server.closeAllConnections(), 10_000);
@@ -31,6 +32,7 @@ async function startWorker() {
   server = createApp(container, { recycler: cluster.isWorker ? workerRecycler(shutdown) : undefined }) // retire only when a primary will respawn us
     .listen(config.PORT, () => logger.info(`API listening on :${config.PORT}`));
   container.realtime.attach(server);
+  container.terminals?.attach(server);
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }
