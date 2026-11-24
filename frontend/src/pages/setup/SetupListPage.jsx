@@ -37,7 +37,7 @@ const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
 
 /** Rich, coloured cells (Untitled UI tables are never plain text): two-line names, dotted status badges, hue tags, avatars. */
 const ROLE_HUE = { Owner: 'purple', Admin: 'indigo', Member: 'blue', Viewer: 'teal' };
-const renderCell = (type, { key, first, subKey, people, pageKey }) => (row) => {
+const renderCell = (type, { key, first, subKey, people, pageKey, tagged }) => (row) => {
   const v = row[key];
   const empty = v === undefined || v === null || v === '';
   if (first) {
@@ -66,7 +66,8 @@ const renderCell = (type, { key, first, subKey, people, pageKey }) => (row) => {
   if (type === 'select') return <Badge hue={hueOf(v)}>{String(v)}</Badge>;
   if (PERSON.test(key)) return <span className="flex items-center gap-2"><Avatar name={String(v)} size="size-7" /><span className="truncate font-medium text-ink">{String(v)}</span></span>;
   if (type === 'link') return <span className="font-medium text-link">{String(v)}</span>;
-  if (/^\d{4}-\d{2}-\d{2}/.test(String(v)) || /^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(v))) return <span className="text-muted">{String(v)}</span>;
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(v)) || /^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(v))) return <span className="inline-flex items-center gap-1.5 text-muted"><Icon name="calendar" className="size-4 text-placeholder" />{String(v)}</span>;
+  if (tagged) return <Badge hue={hueOf(v)}>{String(v)}</Badge>; // a column with few repeated values is a category: colour tag, not plain text
   return <span className="text-muted">{String(v)}</span>;
 };
 
@@ -124,6 +125,18 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
   const totalKnown = exactUsers.data ? { n: exactUsers.data.count, capped: false } : knownTotal.sig === sig ? knownTotal : { n: undefined, capped: false };
   const total = totalKnown.n === undefined ? undefined : `${totalKnown.n.toLocaleString()}${totalKnown.capped ? '+' : ''}`;
 
+  // Text columns with a handful of repeating short values (licence, level, type…) are categories: they render as colour tags.
+  const categorical = useMemo(() => {
+    const out = new Set();
+    if (rows.length < 3) return out;
+    for (const c of page.columns.slice(1)) {
+      const vals = rows.map((r) => r[c.key]).filter((v) => typeof v === 'string' && v !== '');
+      const distinct = new Set(vals);
+      if (vals.length >= 3 && distinct.size <= 6 && distinct.size < vals.length * 0.7 && [...distinct].every((v) => v.length <= 28 && !/^\d/.test(v))) out.add(c.key);
+    }
+    return out;
+  }, [rows, page.columns]);
+
   const columns = useMemo(() => {
     const people = pageKey === 'users'; // name + email under it with an avatar; username / alias / email columns would only repeat it
     const subKey = people ? 'email' : page.columns.slice(1).find((c) => DESCRIPTION.test(c.key))?.key;
@@ -133,9 +146,9 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
       const i = page.columns.indexOf(c);
       const type = adapter?.columnTypes?.[c.key] ?? c.type;
       const first = i === 0 && (type === 'text' || type === 'link' || type === undefined);
-      return { key: c.key, label: c.label, sortable: !adapter, width: first ? 300 : people ? (c.key === 'profile' ? 200 : 140) : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined, people: first && people, pageKey }) };
+      return { key: c.key, label: c.label, sortable: !adapter, width: first ? 300 : people ? (c.key === 'profile' ? 200 : 140) : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined, people: first && people, pageKey, tagged: categorical.has(c.key) }) };
     });
-  }, [page.columns, adapter, pageKey]);
+  }, [page.columns, adapter, pageKey, categorical]);
 
   const refresh = () => invalidateSetupData(queryClient);
   const remove = async () => { await setupApi.deleteRecords(pageKey, [...selected]); setSelected(new Set()); await refresh(); };
