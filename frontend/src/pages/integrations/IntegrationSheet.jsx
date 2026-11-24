@@ -1,15 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { INTEGRATION_CATEGORIES, integrationBodySchema, requiredSecretKeys } from '@app/shared';
 import { useMemo, useState } from 'react';
-import { Controller, useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 import { integrationsApi } from '../../api/endpoints.js';
 import { Form } from '../../components/forms/Form.jsx';
-import { PasswordField, SelectField, TextField } from '../../components/forms/fields.jsx';
+import { PasswordField, SelectField, SwitchGroupField, TextField } from '../../components/forms/fields.jsx';
 import { useAppForm } from '../../components/forms/useAppForm.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
-import { Checkbox } from '../../components/ui/Checkbox.jsx';
 import { Button } from '../../components/ui/Button.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { Logo } from '../../components/ui/Logo.jsx';
@@ -19,23 +17,6 @@ import { ProviderTile, STATUS } from './parts.jsx';
 
 const dotted = 'border-t border-dotted border-line-strong';
 const USE_LABEL = { email: (n) => `Send email through ${n}`, storage: (n) => `Store files in ${n}`, maps: (n) => `Use ${n} for maps`, messaging: (n) => `Post notifications to ${n}` };
-
-/** A group of checkboxes bound to an array value (which events a channel receives). */
-function CheckGroup({ name, field }) {
-  const { control } = useFormContext();
-  return (
-    <Controller name={name} control={control} render={({ field: f }) => (
-      <fieldset className="space-y-2">
-        <legend className="mb-1 text-sm font-medium text-ink">{field.label}</legend>
-        {field.options.map((o) => (
-          <Checkbox key={o.value} checked={(f.value ?? []).includes(o.value)} onChange={(e) => f.onChange(e.target.checked ? [...(f.value ?? []), o.value] : (f.value ?? []).filter((v) => v !== o.value))}
-            label={<span><span className="font-medium">{o.label}</span><span className="block text-xs text-muted">{o.hint}</span></span>} />
-        ))}
-        {field.hint && <p className="text-xs text-muted">{field.hint}</p>}
-      </fieldset>
-    )} />
-  );
-}
 
 /** The form's initial values: stored settings, then each field's default. Secrets start empty — the stored value never reaches the browser. */
 const initialValues = (def, state) => ({
@@ -113,7 +94,7 @@ export function IntegrationSheet({ def, state, onClose }) {
         <Form form={form} onSubmit={submit} error={formError} id={`integration-${def.key}`}>
           {def.fields.map((f) => {
             const name = f.type === 'secret' ? `secrets.${f.key}` : `config.${f.key}`;
-            if (f.type === 'multiselect') return <CheckGroup key={f.key} name={name} field={f} />;
+            if (f.type === 'multiselect') return <SwitchGroupField key={f.key} name={name} label={f.label} hint={f.hint} options={f.options.map((o) => ({ value: o.value, label: o.label, description: o.hint }))} />;
             if (f.type === 'select') return <SelectField key={f.key} name={name} label={f.label} hint={f.hint} options={f.options} required={f.required} />;
             if (f.type === 'secret') return <PasswordField key={f.key} name={name} label={f.label} autoComplete="off" placeholder={secretsSaved.has(f.key) ? '•••••••• saved — leave blank to keep' : undefined} hint={f.hint} required={f.required && !secretsSaved.has(f.key)} />;
             return <TextField key={f.key} name={name} label={f.label} hint={f.hint} placeholder={f.placeholder} required={f.required} type={f.type === 'number' ? 'number' : 'text'} autoComplete="off" />;

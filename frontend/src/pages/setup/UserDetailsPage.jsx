@@ -12,7 +12,7 @@ import { Card, Section } from '../../components/ui/Card.jsx';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { FeaturedIcon } from '../../components/ui/FeaturedIcon.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
-import { Checkbox } from '../../components/ui/Checkbox.jsx';
+import { SwitchGroup } from '../../components/ui/SwitchGroup.jsx';
 import { Popover } from '../../components/ui/Popover.jsx';
 import { Select } from '../../components/ui/Select.jsx';
 import { Tag } from '../../components/ui/Tag.jsx';
@@ -84,13 +84,13 @@ function AddonsCard({ user, assigned, onChanged }) {
           {assigned.map((a) => <Tag key={a.name} dot="accent" closeLabel={`Remove ${a.name}`} onClose={busy ? undefined : () => toggle(a.name)}>{a.name}</Tag>)}
           <button ref={anchor} type="button" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open} className="inline-flex items-center gap-1 rounded-md border border-dashed border-line-strong px-2 py-1 text-sm font-medium text-muted outline-none hover:border-accent hover:text-link focus-visible:ring-2 focus-visible:ring-ring"><Icon name="plus" className="size-3.5" />Add</button>
         </div>
-        <Popover anchorRef={anchor} open={open} onClose={() => setOpen(false)} className="w-72 rounded-xl border border-line bg-surface p-1.5" role="listbox" aria-label="Permission sets">
-          {options.length === 0 ? <p className="px-2 py-3 text-sm text-muted">No permission sets yet. Create one under Object Settings.</p> : options.map((o) => (
-            <div key={o.name} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-2">
-              <Checkbox aria-label={o.name} checked={names.has(o.name)} disabled={busy === o.name} onChange={() => toggle(o.name)} className="flex-1" label={<span className="font-medium">{o.name}</span>} />
-              <span className="text-xs text-muted">{o.users.toLocaleString()} {o.users === 1 ? 'person' : 'people'}</span>
-            </div>
-          ))}
+        <Popover anchorRef={anchor} open={open} onClose={() => setOpen(false)} className="w-80 rounded-xl border border-line bg-surface p-1.5" role="group" aria-label="Permission sets">
+          {options.length === 0 ? <p className="px-2 py-3 text-sm text-muted">No permission sets yet. Create one under Object Settings.</p> : (
+            <SwitchGroup
+              className="px-2.5" value={[...names]} isDisabled={(v) => busy === v} onChange={(_, changed) => toggle(changed)}
+              options={options.map((o) => ({ value: o.name, label: o.name, description: `${o.users.toLocaleString()} ${o.users === 1 ? 'person' : 'people'}` }))}
+            />
+          )}
         </Popover>
       </div>
     </Section>

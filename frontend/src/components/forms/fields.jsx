@@ -7,6 +7,7 @@ import { OtpInput } from '../ui/OtpInput.jsx';
 import { PasswordInput } from '../ui/PasswordInput.jsx';
 import { PasswordRules } from '../ui/PasswordRules.jsx';
 import { Select } from '../ui/Select.jsx';
+import { SwitchGroup } from '../ui/SwitchGroup.jsx';
 import { Switch } from '../ui/Switch.jsx';
 import { Textarea } from '../ui/Textarea.jsx';
 
@@ -27,6 +28,11 @@ function useControlled(name) {
 export const SelectField = ({ name, ...rest }) => <Select {...useControlled(name)} {...rest} />;
 export const DateField = ({ name, ...rest }) => <DatePicker {...useControlled(name)} {...rest} />;
 export const SwitchField = ({ name, ...rest }) => <Switch {...useField(name)} {...rest} />;
+/** A group of switches bound to an array value. */
+export function SwitchGroupField({ name, ...rest }) {
+  const { control } = useFormContext();
+  return <Controller name={name} control={control} render={({ field }) => <SwitchGroup value={field.value ?? []} onChange={field.onChange} {...rest} />} />;
+}
 export const TextareaField = ({ name, ...rest }) => <Textarea {...useField(name)} {...rest} />;
 export const CheckboxField = ({ name, ...rest }) => <Checkbox {...useField(name)} {...rest} />;
 
