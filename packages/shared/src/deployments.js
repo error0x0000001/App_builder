@@ -114,6 +114,8 @@ export const configSchema = z.object({
   publishedPorts: z.array(z.object({ published: z.coerce.number().int().min(1).max(65535), target: z.coerce.number().int().min(1).max(65535), protocol: z.enum(['tcp', 'udp']).default('tcp') })).max(20).default([]),
   composeFile: z.string().max(200_000).optional(),
   templateId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,80}$/).optional(),
+  redirects: z.array(z.object({ regex: z.string().trim().min(1).max(300), replacement: z.string().trim().min(1).max(300), permanent: z.boolean().default(true) })).max(20).optional(),
+  basicAuth: z.array(z.object({ username: z.string().trim().regex(/^[A-Za-z0-9._-]{1,40}$/, 'Letters, numbers, . _ -'), password: z.string().min(6, 'At least 6 characters').max(128).optional(), keep: z.boolean().optional() }).refine((u) => u.password || u.keep, { message: 'Enter a password', path: ['password'] })).max(20).optional(),
   previews: z.object({ enabled: z.boolean().default(false), domain: z.string().trim().toLowerCase().regex(HOST, 'Enter a domain like preview.example.com').optional().or(z.literal('')) }).optional(),
   database: z.object({ name: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,62}$/).default('app'), user: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{0,31}$/).default('app'), password: z.string().min(8).max(128).optional() }).optional(),
 });
@@ -152,11 +154,10 @@ export const jobPatchSchema = jobObject.omit({ kind: true }).partial();
 /** A short, URL- and Docker-safe name: `my-app-4f9a`. */
 export const appNameFor = (name, suffix) => `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'app'}-${suffix}`;
 
-/** Who may do what in Deployments. Workspace owners and admins are always `manager`; everyone else needs a row in Deployments › Access. */
+/** Who may do what in Deployments. Derived from the Quelli workspace role: owner/admin = manager, member = deployer, viewer = viewer. */
 export const ACCESS_LEVELS = ['viewer', 'deployer', 'manager'];
 export const accessRank = (level) => ACCESS_LEVELS.indexOf(level);
 export const hasAccess = (have, need) => accessRank(have) >= accessRank(need) && accessRank(have) >= 0;
-export const accessBodySchema = z.object({ userId: z.string().uuid(), level: z.enum(ACCESS_LEVELS) });
 
 /** Saved logins reused by many services: a container registry (user + password/token) or a Git access token. */
 export const credentialBodySchema = z.object({

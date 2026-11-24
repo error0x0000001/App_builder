@@ -440,6 +440,59 @@ describe('console pages: services, queue, schedules, audit, docker, ssh keys', (
   });
 });
 
+describe('compose editor, command runner, advanced settings', () => {
+  it('validates and saves a Compose file, runs one command, adds redirects and basic auth to the routing, and exposes a database port', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const compose = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'compose', name: 'Stack', serverId: sid, config: { composeFile: 'services:\n  web:\n    image: nginx\n' } })).body.service;
+    assert.equal((await client.post(`${D}/compose/validate`, { composeFile: 'services: [' })).body.validation.ok, false);
+    assert.equal((await client.post(`${D}/compose/validate`, { composeFile: 'services:\n  a:\n    privileged: true\n' })).body.validation.ok, false, 'a service needs an image');
+    const good = (await client.post(`${D}/compose/validate`, { composeFile: 'services:\n  a:\n    image: x\n    privileged: true\n' })).body.validation;
+    assert.deepEqual([good.ok, good.services, good.warnings.length], [true, ['a'], 1]);
+    assert.equal((await client.get(`${D}/services/${compose.id}/compose`)).body.composeFile.includes('nginx'), true);
+    assert.equal((await client.put(`${D}/services/${compose.id}/compose`, { composeFile: 'nope' })).status, 400);
+    assert.equal((await client.put(`${D}/services/${compose.id}/compose`, { composeFile: 'services:\n  web:\n    image: nginx:1.27\n  cache:\n    image: redis:7\n' })).status, 200);
+    assert.equal((await client.get(`${D}/services/${compose.id}`)).body.service.config.composeFile, undefined, 'the file is not in the service view');
+    await client.post(`${D}/services/${compose.id}/domains`, { host: 'stack.example.com', port: 80, https: true, serviceName: 'web' });
+    assert.equal((await client.put(`${D}/services/${compose.id}/compose`, { composeFile: 'services:\n  cache:\n    image: redis:7\n' })).status, 400, 'cannot drop a service a domain points at');
+
+    const before = fake.respond;
+    fake.respond = (c) => (c.includes('docker exec "$c" sh -c') ? { output: 'uid=0(root)\n' } : before(c));
+    const ran = await client.post(`${D}/services/${compose.id}/exec`, { command: 'id' });
+    assert.deepEqual([ran.status, ran.body.output.trim(), ran.body.code], [200, 'uid=0(root)', 0]);
+    assert.ok(fake.commands.at(-1).includes("sh -c 'id'"), 'the command is quoted, not interpolated');
+    fake.respond = before;
+
+    const web = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Guarded', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' }, config: { port: 80 } })).body.service;
+    await client.post(`${D}/services/${web.id}/domains`, { host: 'guarded.example.com', port: 80, https: true });
+    const patched = await client.patch(`${D}/services/${web.id}`, { config: { basicAuth: [{ username: 'admin', password: 's3cretpass' }], redirects: [{ regex: '^https://old\\.example\\.com/(.*)', replacement: 'https://guarded.example.com/$1', permanent: true }], memoryLimitMb: 256, cpuLimit: 0.5 } });
+    assert.equal(patched.status, 200, JSON.stringify(patched.body));
+    assert.deepEqual(patched.body.service.config.basicAuthUsers, [{ username: 'admin' }], 'hashes never leave the server');
+    assert.equal(JSON.stringify(patched.body).includes('s3cretpass'), false);
+    fake.commands.length = 0;
+    await client.post(`${D}/services/${web.id}/deploy`);
+    for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+    const stack = fake.commands.find((c) => c.includes('docker stack deploy'));
+    const doc = JSON.parse(Buffer.from(stack.match(/printf %s '([A-Za-z0-9+/=]+)'/)[1], 'base64').toString());
+    const labels = Object.values(doc.services)[0].deploy.labels;
+    assert.match(labels[Object.keys(labels).find((k) => k.endsWith('-auth.basicauth.users'))], /^admin:\{SHA\}/);
+    assert.ok(Object.keys(labels).some((k) => k.includes('redirectregex.regex')));
+    assert.ok(Object.entries(labels).some(([k, v]) => k.endsWith('.middlewares') && /auth/.test(v)));
+    // keeping a user without re-entering the password keeps the hash
+    await client.patch(`${D}/services/${web.id}`, { config: { basicAuth: [{ username: 'admin', keep: true }, { username: 'ops', password: 'another-pass' }] } });
+    const kept = (await client.get(`${D}/services/${web.id}`)).body.service.config.basicAuthUsers;
+    assert.deepEqual(kept.map((u) => u.username), ['admin', 'ops']);
+    assert.equal((await client.patch(`${D}/services/${web.id}`, { config: { basicAuth: [{ username: 'x', password: '123' }] } })).status, 400);
+
+    const db = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'postgres', name: 'Pg', serverId: sid })).body.service;
+    await client.patch(`${D}/services/${db.id}`, { config: { publishedPorts: [{ published: 35432, target: 5432, protocol: 'tcp' }] } });
+    const secrets = (await client.post(`${D}/services/${db.id}/secrets`)).body;
+    assert.match(secrets.externalUrl, /@deploy\.example\.com:35432\/app$/);
+    assert.match(secrets.connectionUrl, /@[a-z0-9-]+_app:5432\/app$/);
+  });
+});
+
 describe('templates', () => {
   it('lists the catalog, deploys a template as a Compose stack with routing labels and its files, and refuses bad input', async () => {
     const { client } = await admin();
@@ -519,7 +572,6 @@ describe('web terminal', () => {
     const person = new Client(server.base);
     await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
     await person.post(`/workspaces/${wsId}/switch`);
-    await client.put(`${D}/access`, { userId: (await person.get('/me')).body.user.id, level: 'deployer' });
     const denied = await open(person.token, { serviceId: service.id });
     await denied.until(() => denied.code() === 4403);
   });
@@ -610,44 +662,32 @@ describe('saved credentials', () => {
   });
 });
 
-describe('access levels', () => {
-  async function member(boss, ws) {
+describe('access follows Quelli roles', () => {
+  async function join(boss, ws, role) {
     const email = uniqueEmail();
-    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'member' }] });
+    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
     const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
     const person = new Client(server.base);
     await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
     await person.post(`/workspaces/${ws}/switch`);
-    return { person, id: (await person.get('/me')).body.user.id };
+    return person;
   }
-  it('gives members nothing until granted, then viewer < deployer < manager', async () => {
+  it('admins manage, members deploy, viewers look, and there is no separate permission list', async () => {
     const { client, ws } = await admin();
     const sid = await readyServer(client);
     const { env } = await project(client);
     const service = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Web', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' } })).body.service;
-    const { person, id } = await member(client, ws);
-    assert.equal((await person.get(`${D}/me`)).status, 403, 'no grant, no access');
+    const member = await join(client, ws, 'member');
+    const viewer = await join(client, ws, 'viewer');
     assert.equal((await client.get(`${D}/me`)).body.level, 'manager');
-
-    assert.equal((await client.put(`${D}/access`, { userId: id, level: 'viewer' })).status, 200);
-    assert.equal((await person.get(`${D}/me`)).body.level, 'viewer');
-    assert.equal((await person.get(`${D}/overview`)).status, 200);
-    assert.equal((await person.post(`${D}/services/${service.id}/deploy`)).status, 403);
-    assert.equal((await person.get(`${D}/access`)).status, 403);
-    assert.equal((await person.get(`${D}/servers`)).status, 200);
-
-    await client.put(`${D}/access`, { userId: id, level: 'deployer' });
-    assert.equal((await person.post(`${D}/services/${service.id}/deploy`)).status, 202);
-    assert.equal((await person.post(`${D}/services/${service.id}/secrets`)).status, 403, 'secrets are for managers');
-    assert.equal((await person.post(`${D}/servers`, { name: 'x', host: 'h.example.com', port: 22, username: 'root', sshKey: KEY })).status, 403);
-
-    await client.put(`${D}/access`, { userId: id, level: 'manager' });
-    assert.equal((await person.post(`${D}/services/${service.id}/secrets`)).status, 200);
-
-    const list = (await client.get(`${D}/access`)).body.access;
-    assert.equal(list.length, 1);
-    assert.equal((await client.delete(`${D}/access/${id}`)).status, 200);
-    assert.equal((await person.get(`${D}/me`)).status, 403, 'removing the grant removes access');
-    assert.equal((await client.put(`${D}/access`, { userId: crypto.randomUUID(), level: 'viewer' })).status, 404);
+    assert.equal((await member.get(`${D}/me`)).body.level, 'deployer');
+    assert.equal((await viewer.get(`${D}/me`)).body.level, 'viewer');
+    assert.equal((await viewer.get(`${D}/overview`)).status, 200);
+    assert.equal((await viewer.post(`${D}/services/${service.id}/deploy`)).status, 403);
+    assert.equal((await member.post(`${D}/services/${service.id}/deploy`)).status, 202);
+    assert.equal((await member.post(`${D}/services/${service.id}/secrets`)).status, 403, 'secrets are for admins');
+    assert.equal((await member.post(`${D}/servers`, { name: 'x', host: 'h.example.com', port: 22, username: 'root', sshKey: KEY })).status, 403);
+    assert.equal((await client.get(`${D}/access`)).status, 404, 'no access list exists');
   });
 });
+

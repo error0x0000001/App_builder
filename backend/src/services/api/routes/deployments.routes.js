@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { listTemplates } from '../../../modules/deployments/templates/engine.js';
 import { z } from 'zod';
-import { accessBodySchema, credentialBodySchema, sshKeyGenerateSchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
+import { credentialBodySchema, sshKeyGenerateSchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
 import { ForbiddenError } from '../../../shared/errors.js';
@@ -13,7 +13,7 @@ const idDomain = id.extend({ domainId: uuidField });
 const logQuery = z.object({ from: z.coerce.number().int().min(0).default(0), tail: z.coerce.number().int().min(10).max(2000).default(300) });
 const setupBody = z.object({ acmeEmail: z.string().trim().email().max(200) });
 
-/** Deployments API. Levels: viewer (read, logs, stats) < deployer (deploy, roll back, stop/start, run schedules) < manager (servers, secrets, config, access). Owners and admins are managers. */
+/** Deployments API. Levels: viewer (read, logs, stats) < deployer (deploy, roll back, stop/start, run schedules) < manager (servers, secrets, config, terminal). The level comes from the person's Quelli role: owner/admin = manager, member = deployer, viewer = viewer. */
 export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateLimit }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
@@ -86,10 +86,11 @@ export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateL
   router.get('/servers/:id/containers', need('manager'), validate({ params: id }), async (req, res) => res.json({ containers: await deployments.dockerContainers(ctx(req), req.params.id) }));
   router.post('/servers/:id/containers/:containerId/:action', need('manager'), validate({ params: id.extend({ containerId: z.string().regex(/^[a-f0-9]{6,64}$/), action: z.enum(['start', 'stop', 'restart', 'remove']) }) }), async (req, res) => res.json({ containers: await deployments.dockerAction(ctx(req), req.params.id, req.params.containerId, req.params.action) }));
   router.get('/servers/:id/containers/:containerId/logs', need('manager'), validate({ params: id.extend({ containerId: z.string().regex(/^[a-f0-9]{6,64}$/) }), query: logQuery }), async (req, res) => res.json(await deployments.dockerLogs(ctx(req), req.params.id, req.params.containerId, req.valid.query.tail)));
+  router.post('/compose/validate', need('viewer'), validate({ body: z.object({ composeFile: z.string().max(200_000) }) }), (req, res) => res.json({ validation: deployments.validateComposeText(req.valid.body.composeFile) }));
+  router.get('/services/:id/compose', need('manager'), validate({ params: id }), async (req, res) => res.json(await deployments.getCompose(ws(req), req.params.id)));
+  router.put('/services/:id/compose', need('manager'), validate({ params: id, body: z.object({ composeFile: z.string().min(1).max(200_000) }) }), async (req, res) => res.json(await deployments.saveCompose(ctx(req), req.params.id, req.valid.body.composeFile)));
+  router.post('/services/:id/exec', need('manager'), rateLimit.ip('deploy-exec', 60, 600), validate({ params: id, body: z.object({ command: z.string().trim().min(1).max(2000) }) }), async (req, res) => res.json(await deployments.execInService(ctx(req), req.params.id, req.valid.body.command)));
   router.get('/me', need('viewer'), (req, res) => res.json({ level: req.dpLevel }));
-  router.get('/access', need('manager'), async (req, res) => res.json({ access: await deployments.listAccess(ws(req)) }));
-  router.put('/access', need('manager'), validate({ body: accessBodySchema }), async (req, res) => res.json({ access: await deployments.setAccess(ctx(req), req.valid.body) }));
-  router.delete('/access/:id', need('manager'), validate({ params: id }), async (req, res) => res.json({ access: await deployments.removeAccess(ctx(req), req.params.id) }));
   // deployments
   router.get('/deployments/:id', need('viewer'), validate({ params: id, query: logQuery }), async (req, res) => res.json({ deployment: await deployments.getDeployment(ws(req), req.params.id, { from: req.valid.query.from }) }));
   return router;

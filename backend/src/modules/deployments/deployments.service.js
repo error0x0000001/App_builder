@@ -262,7 +262,7 @@ export class DeploymentsService {
     const secrets = this.#dec(s.secrets_enc);
     return {
       id: s.id, environmentId: s.environment_id, serverId: s.server_id, kind: s.kind, name: s.name, appName: s.app_name, status: s.status,
-      source: s.source, config: s.config, autoDeploy: s.auto_deploy, lastDeployedAt: s.last_deployed_at, createdAt: s.created_at,
+      source: s.source, config: { ...s.config, composeFile: undefined, basicAuthUsers: (s.config.basicAuthUsers ?? []).map((u) => ({ username: u.username })) }, hasCompose: s.kind === 'compose', autoDeploy: s.auto_deploy, lastDeployedAt: s.last_deployed_at, createdAt: s.created_at,
       hasGitToken: Boolean(secrets.gitToken), hasRegistryPassword: Boolean(secrets.registryPassword), hasEnv: Boolean(s.env_enc),
       previewOf: s.preview_of, previewBranch: s.preview_branch,
       webhookPath: `/api/v1/deployments/hooks/${s.id}`,
@@ -317,7 +317,13 @@ export class DeploymentsService {
       source = split.clean; Object.assign(secrets, split.secrets);
       if (patch.source.type === 'git' && !patch.source.token && source.type === 'git') { /* keep the stored token */ }
     }
-    const config = patch.config ? { ...cur.config, ...patch.config } : cur.config;
+    let config = patch.config ? { ...cur.config, ...patch.config } : cur.config;
+    if (patch.config?.basicAuth) {
+      const old = new Map((cur.config.basicAuthUsers ?? []).map((u) => [u.username, u.hash]));
+      const users = patch.config.basicAuth.map((u) => ({ username: u.username, hash: u.password ? `{SHA}${crypto.createHash('sha1').update(u.password).digest('base64')}` : old.get(u.username) })).filter((u) => u.hash);
+      config = { ...config, basicAuthUsers: users }; delete config.basicAuth;
+    }
+    if (patch.config?.composeFile !== undefined && cur.kind === 'compose') { const v = cmd.validateCompose(patch.config.composeFile); if (!v.ok) throw new ValidationError([{ field: 'config.composeFile', message: v.error }], v.error); }
     await this.db.execute(sql`update dp_services set name = ${patch.name ?? cur.name}, server_id = ${patch.serverId === undefined ? cur.server_id : patch.serverId}, source = ${jsonOf(source)}::jsonb, config = ${jsonOf(config)}::jsonb,
       secrets_enc = ${this.#enc(secrets)}, auto_deploy = ${patch.autoDeploy ?? cur.auto_deploy}, updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Updated “${cur.name}”`);
@@ -336,7 +342,13 @@ export class DeploymentsService {
     const secrets = this.#dec(s.secrets_enc);
     await this.#audit(ctx, `Viewed secrets of “${s.name}”`);
     const out = { env: this.#dec(s.env_enc).env ?? '', webhookSecret: s.webhook_secret };
-    if (secrets.dbPassword) { out.databasePassword = secrets.dbPassword; out.connectionUrl = cmd.databaseSpec(s.kind, s.app_name, { ...s.config.database, password: secrets.dbPassword }).internalUrl; }
+    if (secrets.dbPassword) {
+      const spec = cmd.databaseSpec(s.kind, s.app_name, { ...s.config.database, password: secrets.dbPassword });
+      out.databasePassword = secrets.dbPassword; out.connectionUrl = spec.internalUrl;
+      const exposed = (s.config.publishedPorts ?? []).find((p) => Number(p.target) === spec.port);
+      const host = s.server_id ? (await this.#server(ctx.workspaceId, s.server_id)).host : null;
+      if (exposed && host) out.externalUrl = spec.internalUrl.replace(`${s.app_name}_app:${spec.port}`, `${host}:${exposed.published}`);
+    }
     return out;
   }
 
@@ -355,32 +367,12 @@ export class DeploymentsService {
     return { note };
   }
 
-  // ---------- access (who may use Deployments) ----------
-  /** Owners and admins are managers; anyone else has a level only if one was granted. */
+  // ---------- access: Quelli's own roles decide (no separate permission list) ----------
+  /** owner/admin = manager (servers, secrets, config, terminal) · member = deployer (deploy, roll back, stop/start, run schedules) · viewer = viewer. */
   async levelFor(ctx) {
     if (ctx.role === 'owner' || ctx.role === 'admin') return 'manager';
-    const { rows: [r] } = await this.db.execute(sql`select level from dp_access where workspace_id = ${ctx.workspaceId} and user_id = ${ctx.userId}`);
-    return r?.level ?? null;
-  }
-
-  async listAccess(ws) {
-    const { rows } = await this.db.execute(sql`select a.user_id, a.level, a.created_at, u.email, coalesce(nullif(trim(concat(u.first_name, ' ', u.last_name)), ''), u.email) as name from dp_access a join users u on u.id = a.user_id where a.workspace_id = ${ws} order by u.email`);
-    return rows.map((r) => ({ userId: r.user_id, level: r.level, name: r.name, email: r.email, grantedAt: r.created_at }));
-  }
-
-  async setAccess(ctx, { userId, level }) {
-    const { rows: [m] } = await this.db.execute(sql`select role from memberships where workspace_id = ${ctx.workspaceId} and user_id = ${userId}::uuid`);
-    if (!m) throw new NotFoundError('That person is not in this workspace');
-    if (m.role === 'owner' || m.role === 'admin') throw new ValidationError(undefined, 'Owners and admins already have full access.');
-    await this.db.execute(sql`insert into dp_access (workspace_id, user_id, level, granted_by) values (${ctx.workspaceId}, ${userId}::uuid, ${level}, ${ctx.userId}) on conflict (workspace_id, user_id) do update set level = excluded.level`);
-    await this.#audit(ctx, `Gave a member ${level} access to Deployments`);
-    return this.listAccess(ctx.workspaceId);
-  }
-
-  async removeAccess(ctx, userId) {
-    await this.db.execute(sql`delete from dp_access where workspace_id = ${ctx.workspaceId} and user_id = ${userId}::uuid`);
-    await this.#audit(ctx, 'Removed a member’s Deployments access');
-    return this.listAccess(ctx.workspaceId);
+    if (ctx.role === 'member') return 'deployer';
+    return ctx.role === 'viewer' ? 'viewer' : null;
   }
 
   // ---------- saved credentials (registries, Git tokens) ----------
@@ -532,6 +524,37 @@ export class DeploymentsService {
     let command; try { command = cmd.dockerLogsCommand(containerId, tail); } catch (e) { throw new ValidationError(undefined, e.message); }
     const { output } = await this.#runnerFor(server).run(command, { timeoutMs: 30_000 });
     return { log: output };
+  }
+
+  // ---------- compose editor, command runner ----------
+  validateComposeText(text) { return cmd.validateCompose(text); }
+
+  async getCompose(ws, id) {
+    const s = await this.#service(ws, id);
+    if (s.kind !== 'compose') throw new ValidationError(undefined, 'Only Compose services have a Compose file.');
+    return { composeFile: s.config.composeFile ?? '', templateId: s.config.templateId ?? null, mounts: (s.config.composeMounts ?? []).map((m) => m.path), validation: cmd.validateCompose(s.config.composeFile ?? '') };
+  }
+
+  async saveCompose(ctx, id, composeFile) {
+    const s = await this.#service(ctx.workspaceId, id);
+    if (s.kind !== 'compose') throw new ValidationError(undefined, 'Only Compose services have a Compose file.');
+    const v = cmd.validateCompose(composeFile);
+    if (!v.ok) throw new ValidationError([{ field: 'composeFile', message: v.error }], v.error);
+    const unknown = (await this.db.execute(sql`select service_name from dp_domains where service_id = ${id}::uuid and service_name is not null`)).rows.map((r) => r.service_name).filter((n) => !v.services.includes(n));
+    if (unknown.length) throw new ValidationError([{ field: 'composeFile', message: `A domain points at “${unknown[0]}”, which is not in this file. Remove the domain or keep the service.` }], 'A domain points at a service that is not in the file.');
+    await this.db.execute(sql`update dp_services set config = ${jsonOf({ ...s.config, composeFile })}::jsonb, updated_at = now() where id = ${id}::uuid`);
+    await this.#audit(ctx, `Edited the Compose file of “${s.name}”`);
+    return { validation: v };
+  }
+
+  /** One command in the service's container (no terminal needed). Output is capped; every use is audited. */
+  async execInService(ctx, id, command) {
+    const s = await this.#service(ctx.workspaceId, id);
+    if (!s.server_id) throw new ValidationError(undefined, 'This service has no server.');
+    const server = await this.#server(ctx.workspaceId, s.server_id);
+    const { code, output } = await this.#runnerFor(server).run(cmd.execCommand(s.app_name, s.kind, command), { timeoutMs: 60_000 });
+    await this.#audit(ctx, `Ran a command in “${s.name}”: ${command.slice(0, 120)}`);
+    return { code, output: output.length > 65_536 ? `${output.slice(0, 65_536)}\n… output truncated` : output };
   }
 
   // ---------- domains ----------
@@ -722,7 +745,7 @@ export class DeploymentsService {
     for (const d of domains) if (!d.port) d.port = cfg.port ?? 80;
 
     if (svc.kind === 'compose') {
-      const routed = cmd.composeRouting(cfg.composeFile, svc.app_name, domains.filter((d) => d.service_name).map((d) => ({ host: d.host, path: d.path, port: d.port, https: d.https, serviceName: d.service_name })));
+      const routed = cmd.composeRouting(cfg.composeFile, svc.app_name, domains.filter((d) => d.service_name).map((d) => ({ host: d.host, path: d.path, port: d.port, https: d.https, serviceName: d.service_name })), { basicAuth: cfg.basicAuthUsers, redirects: cfg.redirects });
       await step('Starting the Compose stack', cmd.composeUpCommand(svc.app_name, routed, env, cfg.composeMounts ?? []), { timeoutMs: 20 * 60_000 });
       return;
     }
@@ -755,7 +778,7 @@ export class DeploymentsService {
     }
     result.image = img;
     if (mode === 'rollback') await step(`Rolling back to ${img}`, cmd.rollbackCommand(svc.app_name, img), { timeoutMs: 120_000 });
-    else await step('Applying the stack', cmd.applyStackCommand(svc.app_name, cmd.stackDocument({ appName: svc.app_name, image: img, env, replicas: cfg.replicas ?? 1, domains, volumes: cfg.volumes, publishedPorts: cfg.publishedPorts, command: cfg.command, healthCheck: cfg.healthCheck, memoryLimitMb: cfg.memoryLimitMb, cpuLimit: cfg.cpuLimit })));
+    else await step('Applying the stack', cmd.applyStackCommand(svc.app_name, cmd.stackDocument({ appName: svc.app_name, image: img, env, replicas: cfg.replicas ?? 1, domains, volumes: cfg.volumes, publishedPorts: cfg.publishedPorts, command: cfg.command, healthCheck: cfg.healthCheck, memoryLimitMb: cfg.memoryLimitMb, cpuLimit: cfg.cpuLimit, traefik: { basicAuth: cfg.basicAuthUsers, redirects: cfg.redirects } })));
     await step('Waiting for it to start', cmd.waitCommand(svc.app_name, 180), { timeoutMs: 200_000 });
   }
 

@@ -60,17 +60,30 @@ export const serverSetupScript = ({ acmeEmail }) => [
 export const probeCommand = 'docker version --format "{{.Server.Version}}" 2>&1';
 
 /** Traefik routing as service labels (the swarm provider reads them): one router per domain, HTTPS when asked. */
-export function traefikLabels(appName, domains) {
+export function traefikLabels(appName, domains, extras = {}) {
   const labels = {};
   if (!domains.length) return labels;
   labels['traefik.enable'] = 'true';
   labels['traefik.swarm.network'] = NETWORK;
+  const shared = [];
+  if (extras.basicAuth?.length) {
+    labels[`traefik.http.middlewares.${appName}-auth.basicauth.users`] = extras.basicAuth.map((u) => `${u.username}:${u.hash}`).join(',');
+    shared.push(`${appName}-auth`);
+  }
+  (extras.redirects ?? []).forEach((r, i) => {
+    const m = `${appName}-redir${i}`;
+    labels[`traefik.http.middlewares.${m}.redirectregex.regex`] = r.regex;
+    labels[`traefik.http.middlewares.${m}.redirectregex.replacement`] = r.replacement;
+    labels[`traefik.http.middlewares.${m}.redirectregex.permanent`] = String(Boolean(r.permanent));
+    shared.push(m);
+  });
   domains.forEach((d, i) => {
     const key = `${appName}-${i}`;
     const rule = `Host(\`${d.host}\`)${d.path && d.path !== '/' ? ` && PathPrefix(\`${d.path}\`)` : ''}`;
     labels[`traefik.http.routers.${key}.rule`] = rule;
     labels[`traefik.http.routers.${key}.service`] = key;
     labels[`traefik.http.services.${key}.loadbalancer.server.port`] = String(d.port);
+    if (shared.length) labels[`traefik.http.routers.${key}.middlewares`] = shared.join(',');
     if (d.https) {
       labels[`traefik.http.routers.${key}.entrypoints`] = 'websecure';
       labels[`traefik.http.routers.${key}.tls.certresolver`] = 'letsencrypt';
@@ -100,10 +113,10 @@ export function databaseSpec(kind, appName, db) {
 }
 
 /** The Swarm stack (a Compose document, written as JSON which Compose reads) for one application or database. */
-export function stackDocument({ appName, image, env = {}, replicas = 1, domains = [], volumes = [], publishedPorts = [], command, healthCheck, memoryLimitMb, cpuLimit }) {
+export function stackDocument({ appName, image, env = {}, replicas = 1, domains = [], volumes = [], publishedPorts = [], command, healthCheck, memoryLimitMb, cpuLimit, traefik = {} }) {
   const deploy = {
     replicas,
-    labels: traefikLabels(appName, domains),
+    labels: traefikLabels(appName, domains, traefik),
     update_config: { order: 'start-first', failure_action: 'rollback', parallelism: 1 },
     rollback_config: { order: 'start-first' },
     restart_policy: { condition: 'on-failure', delay: '5s', max_attempts: 5 },
@@ -152,7 +165,7 @@ export const applyStackCommand = (appName, doc) => `${writeFileCmd(stackFile(app
  * Adds Traefik routing to a Compose file: container labels on each routed service and the shared network, so the one Traefik on the
  * server reaches it (same router shape as `traefikLabels`, with the docker provider's network label).
  */
-export function composeRouting(composeText, appName, domains) {
+export function composeRouting(composeText, appName, domains, extras = {}) {
   if (!domains.length) return composeText;
   const doc = parseYaml(composeText);
   if (!doc?.services) throw new Error('The Compose file has no services');
@@ -162,7 +175,7 @@ export function composeRouting(composeText, appName, domains) {
   for (const [name, list] of byService) {
     const service = doc.services[name] ?? {};
     const existing = Array.isArray(service.labels) ? Object.fromEntries(service.labels.map((l) => { const i = String(l).indexOf('='); return i < 0 ? [l, ''] : [l.slice(0, i), l.slice(i + 1)]; })) : (service.labels ?? {});
-    const labels = traefikLabels(`${appName}-${name}`, list.map((d) => ({ ...d, port: d.port })));
+    const labels = traefikLabels(`${appName}-${name}`, list.map((d) => ({ ...d, port: d.port })), extras);
     delete labels['traefik.swarm.network'];
     labels['traefik.docker.network'] = NETWORK;
     service.labels = { ...existing, ...labels };
@@ -248,8 +261,7 @@ export const nodeActionCommand = (nodeId, action) => {
 
 /** An interactive shell inside the service's first running container (bash when it has it, else sh). */
 export function terminalCommand(appName, kind) {
-  const pick = kind === 'compose' ? `docker ps -q --filter ${q(`label=com.docker.compose.project=${appName}`)}` : `docker ps -q --filter ${q(`name=${appName}_app`)}`;
-  return `c=$(${pick} | head -1); [ -n "$c" ] || { echo "No running container for this service."; exit 1; }; exec docker exec -it "$c" sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'`;
+  return `c=$(${containerPick(appName, kind)}); [ -n "$c" ] || { echo "No running container for this service."; exit 1; }; exec docker exec -it "$c" sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'`;
 }
 
 // ---------- plain Docker (the Docker page) ----------
@@ -265,3 +277,26 @@ export const dockerLogsCommand = (containerId, tail = 300) => {
   if (!CONTAINER_ID.test(containerId)) throw new Error('Invalid container');
   return `docker logs --tail ${Math.max(10, Math.min(2000, Number(tail) || 300))} --timestamps ${q(containerId)} 2>&1`;
 };
+
+/** The container a shell or command should run in: the service's first running one (Swarm task or Compose project). */
+export const containerPick = (appName, kind) => (kind === 'compose' ? `docker ps -q --filter ${q(`label=com.docker.compose.project=${appName}`)}` : `docker ps -q --filter ${q(`name=${appName}_app`)}`) + ' | head -1';
+/** One command in the service's container (no terminal): output and exit code come back. */
+export const execCommand = (appName, kind, command) => `c=$(${containerPick(appName, kind)}); [ -n "$c" ] || { echo "No running container for this service."; exit 1; }; docker exec "$c" sh -c ${q(command)} 2>&1`;
+
+/** Is this a Compose file Quelli can run? Returns the service names, or the reason it is not. */
+export function validateCompose(text) {
+  let doc;
+  try { doc = parseYaml(text); } catch (e) { return { ok: false, error: `Not valid YAML: ${String(e.message).split('\n')[0]}` }; }
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return { ok: false, error: 'The file must be a YAML mapping with a “services:” section.' };
+  const services = doc.services;
+  if (!services || typeof services !== 'object' || !Object.keys(services).length) return { ok: false, error: 'Add at least one service under “services:”.' };
+  const warnings = [];
+  for (const [name, svc] of Object.entries(services)) {
+    if (!svc || typeof svc !== 'object') return { ok: false, error: `Service “${name}” must be a mapping.` };
+    if (!svc.image && !svc.build) return { ok: false, error: `Service “${name}” needs an image (or a build).` };
+    if (svc.build) warnings.push(`“${name}” builds from source: the build context must exist on the server.`);
+    if (svc.privileged) warnings.push(`“${name}” runs privileged.`);
+    if (svc.network_mode === 'host') warnings.push(`“${name}” uses the host network.`);
+  }
+  return { ok: true, services: Object.keys(services), warnings };
+}
