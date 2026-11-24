@@ -12,7 +12,7 @@ import { useSetupPage } from './useSetupPage.js';
 export default function SetupPage() {
   const { key } = useParams();
   const query = useSetupPage(key);
-  if (key === 'user-management-settings') return <Navigate to="/app/setup/users?tab=settings" replace />; // a tab of Users now
+  if (key === 'user-management-settings') return <Navigate to="/app/setup/users" replace />; // a section of Users now
   return (
     <QueryState query={query}>
       {({ page, status }) => {
