@@ -2,6 +2,7 @@ import { ROLES, ROLE_LABELS, parseUserAgent } from '@app/shared';
 import { sql } from 'drizzle-orm';
 import { pgArray } from '../../shared/db/helpers.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
+import { avatarUrl } from '../../shared/avatar.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 
 const roleFromLabel = (label) => ROLES.find((r) => ROLE_LABELS[r] === label);
@@ -11,16 +12,36 @@ const PROFILE = { owner: 'System Administrator', admin: 'System Administrator', 
  * Adapters expose real platform tables through the same list contract as record-backed pages:
  *   list(ctx, { limit, after }) -> { items, nextCursor };  create/update/remove as the page allows.
  */
-export function createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles }) {
+export function createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles, addonsEnabled = false }) {
+  /** What the Users table shows beyond the membership row, for ONE page of people: three batched lookups, never per row. */
+  const enrichUsers = async (ws, ids) => {
+    if (!ids.length) return new Map();
+    const list = pgArray(ids, 'uuid');
+    const [people, activity, sets] = await Promise.all([
+      db.execute(sql`select id, avatar_version, mfa_enabled, status from users where id = any(${list})`),
+      db.execute(sql`select user_id, max(last_used_at) as last_active from sessions where workspace_id = ${ws} and user_id = any(${list}) group by user_id`),
+      addonsEnabled ? db.execute(sql`select user_id, array_agg(permission_set order by permission_set) as sets from user_permission_sets where workspace_id = ${ws} and user_id = any(${list}) group by user_id`) : { rows: [] },
+    ]);
+    const out = new Map(people.rows.map((r) => [r.id, { avatar: avatarUrl(r.id, r.avatar_version ?? 0), mfa: r.mfa_enabled, active: r.status === 'active', lastActive: null, addons: [] }]));
+    for (const r of activity.rows) if (out.has(r.user_id)) out.get(r.user_id).lastActive = r.last_active;
+    for (const r of sets.rows) if (out.has(r.user_id)) out.get(r.user_id).addons = r.sets;
+    return out;
+  };
+
   const users = {
     async list(ctx, { limit, after }) {
       const { items, nextCursor } = await workspaces.listMembers(ctx.workspaceId, { limit, after });
+      const extra = await enrichUsers(ctx.workspaceId, items.map((m) => m.userId));
       return {
         nextCursor,
-        items: items.map((m) => ({
-          id: m.userId, full_name: `${m.firstName} ${m.lastName}`, alias: m.email.split('@')[0], username: m.email, email: m.email,
-          role: ROLE_LABELS[m.role], active: true, profile: m.profile ?? PROFILE[m.role], createdAt: m.joinedAt,
-        })),
+        items: items.map((m) => {
+          const x = extra.get(m.userId) ?? {};
+          return {
+            id: m.userId, full_name: `${m.firstName} ${m.lastName}`, alias: m.email.split('@')[0], username: m.email, email: m.email,
+            role: ROLE_LABELS[m.role], active: x.active ?? true, profile: m.profile ?? PROFILE[m.role], createdAt: m.joinedAt,
+            avatar: x.avatar, mfa: x.mfa ?? false, last_active: x.lastActive ?? null, joined: m.joinedAt, addons: x.addons ?? [],
+          };
+        }),
       };
     },
     async create(ctx, { email, role }) {

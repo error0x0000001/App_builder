@@ -94,7 +94,7 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
+  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos, addonsEnabled: config.ACCESS_ADDONS_ENABLED, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
   const health = new HealthService({ settings: setupSettings });
   const settingsReader = new SettingsReader({ repos, cache });
   const emailPolicy = new EmailPolicyService({ settings: settingsReader });

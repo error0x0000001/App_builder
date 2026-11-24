@@ -12,10 +12,10 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { PaginationBar } from '../../components/ui/PaginationBar.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
-import { DropdownMenuLabel } from '../../components/ui/DropdownMenu.jsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../../components/ui/DropdownMenu.jsx';
 import { MenuChoice, RoundMenu } from '../../components/ui/RoundMenu.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
-import { formatDateTime } from '../../lib/format.js';
+import { formatDateTime, formatRelative } from '../../lib/format.js';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
 import { QueryState } from './QueryState.jsx';
 import { LoginAsButton } from './LoginAsButton.jsx';
@@ -34,6 +34,42 @@ const DETAIL_PAGES = { users: (row) => `/app/setup/users/${row.id}` };
 const dash = <span className="text-muted">—</span>;
 const PERSON = /(^|_)(created_by|modified_by|updated_by|owner|assigned_to|user|monitored_user|manager|requester)$/i;
 const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
+
+/**
+ * The Users table: who they are, what they can do, and how alive the account is — every cell is a tag, badge, avatar or chip.
+ * The data comes from one batched lookup per page (see the users adapter), so this stays cheap for very large workspaces.
+ */
+function userColumns({ addons, navigate }) {
+  const dayMs = 86_400_000;
+  const cols = [
+    { key: 'full_name', label: 'User', width: 240, render: (r) => (
+      <span className="flex min-w-0 items-center gap-3"><Avatar name={r.full_name} src={r.avatar} size="size-9" status={r.last_active && Date.now() - new Date(r.last_active) < 15 * 60_000 ? 'online' : undefined} /><span className="min-w-0"><span className="flex items-center gap-1.5 truncate font-medium text-ink">{r.full_name}{r.mfa && <Icon name="shield" className="size-3.5 shrink-0 text-(--fi-teal)" aria-label="2-step sign-in on" />}</span><span className="block truncate text-xs text-muted">{r.email}</span></span></span>
+    ) },
+    { key: 'role', label: 'Role', width: 100, render: (r) => <Badge hue={ROLE_HUE[r.role] ?? hueOf(r.role ?? '')}>{r.role}</Badge> },
+    { key: 'profile', label: 'Profile', width: 195, render: (r) => (r.profile ? <Badge hue={hueOf(r.profile)}>{r.profile}</Badge> : dash) },
+  ];
+  if (addons) {
+    cols.push({ key: 'addons', label: 'Add-ons', width: 175, render: (r) => (r.addons?.length ? (
+      <span className="flex items-center gap-1.5">{r.addons.slice(0, 2).map((a) => <Badge key={a} hue={hueOf(a)}>{a}</Badge>)}{r.addons.length > 2 && <Badge tone="neutral">+{r.addons.length - 2}</Badge>}</span>
+    ) : <span className="text-placeholder">None</span>) });
+  }
+  cols.push(
+    { key: 'active', label: 'Status', width: 100, render: (r) => (r.active ? <Badge tone="success" dot>Active</Badge> : <Badge tone="warning" dot>Inactive</Badge>) },
+    { key: 'last_active', label: 'Last active', width: 152, render: (r) => (r.last_active
+      ? <span className="inline-flex items-center gap-2 text-muted"><span aria-hidden className={`size-2 rounded-full ${Date.now() - new Date(r.last_active) < dayMs ? 'bg-success' : 'bg-line-strong'}`} />{formatRelative(r.last_active)}</span>
+      : <span className="text-placeholder">Never</span>) },
+    { key: 'actions', label: '', width: 48, align: 'right', render: (r) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger>{(props) => <button type="button" aria-label={`Actions for ${r.full_name}`} {...props} onClick={(e) => { e.stopPropagation(); props.onClick?.(e); }} className="grid size-8 place-items-center rounded-lg text-muted outline-none hover:bg-surface-2 hover:text-ink focus-visible:ring-2 focus-visible:ring-ring"><Icon name="more-horizontal" className="size-5" /></button>}</DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem icon="user" onSelect={() => navigate(`/app/setup/users/${r.id}`)}>View details</DropdownMenuItem>
+          <DropdownMenuItem icon="copy" onSelect={() => navigator.clipboard?.writeText(r.email).catch(() => {})}>Copy email</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) },
+  );
+  return cols;
+}
 
 /** Rich, coloured cells (Untitled UI tables are never plain text): two-line names, dotted status badges, hue tags, avatars. */
 const ROLE_HUE = { Owner: 'purple', Admin: 'indigo', Member: 'blue', Viewer: 'teal' };
@@ -137,8 +173,10 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
     return out;
   }, [rows, page.columns]);
 
+  const addonsOn = Boolean(me?.features?.accessAddons);
   const columns = useMemo(() => {
-    const people = pageKey === 'users'; // name + email under it with an avatar; username / alias / email columns would only repeat it
+    if (pageKey === 'users') return userColumns({ addons: addonsOn, navigate });
+    const people = false; // name + email under it with an avatar; username / alias / email columns would only repeat it
     const subKey = people ? 'email' : page.columns.slice(1).find((c) => DESCRIPTION.test(c.key))?.key;
     const firstType = adapter?.columnTypes?.[page.columns[0]?.key] ?? page.columns[0]?.type;
     const richFirst = firstType === 'text' || firstType === 'link' || firstType === undefined;
@@ -148,7 +186,7 @@ function ListBody({ pageKey, definition, embedded, parentId, createDefaults, onO
       const first = i === 0 && (type === 'text' || type === 'link' || type === undefined);
       return { key: c.key, label: c.label, sortable: !adapter, width: first ? 300 : people ? (c.key === 'profile' ? 200 : 140) : undefined, align: c.type === 'number' ? 'right' : undefined, render: renderCell(type, { key: c.key, first, subKey: first ? subKey : undefined, people: first && people, pageKey, tagged: categorical.has(c.key) }) };
     });
-  }, [page.columns, adapter, pageKey, categorical]);
+  }, [page.columns, adapter, pageKey, categorical, addonsOn, navigate]);
 
   const refresh = () => invalidateSetupData(queryClient);
   const remove = async () => { await setupApi.deleteRecords(pageKey, [...selected]); setSelected(new Set()); await refresh(); };
