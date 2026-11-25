@@ -17,6 +17,7 @@ export const NAV = {
   main: [
     { to: '/app', end: true, icon: 'home', label: 'Home' },
     { to: '/app/members', icon: 'users', label: 'Members' },
+    { to: '/app/workspaces', icon: 'building', label: 'Workspaces', minRole: 'admin' },
     { to: '/app/integrations', icon: 'layers', label: 'Integrations', minRole: 'admin' },
   ],
   groups: [

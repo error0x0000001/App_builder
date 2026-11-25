@@ -9,12 +9,12 @@ import { Logo } from '../ui/Logo.jsx';
 
 /** The organisation list + "Add organisation" — shared by the sidebar header and the top bar. */
 function TenantMenuContent({ side, align, className }) {
-  const { tenants, activeTenant, switchTenant } = useAuth();
+  const { tenants, activeTenant, switchTenant, workspaces, activeWorkspace, switchWorkspace } = useAuth();
   const navigate = useNavigate();
   const select = async (id) => { await switchTenant(id); navigate('/app'); };
   return (
     <DropdownMenuContent side={side} align={align} className={className}>
-      <DropdownMenuLabel>Tenants — {activeTenant?.name ?? 'none selected'}</DropdownMenuLabel>
+      <DropdownMenuLabel>Organisation — {activeTenant?.name ?? 'none selected'}</DropdownMenuLabel>
       {tenants.map((w) => (
         <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
           <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
@@ -22,6 +22,19 @@ function TenantMenuContent({ side, align, className }) {
           {w.id === activeTenant?.id && <Icon name="check" className="size-4 text-muted" />}
         </DropdownMenuItem>
       ))}
+      {workspaces.length > 1 && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Workspace — {activeWorkspace?.name}</DropdownMenuLabel>
+          {workspaces.map((w) => (
+            <DropdownMenuItem key={w.id} onSelect={() => switchWorkspace(w.id)} className="gap-2 p-2">
+              <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="building" className="size-3.5" /></span>
+              <span className="flex-1 truncate">{w.name}</span>
+              {w.id === activeWorkspace?.id && <Icon name="check" className="size-4 text-muted" />}
+            </DropdownMenuItem>
+          ))}
+        </>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => navigate('/app/tenants/new')} className="gap-2 p-2">
         <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROLE_LABELS } from '@app/shared';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { setupApi } from '../../api/endpoints.js';
+import { setupApi, workspacesApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -97,6 +97,36 @@ function AddonsCard({ user, assigned, onChanged }) {
   );
 }
 
+/** Which workspaces this person may use (Odoo "allowed companies"). They always keep at least one. */
+function WorkspacesCard({ user }) {
+  const { activeTenant } = useAuth();
+  const tenantId = activeTenant.id;
+  const queryClient = useQueryClient();
+  const all = useQuery({ queryKey: ['workspaces', tenantId, false], queryFn: () => workspacesApi.all(tenantId) });
+  const mine = useQuery({ queryKey: ['workspaces', tenantId, 'of', user.id], queryFn: () => workspacesApi.assignmentsOf(tenantId, user.id) });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  if (all.isPending || mine.isPending) return null;
+  const options = all.data.workspaces.filter((w) => !w.archivedAt);
+  const chosen = mine.data.workspaceIds;
+  const change = async (next) => {
+    setBusy(true); setError(null);
+    try {
+      await workspacesApi.setAssignments(tenantId, user.id, next);
+      await Promise.all([mine.refetch(), queryClient.invalidateQueries({ queryKey: ['workspaces', tenantId, false] })]);
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Section title="Workspaces" description="The spaces this person can work in. Roles, profiles and settings are shared; the data they see follows the workspace they are in.">
+      {error && <Alert tone="error">{error}</Alert>}
+      <SwitchGroup
+        value={chosen} isDisabled={(id) => busy || (chosen.length === 1 && chosen[0] === id)} onChange={change}
+        options={options.map((w) => ({ value: w.id, label: w.name, description: w.isDefault ? 'Default workspace' : undefined }))}
+      />
+    </Section>
+  );
+}
+
 function SessionsCard({ user, sessions, onChanged }) {
   const [busy, setBusy] = useState(null);
   const run = async (key, ids) => { setBusy(key); try { await setupApi.signOutUser(user.id, ids); await onChanged(); } finally { setBusy(null); } };
@@ -178,6 +208,7 @@ export default function UserDetailsPage() {
         <div className="space-y-5 lg:col-span-2">
           <AccessCard key={`${user.role}|${user.profile}`} user={user} onSaved={refresh} />
           {account?.features?.accessAddons && permissionSets && <AddonsCard user={user} assigned={permissionSets} onChanged={refresh} />}
+          <WorkspacesCard user={user} />
           <SessionsCard user={user} sessions={sessions} onChanged={refresh} />
           <ChangesCard user={user} changes={changes} />
         </div>

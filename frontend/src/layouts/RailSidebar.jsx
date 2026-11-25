@@ -88,8 +88,8 @@ export function RailSidebar() {
   const chatUnread = useChatUnread();
 
   return (
-    <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden', floating ? 'm-2 rounded-2xl border border-sidebar-line bg-sidebar' : variant === 'flat' && 'border-r border-sidebar-line')}>
-      <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden rounded-2xl bg-rail py-4 text-sidebar-ink">
+    <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch', floating ? 'm-2 rounded-2xl border border-sidebar-line bg-sidebar' : variant === 'flat' && 'border-r border-sidebar-line')}>
+      <div className="relative z-30 m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-2xl bg-rail py-4 text-sidebar-ink">
         <div className="mb-4"><TenantSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
           {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} badge={s.panel === 'chat' ? chatUnread : 0} />)}

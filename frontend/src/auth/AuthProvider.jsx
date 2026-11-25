@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveUiSettings } from '@app/shared';
-import { authApi, meApi, tenantsApi } from '../api/endpoints.js';
+import { authApi, meApi, tenantsApi, workspacesApi } from '../api/endpoints.js';
 import { applyCustomColors } from '../lib/customColors.js';
 import { applyThemeMode } from '../lib/themeMode.js';
 import { onSessionExpired, refreshSession, tokenStore } from '../api/http.js';
@@ -47,6 +47,13 @@ export function AuthProvider({ children }) {
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' && q.queryKey[0] !== 'auth-config' });
     return loadMe();
   }, [loadMe, queryClient]);
+
+  /** Moves to another assigned workspace of the same organisation: data of the previous one is dropped from the cache. */
+  const switchWorkspace = useCallback(async (workspaceId) => {
+    await workspacesApi.switch(me.activeTenantId, workspaceId);
+    queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' && q.queryKey[0] !== 'auth-config' });
+    return loadMe();
+  }, [me?.activeTenantId, loadMe, queryClient]);
 
   /** Admin "log in as": the response carries a short-lived token (no cookie); drop cached data and reload as that person. */
   const startImpersonation = useCallback(async (tenantId, userId) => {
@@ -100,8 +107,8 @@ export function AuthProvider({ children }) {
     const found = me?.tenants.find((w) => w.id === me.activeTenantId) ?? null;
     const activeTenant = found ? { ...found, features: me.features ?? {} } : null; // which optional system apps this install runs
     const ui = resolveUiSettings(activeTenant?.uiSettings);
-    return { status, signedOut, me, user: me?.user ?? null, tenants: me?.tenants ?? [], activeTenant, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchTenant, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
-  }, [status, me, loadMe, signOut, signOutEverywhere, switchTenant, startImpersonation, stopImpersonation, updateUi, setThemeMode]);
+    return { status, signedOut, me, user: me?.user ?? null, tenants: me?.tenants ?? [], activeTenant, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchTenant, workspaces: me?.workspaces ?? [], activeWorkspace: me?.workspaces?.find((w) => w.id === me.activeWorkspaceId) ?? null, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
+  }, [status, me, loadMe, signOut, signOutEverywhere, switchTenant, switchWorkspace, startImpersonation, stopImpersonation, updateUi, setThemeMode]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

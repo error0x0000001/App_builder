@@ -32,6 +32,19 @@ export const meApi = {
   mfaRecoveryCodes: (body) => post('/me/mfa/recovery-codes', body),
 };
 
+export const workspacesApi = {
+  mine: (tenantId) => get(`/tenants/${tenantId}/workspaces`),
+  all: (tenantId, archived = false) => get(`/tenants/${tenantId}/workspaces/all${qs({ archived: archived || undefined })}`),
+  create: (tenantId, name) => post(`/tenants/${tenantId}/workspaces`, { name }),
+  rename: (tenantId, id, name) => patch(`/tenants/${tenantId}/workspaces/${id}`, { name }),
+  archive: (tenantId, id) => post(`/tenants/${tenantId}/workspaces/${id}/archive`),
+  restore: (tenantId, id) => post(`/tenants/${tenantId}/workspaces/${id}/restore`),
+  switch: (tenantId, id) => post(`/tenants/${tenantId}/workspaces/${id}/switch`),
+  members: (tenantId, id) => get(`/tenants/${tenantId}/workspaces/${id}/members`),
+  assignmentsOf: (tenantId, userId) => get(`/tenants/${tenantId}/members/${userId}/workspaces`),
+  setAssignments: (tenantId, userId, workspaceIds) => put(`/tenants/${tenantId}/members/${userId}/workspaces`, { workspaceIds }),
+};
+
 export const tenantsApi = {
   lookup: (tenant) => get(`/tenants/lookup${qs({ tenant })}`),
   create: (body) => post('/tenants', body),

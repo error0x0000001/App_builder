@@ -1,6 +1,6 @@
 # Tenants and workspaces
 
-Status: **design agreed, not built.** Today `workspaces` is both the customer and the space a person works in. This plan splits them, the way Odoo (companies inside one database) and Salesforce (one org, many business units) do.
+Status: **phases 1–2 built** (tenants; workspaces + assignments + switcher; see CLAUDE.md "Status"). Phases 3–5 not built. The plan below splits the customer from the space a person works in, the way Odoo (companies inside one database) and Salesforce (one org, many business units) do.
 
 ## The model
 
