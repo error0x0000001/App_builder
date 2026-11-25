@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Hero, Kpi, KpiStrip } from './ui.jsx';
 import { useEffect, useState } from 'react';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
@@ -29,6 +30,7 @@ export default function DockerPage() {
   const query = useQuery({ queryKey: ['deployments', 'containers', serverId], queryFn: () => deploymentsApi.containers(serverId), enabled: Boolean(serverId), refetchInterval: 8000, retry: false });
   const [error, setError] = useState(null); const [logs, setLogs] = useState(null); const [confirm, setConfirm] = useState(null); const [busy, setBusy] = useState(null);
   const act = async (c, action) => { setBusy(c.id); setError(null); try { await deploymentsApi.containerAction(serverId, c.id, action); await queryClient.invalidateQueries({ queryKey: ['deployments', 'containers', serverId] }); } catch (e) { setError(e.message); } finally { setBusy(null); } };
+  const list = query.data?.containers ?? [];
   const columns = [
     { key: 'name', label: 'Container', width: 230, render: (c) => <span className="font-mono text-xs font-medium">{c.name}</span> },
     { key: 'image', label: 'Image', width: 210, render: (c) => <span className="font-mono text-xs">{c.image}</span> },
@@ -49,12 +51,14 @@ export default function DockerPage() {
   ];
   return (
     <div className="space-y-5">
-      <div><h1 className="text-lg font-semibold text-ink">Docker</h1><p className="text-sm text-muted">Every container on a server, including ones Quelli did not create.</p></div>
+      <Hero icon="package" color="indigo" title="Docker" subtitle="Every container on a server, including ones Quelli did not create.">
+        <KpiStrip><Kpi icon="package" color="indigo" label="Containers" value={list.length} /><Kpi icon="play-circle" color="success" label="Running" value={list.filter((c) => c.state === 'running').length} /><Kpi icon="stop-circle" color="orange" label="Stopped" value={list.filter((c) => c.state !== 'running').length} /><Kpi icon="layers" color="purple" label="Images" value={new Set(list.map((c) => c.image)).size} /></KpiStrip>
+      </Hero>
       {ready.length > 1 && <Tabs tabs={ready.map((s) => ({ id: s.id, label: s.name }))} value={serverId} onChange={setServerId} label="Servers" />}
       {servers.isSuccess && ready.length === 0 && <Alert tone="warning">Add a server and run its setup first.</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
-      {serverId && <DataTable columns={columns} rows={query.data?.containers ?? []} loading={query.isPending} empty="No containers." storageKey="dp-docker" />}
+      {serverId && <DataTable columns={columns} rows={list} loading={query.isPending} empty="No containers." storageKey="dp-docker" />}
       {logs && <ContainerLogs serverId={serverId} container={logs} onClose={() => setLogs(null)} />}
       <ConfirmDialog open={Boolean(confirm)} danger confirmLabel="Remove" title={`Remove ${confirm?.name}?`} description="The container is stopped and deleted. Its volumes are kept." onConfirm={async () => { await act(confirm, 'remove'); }} onClose={() => setConfirm(null)} />
     </div>

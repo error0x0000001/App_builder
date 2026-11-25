@@ -9,9 +9,10 @@ const css = (name, fallback) => getComputedStyle(document.documentElement).getPr
 const REASONS = { 4403: 'You need the Manager level of Deployments to open a terminal.', 4429: 'You already have 3 terminals open.', 4408: 'Closed after 15 minutes without activity.', 4401: 'Your session expired. Reload the page.' };
 
 /** A terminal in a container (`serviceId`) or on a server (`serverId`). xterm is loaded only when one is opened. */
-export function TerminalView({ serviceId, serverId, height = 'h-[60vh]' }) {
+export function TerminalView({ serviceId, serverId, height = 'h-[60vh]', controlRef, onState }) {
   const box = useRef(null);
   const [state, setState] = useState('connecting'); const [message, setMessage] = useState(null); const [attempt, setAttempt] = useState(0);
+  useEffect(() => { onState?.(state); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let disposed = false; let socket; let term; let observer;
     setState('connecting'); setMessage(null);
@@ -25,7 +26,7 @@ export function TerminalView({ serviceId, serverId, height = 'h-[60vh]' }) {
       socket.onopen = () => send({ type: 'auth', token: tokenStore.current(), serviceId, serverId, cols: term.cols, rows: term.rows });
       socket.onmessage = (m) => {
         const f = JSON.parse(m.data);
-        if (f.type === 'ready') { setState('open'); term.focus(); }
+        if (f.type === 'ready') { setState('open'); term.focus(); if (controlRef) controlRef.current = { send: (text) => send({ type: 'data', data: text }), clear: () => term.clear(), focus: () => term.focus() }; }
         else if (f.type === 'data') term.write(f.data);
         else if (f.type === 'error') setMessage(f.message);
         else if (f.type === 'exit') setState('closed');

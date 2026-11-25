@@ -32,7 +32,6 @@ export const NAV = {
       { to: '/app/deployments/docker', icon: 'package', label: 'Docker', feature: 'deployments' },
       { to: '/app/deployments/servers', icon: 'server', label: 'Servers', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
       { to: '/app/deployments/credentials', icon: 'key', label: 'Git, registry & SSH', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
-      { to: '/app/deployments/access', icon: 'users', label: 'Access', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
       { to: '/app/deployments/audit', icon: 'shield', label: 'Audit log', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
     ] },
     { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural, create: true })) },

@@ -22,48 +22,104 @@ import { Textarea } from '../../components/ui/Textarea.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { TerminalView } from './TerminalView.jsx';
 import { LogSheet } from './parts.jsx';
+import { AdvancedTab, ComposeTab, TerminalTab } from './ServiceTabs.jsx';
+import { Panel } from './ui.jsx';
+import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
 import { CopyField, KINDS, KindTile, LogView, StatusBadge, ago, duration, useCan, useDeploymentLog } from './parts.jsx';
 
-const Section = ({ title, description, action, children }) => (
-  <section className="rounded-xl border border-line bg-surface p-5">
-    <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-ink">{title}</h2>{description && <p className="mt-0.5 text-sm text-muted">{description}</p>}</div>{action}</div>
-    {children}
-  </section>
-);
+const Section = ({ title, description, action, children, icon = 'info', color = 'brand' }) => <Panel icon={icon} color={color} title={title} description={description} action={action}>{children}</Panel>;
 const Row = ({ label, children }) => <div className="flex items-baseline justify-between gap-4 border-t border-line py-2.5 text-sm first:border-t-0"><dt className="text-muted">{label}</dt><dd className="min-w-0 truncate text-right font-medium text-ink">{children}</dd></div>;
 
-function Overview({ service, secrets, reveal, openLog }) {
+function LiveRail({ service, openLog }) {
+  const recent = useQuery({ queryKey: ['deployments', 'list', service.id], queryFn: () => deploymentsApi.deployments(service.id), refetchInterval: 6000 });
+  const stats = useQuery({ queryKey: ['deployments', 'stats', service.id], queryFn: () => deploymentsApi.stats(service.id), refetchInterval: 10_000, retry: false, enabled: service.status === 'done' });
+  const first = stats.data?.stats?.[0];
+  const pct = (v) => Math.min(100, parseFloat(v) || 0);
+  return (
+    <div className="space-y-4">
+      <Panel icon="activity" color="teal" title="Live" description={service.status === 'done' ? 'Read from the server' : 'Not running'}>
+        {first ? (
+          <div className="space-y-3">
+            {[['CPU', pct(first.cpu), first.cpu], ['Memory', pct(first.memoryPercent), first.memory]].map(([label, value, text]) => (
+              <div key={label}><div className="mb-1 flex justify-between text-xs"><span className="font-medium text-ink">{label}</span><span className="text-muted">{text}</span></div><ProgressBar value={value} label={label} warn /></div>
+            ))}
+            <p className="flex justify-between text-xs text-muted"><span>Network</span><span className="text-ink">{first.network}</span></p>
+            <p className="flex justify-between text-xs text-muted"><span>Disk</span><span className="text-ink">{first.disk}</span></p>
+          </div>
+        ) : <p className="text-sm text-muted">{service.status === 'done' ? (stats.isPending ? 'Reading the server…' : 'No numbers yet.') : 'Deploy it to see CPU and memory here.'}</p>}
+      </Panel>
+      <Panel icon="rocket" color="purple" title="Recent deployments" bodyClassName="p-0" action={<Link to={`/app/deployments/s/${service.id}/deployments`} className="text-xs font-semibold text-link hover:underline">All</Link>}>
+        {(recent.data?.deployments ?? []).length === 0 ? <p className="p-4 text-sm text-muted">Nothing deployed yet.</p> : (
+          <ul className="divide-y divide-line">{recent.data.deployments.slice(0, 5).map((d) => (
+            <li key={d.id}><button type="button" onClick={() => openLog(d.id)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-surface-2"><StatusBadge status={d.status} of="deployment" /><span className="min-w-0 flex-1 truncate text-ink">{d.title}</span><time className="shrink-0 text-xs text-muted">{ago(d.startedAt)}</time></button></li>
+          ))}</ul>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+function DbAccess({ service, secrets, reveal, onChanged }) {
+  const can = useCan()('manager');
+  const target = service.config?.port; const exposed = (service.config?.publishedPorts ?? []).find((p) => Number(p.target) === Number(target));
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(null);
+  const toggle = async (on) => {
+    setBusy(true); setError(null);
+    try {
+      const others = (service.config?.publishedPorts ?? []).filter((p) => Number(p.target) !== Number(target));
+      await deploymentsApi.updateService(service.id, { config: { publishedPorts: on ? [...others, { published: 30000 + Math.floor(Math.random() * 30000), target, protocol: 'tcp' }] : others } });
+      await deploymentsApi.deploy(service.id); onChanged();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Section icon="database" color="teal" title="Connection" description="Credentials are stored encrypted; revealing them is audited" action={!secrets && <Button size="sm" variant="neutral" onClick={reveal}><Icon name="eye" className="size-4" />Reveal</Button>}>
+      <div className="space-y-3">
+        {error && <Alert tone="error">{error}</Alert>}
+        {secrets ? (
+          <>
+            <div><p className="mb-1 text-xs font-medium text-muted">Internal (other services on the same server)</p><CopyField label="internal connection string" value={secrets.connectionUrl} /></div>
+            {secrets.externalUrl && <div><p className="mb-1 text-xs font-medium text-muted">External (from your machine)</p><CopyField label="external connection string" value={secrets.externalUrl} /></div>}
+            <p className="text-xs text-muted">Password <span className="font-mono text-ink">{secrets.databasePassword}</span></p>
+          </>
+        ) : <p className="text-sm text-muted">Reveal to copy the connection strings and password.</p>}
+        {can && <div className="border-t border-line pt-3"><Switch checked={Boolean(exposed)} disabled={busy} onChange={(e) => toggle(e.target.checked)} label="External access" description={exposed ? `Open on the server at port ${exposed.published}. Anyone who can reach it still needs the password.` : 'Closed. Turn on to connect from outside the server (redeploys the database).'} /></div>}
+      </div>
+    </Section>
+  );
+}
+
+function Overview({ service, secrets, reveal, openLog, onChanged }) {
   const isDb = DATABASE_KINDS.includes(service.kind);
   const src = service.source ?? {};
   const origin = window.location.origin;
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <Section title="Details">
-        <dl>
-          <Row label="Type">{KINDS[service.kind]?.label}</Row>
-          <Row label="Internal name"><span className="font-mono text-xs">{service.appName}</span></Row>
-          {src.type === 'docker' && <Row label="Image"><span className="font-mono text-xs">{src.image}</span></Row>}
-          {src.type === 'git' && <><Row label="Repository"><span className="font-mono text-xs">{src.repository}</span></Row><Row label="Branch">{src.branch}</Row><Row label="Build">{src.buildType}</Row></>}
-          <Row label="Last deployed">{ago(service.lastDeployedAt)}</Row>
-          <Row label="Auto deploy">{service.autoDeploy ? 'On' : 'Off'}</Row>
-        </dl>
-      </Section>
-      {isDb ? (
-        <Section title="Connection" description="Reachable by other services on the same server network." action={!secrets && <Button size="sm" variant="neutral" onClick={reveal}><Icon name="eye" className="size-4" />Reveal</Button>}>
-          {secrets ? <div className="space-y-3"><CopyField label="connection string" value={secrets.connectionUrl} /><p className="text-xs text-muted">Password: <span className="font-mono text-ink">{secrets.databasePassword}</span></p></div> : <p className="text-sm text-muted">The password is stored encrypted. Revealing it is recorded in the audit trail.</p>}
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="space-y-4">
+        <Section icon="info" color="blue" title="Details">
+          <dl>
+            <Row label="Type">{KINDS[service.kind]?.label}</Row>
+            <Row label="Internal name"><span className="font-mono text-xs">{service.appName}</span></Row>
+            {src.type === 'docker' && <Row label="Image"><span className="font-mono text-xs">{src.image}</span></Row>}
+            {src.type === 'git' && <><Row label="Repository"><span className="font-mono text-xs">{src.repository}</span></Row><Row label="Branch">{src.branch}</Row><Row label="Build">{src.buildType}</Row></>}
+            {service.config?.templateId && <Row label="Template">{service.config.templateId}</Row>}
+            <Row label="Last deployed">{ago(service.lastDeployedAt)}</Row>
+            <Row label="Auto deploy">{service.autoDeploy ? 'On' : 'Off'}</Row>
+          </dl>
         </Section>
-      ) : (
-        <Section title="Push to deploy" description="Add this webhook to your Git provider so a push deploys.">
-          <div className="space-y-3">
-            <CopyField label="webhook URL" value={`${origin}${service.webhookPath}`} />
-            {secrets ? <CopyField label="webhook secret" value={secrets.webhookSecret} /> : <Button size="sm" variant="neutral" onClick={reveal}><Icon name="eye" className="size-4" />Reveal secret</Button>}
-            <p className="text-xs text-muted">GitHub: content type JSON, secret above. GitLab / Gitea: put the secret in the token field.</p>
-          </div>
-        </Section>
-      )}
-      {service.domains.length > 0 && (
-        <Section title="Domains"><ul className="space-y-2">{service.domains.map((d) => <li key={d.id}><a href={d.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-link hover:underline"><Icon name="link" className="size-4" />{d.url}</a></li>)}</ul></Section>
-      )}
+        {isDb ? <DbAccess service={service} secrets={secrets} reveal={reveal} onChanged={onChanged} /> : (
+          <Section icon="send" color="orange" title="Push to deploy" description="Add this webhook to your Git provider so a push deploys">
+            <div className="space-y-3">
+              <CopyField label="webhook URL" value={`${origin}${service.webhookPath}`} />
+              {secrets ? <CopyField label="webhook secret" value={secrets.webhookSecret} /> : <Button size="sm" variant="neutral" onClick={reveal}><Icon name="eye" className="size-4" />Reveal secret</Button>}
+              <p className="text-xs text-muted">GitHub: content type JSON, secret above. GitLab / Gitea: put the secret in the token field.</p>
+            </div>
+          </Section>
+        )}
+        {service.domains.length > 0 && (
+          <Section icon="globe" color="purple" title="Domains"><ul className="grid gap-2 sm:grid-cols-2">{service.domains.map((d) => <li key={d.id}><a href={d.url} target="_blank" rel="noreferrer noopener" className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm font-medium text-link hover:underline"><Icon name="link" className="size-4 shrink-0" /><span className="truncate">{d.url}</span></a></li>)}</ul></Section>
+        )}
+      </div>
+      <LiveRail service={service} openLog={openLog} />
     </div>
   );
 }
@@ -222,8 +278,8 @@ function SettingsTab({ service, onChange, onDelete }) {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'file-code' }, { id: 'deployments', label: 'Deployments', icon: 'rocket' }, { id: 'logs', label: 'Logs', icon: 'file-code' }, { id: 'terminal', label: 'Terminal', icon: 'terminal' },
-  { id: 'environment', label: 'Environment', icon: 'key' }, { id: 'domains', label: 'Domains', icon: 'link' }, { id: 'schedules', label: 'Schedules', icon: 'clock' },
-  { id: 'monitoring', label: 'Monitoring', icon: 'activity' }, { id: 'settings', label: 'Settings', icon: 'settings' },
+  { id: 'environment', label: 'Environment', icon: 'key' }, { id: 'compose', label: 'Compose', icon: 'layers' }, { id: 'domains', label: 'Domains', icon: 'link' }, { id: 'schedules', label: 'Schedules', icon: 'clock' },
+  { id: 'monitoring', label: 'Monitoring', icon: 'cpu' }, { id: 'advanced', label: 'Advanced', icon: 'sliders' }, { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 export default function ServicePage() {
@@ -238,23 +294,37 @@ export default function ServicePage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['deployments'] });
   if (query.isPending) return <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>;
   if (query.isError) return <Alert tone="error">{query.error.message}</Alert>;
-  const tabs = TABS.filter((t) => can('manager') || !['environment', 'domains', 'settings', 'terminal'].includes(t.id));
+  const isCompose = service.kind === 'compose'; const isDbKind = DATABASE_KINDS.includes(service.kind);
+  const tabs = TABS.filter((t) => (can('manager') || !['environment', 'domains', 'settings', 'terminal', 'advanced', 'compose'].includes(t.id)) && (isCompose || t.id !== 'compose') && !(isDbKind && t.id === 'domains')).map((t) => (t.id === 'schedules' && isDbKind ? { ...t, label: 'Backups' } : t));
   const run = (name, fn, openLog) => async () => { setBusy(name); setError(null); try { const r = await fn(); await refresh(); if (openLog && r?.deployment) setLogId(r.deployment.id); } catch (e) { setError(e.message); } finally { setBusy(null); } };
   const reveal = async () => { try { setSecrets(await deploymentsApi.secrets(serviceId)); } catch (e) { setError(e.message); } };
   const live = service.status === 'done' || service.status === 'error';
   return (
     <div className="space-y-5">
-      <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
-        {can('deployer') && (service.status === 'stopped' ? <Button size="sm" variant="neutral" loading={busy === 'start'} onClick={run('start', () => deploymentsApi.start(serviceId))}><Icon name="play-circle" className="size-4" />Start</Button> : live && <Button size="sm" variant="neutral" loading={busy === 'stop'} onClick={run('stop', () => deploymentsApi.stop(serviceId))}><Icon name="stop-circle" className="size-4" />Stop</Button>)}
-        {can('deployer') && <Button size="sm" loading={busy === 'deploy'} disabled={service.status === 'running'} onClick={run('deploy', () => deploymentsApi.deploy(serviceId), true)}><Icon name="rocket" className="size-4" />{service.lastDeployedAt ? 'Redeploy' : 'Deploy'}</Button>}
-      </PageToolbar>
-      <div className="flex items-center gap-3"><KindTile kind={service.kind} size="lg" /><div className="min-w-0"><h1 className="truncate text-lg font-semibold text-ink">{service.name}</h1><div className="mt-0.5 flex items-center gap-2"><StatusBadge status={service.status} />{!service.serverId && <Badge tone="warning">No server</Badge>}</div></div></div>
+      <PageToolbar meta={<Link to={service.previewOf ? `/app/deployments/s/${service.previewOf}` : '/app/deployments'} className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />{service.previewOf ? 'Back to the service' : 'Deployments'}</Link>} />
+      <header style={{ '--c': `var(--fi-${KINDS[service.kind]?.hue ?? 'blue'})`, background: 'linear-gradient(120deg, color-mix(in srgb, var(--c) 22%, var(--surface)) 0%, color-mix(in srgb, var(--c) 8%, var(--surface)) 55%, var(--surface) 100%)' }} className="rounded-2xl border border-line p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <KindTile kind={service.kind} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-xl font-semibold tracking-tight text-ink">{service.name}</h1><StatusBadge status={service.status} />{service.previewBranch && <Badge tone="accent">Preview · {service.previewBranch}</Badge>}{!service.serverId && <Badge tone="warning">No server</Badge>}</div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"><span>{KINDS[service.kind]?.label}</span><span className="font-mono text-xs">{service.appName}</span><span>Deployed {ago(service.lastDeployedAt)}</span></p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {service.domains[0] && <Button as="a" href={service.domains[0].url} target="_blank" rel="noreferrer noopener" size="sm" variant="neutral"><Icon name="external" className="size-4" />Open site</Button>}
+            {can('deployer') && (service.status === 'stopped' ? <Button size="sm" variant="neutral" loading={busy === 'start'} onClick={run('start', () => deploymentsApi.start(serviceId))}><Icon name="play-circle" className="size-4" />Start</Button> : live && <Button size="sm" variant="neutral" loading={busy === 'stop'} onClick={run('stop', () => deploymentsApi.stop(serviceId))}><Icon name="stop-circle" className="size-4" />Stop</Button>)}
+            {can('deployer') && <Button size="sm" loading={busy === 'deploy'} disabled={service.status === 'running'} onClick={run('deploy', () => deploymentsApi.deploy(serviceId), true)}><Icon name="rocket" className="size-4" />{service.lastDeployedAt ? 'Redeploy' : 'Deploy'}</Button>}
+          </div>
+        </div>
+        {service.domains.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{service.domains.slice(0, 4).map((d) => <a key={d.id} href={d.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-link ring-1 ring-line hover:underline"><Icon name="link" className="size-3" />{d.host}</a>)}</div>}
+      </header>
       {error && <Alert tone="error">{error}</Alert>}
-      <div className="overflow-x-auto"><Tabs tabs={tabs} value={tab} onChange={(id) => navigate(id === 'overview' ? `/app/deployments/s/${serviceId}` : `/app/deployments/s/${serviceId}/${id}`)} label="Service" /></div>
-      {tab === 'overview' && <Overview service={service} secrets={secrets} reveal={reveal} openLog={setLogId} />}
+      <div className="overflow-x-auto"><Tabs tabs={tabs.map(({ icon, ...t }) => t)} value={tab} onChange={(id) => navigate(id === 'overview' ? `/app/deployments/s/${serviceId}` : `/app/deployments/s/${serviceId}/${id}`)} label="Service" /></div>
+      {tab === 'overview' && <Overview service={service} secrets={secrets} reveal={reveal} openLog={setLogId} onChanged={refresh} />}
       {tab === 'deployments' && <DeploymentsTab service={service} onRollback={(d) => setConfirm({ type: 'rollback', d })} />}
       {tab === 'logs' && <LogsTab service={service} />}
-      {tab === 'terminal' && (service.serverId ? <TerminalView key={serviceId} serviceId={serviceId} /> : <Alert tone="warning">Choose a server for this service first.</Alert>)}
+      {tab === 'terminal' && (service.serverId ? <TerminalTab service={service} /> : <Alert tone="warning">Choose a server for this service first.</Alert>)}
+      {tab === 'compose' && <ComposeTab service={service} onSaved={refresh} onRedeploy={run('deploy', () => deploymentsApi.deploy(serviceId), true)} />}
+      {tab === 'advanced' && <AdvancedTab key={service.id} service={service} onSaved={refresh} onRedeploy={run('deploy', () => deploymentsApi.deploy(serviceId), true)} />}
       {tab === 'environment' && <EnvTab service={service} secrets={secrets} reveal={reveal} onSaved={refresh} />}
       {tab === 'domains' && <DomainsTab service={service} onChange={refresh} />}
       {tab === 'schedules' && <JobsTab service={service} onChange={refresh} />}

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Hero, Kpi, KpiStrip } from './ui.jsx';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deploymentsApi } from '../../api/endpoints.js';
@@ -14,6 +15,8 @@ export default function ServicesPage() {
   const query = useQuery({ queryKey: ['deployments', 'all-services'], queryFn: deploymentsApi.allServices, refetchInterval: 10_000 });
   const [q, setQ] = useState('');
   const rows = useMemo(() => (query.data?.services ?? []).filter((s) => !q || `${s.name} ${s.project} ${s.environment} ${s.server ?? ''}`.toLowerCase().includes(q.toLowerCase())), [query.data, q]);
+  const all = query.data?.services ?? [];
+  const count = (st) => all.filter((x) => x.status === st).length;
   const columns = [
     { key: 'name', label: 'Service', width: 280, render: (s) => <span className="flex items-center gap-3"><KindTile kind={s.kind} /><span className="min-w-0"><span className="flex items-center gap-2 font-medium">{s.name}{s.previewBranch && <Badge tone="accent">Preview</Badge>}</span><span className="block text-xs text-muted">{KINDS[s.kind]?.label}</span></span></span> },
     { key: 'project', label: 'Project', width: 170 },
@@ -25,7 +28,9 @@ export default function ServicesPage() {
   ];
   return (
     <div className="space-y-5">
-      <div><h1 className="text-lg font-semibold text-ink">Services</h1><p className="text-sm text-muted">Applications, Compose stacks and databases across every project.</p></div>
+      <Hero icon="cube" color="blue" title="Services" subtitle="Applications, Compose stacks and databases across every project.">
+        <KpiStrip><Kpi icon="cube" color="blue" label="All services" value={all.length} /><Kpi icon="check-circle" color="success" label="Running" value={count('done')} /><Kpi icon="alert" color={count('error') ? 'error' : 'gray'} label="Failing" value={count('error')} /><Kpi icon="stop-circle" color="orange" label="Stopped or idle" value={count('stopped') + count('idle')} /></KpiStrip>
+      </Hero>
       <SearchInput label="Search services" placeholder="Search by name, project or server" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ('')} className="h-10 max-w-md" />
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
       <DataTable columns={columns} rows={rows} loading={query.isPending} empty="No services yet." onRowClick={(s) => navigate(`/app/deployments/s/${s.id}`)} storageKey="dp-services" />

@@ -17,6 +17,7 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { cn } from '../../lib/cn.js';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { CATEGORIES, categoriesOf } from './templateCategories.js';
+import { Hero, hueFor, tint } from './ui.jsx';
 import { useCan } from './parts.jsx';
 
 const PAGE = 48;
@@ -96,7 +97,7 @@ export default function TemplatesPage() {
   const can = useCan();
   const [params] = useSearchParams(); const presetEnv = params.get('env');
   const query = useQuery({ queryKey: ['deployments', 'templates'], queryFn: deploymentsApi.templates, staleTime: 3_600_000 });
-  const [q, setQ] = useState(''); const deferred = useDeferredValue(q.trim().toLowerCase()); const [cat, setCat] = useState(null); const [shown, setShown] = useState(PAGE);
+  const [q, setQ] = useState(params.get('q') ?? ''); const deferred = useDeferredValue(q.trim().toLowerCase()); const [cat, setCat] = useState(null); const [shown, setShown] = useState(PAGE);
   const [detail, setDetail] = useState(null); const [deploy, setDeploy] = useState(null);
   const all = useMemo(() => (query.data?.templates ?? []).map((t) => ({ ...t, cats: categoriesOf(t) })), [query.data]);
   const counts = useMemo(() => Object.fromEntries(CATEGORIES.map((c) => [c.key, all.filter((t) => t.cats.includes(c.key)).length])), [all]);
@@ -107,29 +108,41 @@ export default function TemplatesPage() {
   }, [all, deferred, cat]);
   const manager = can('manager');
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>} />
-      <div><h1 className="text-lg font-semibold text-ink">Templates</h1><p className="text-sm text-muted">{all.length ? `${all.length} open-source apps you can run in one click.` : 'One-click open-source apps.'}</p></div>
-      <div className="flex items-center gap-2">
-        <SearchInput label="Search templates" placeholder="Search by name, tag or description" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} onClear={() => setQ('')} className="h-10 max-w-md flex-1" />
-        <RoundMenu icon="filter" label={cat ? `Category: ${CATEGORIES.find((c) => c.key === cat).label}` : 'Filter by category'} size="md" active={Boolean(cat)}>
-          <DropdownMenuLabel>Category</DropdownMenuLabel>
-          <MenuChoice selected={!cat} onSelect={() => { setCat(null); setShown(PAGE); }}>All</MenuChoice>
-          {CATEGORIES.map((c) => <MenuChoice key={c.key} selected={cat === c.key} onSelect={() => { setCat(c.key); setShown(PAGE); }}>{c.label} <span className="ml-1 text-xs text-muted">{counts[c.key]}</span></MenuChoice>)}
-        </RoundMenu>
-        <span className="text-sm text-muted">{rows.length} shown</span>
+      <Hero icon="grid" color="brand" title="Templates" subtitle={all.length ? `${all.length} open-source apps you can run in one click — secrets, domains and files are set up for you.` : 'One-click open-source apps.'}>
+        <div className="flex items-center gap-2">
+          <SearchInput label="Search templates" placeholder="Search by name, tag or description" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} onClear={() => setQ('')} className="h-10 max-w-md flex-1" />
+          <RoundMenu icon="filter" label={cat ? `Category: ${CATEGORIES.find((c) => c.key === cat).label}` : 'Filter by category'} size="md" active={Boolean(cat)}>
+            <DropdownMenuLabel>Category</DropdownMenuLabel>
+            <MenuChoice selected={!cat} onSelect={() => { setCat(null); setShown(PAGE); }}>All</MenuChoice>
+            {CATEGORIES.map((c) => <MenuChoice key={c.key} selected={cat === c.key} onSelect={() => { setCat(c.key); setShown(PAGE); }}>{c.label} <span className="ml-1 text-xs text-muted">{counts[c.key]}</span></MenuChoice>)}
+          </RoundMenu>
+          <span className="whitespace-nowrap text-sm text-muted">{rows.length} shown</span>
+        </div>
+      </Hero>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Browse by category">
+        {CATEGORIES.map((c) => (
+          <button key={c.key} type="button" aria-pressed={cat === c.key} onClick={() => { setCat(cat === c.key ? null : c.key); setShown(PAGE); }} style={{ '--c': `var(--fi-${c.color === 'success' ? 'teal' : c.color})` }}
+            className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', cat === c.key ? 'border-(--c) bg-[color-mix(in_srgb,var(--c)_16%,var(--surface))] text-(--c)' : 'border-line bg-surface text-muted hover:text-ink')}>
+            <Icon name={c.icon} className="size-3.5 text-(--c)" />{c.label}<span className="text-placeholder">{counts[c.key] ?? 0}</span>
+          </button>
+        ))}
       </div>
       {query.isPending && <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>}
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {rows.slice(0, shown).map((t) => (
-          <li key={t.id} className="flex flex-col rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
+          <li key={t.id} className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-line-strong">
+            <div style={tint(hueFor(t.id), 14)} className="h-1.5" aria-hidden="true" />
+            <div className="flex flex-1 flex-col p-4">
             <button type="button" onClick={() => setDetail(t.id)} className="flex items-start gap-3 text-left outline-none focus-visible:ring-4 focus-visible:ring-ring">
               <TemplateLogo template={t} />
               <span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate text-sm font-semibold text-ink">{t.name}</span><Badge tone="neutral">{t.version}</Badge></span><span className="mt-1 line-clamp-2 block text-xs text-muted">{t.description}</span></span>
             </button>
             <div className="mt-3 flex flex-wrap gap-1">{t.tags.slice(0, 3).map((x) => <Badge key={x} tone="accent">{x}</Badge>)}</div>
             <div className="mt-auto flex items-center justify-between pt-4"><button type="button" onClick={() => setDetail(t.id)} className="text-xs font-medium text-link hover:underline">Details</button>{manager && <Button size="sm" variant="neutral" onClick={() => setDeploy(t)}>Create</Button>}</div>
+            </div>
           </li>
         ))}
       </ul>

@@ -14,6 +14,7 @@ import { Dialog } from '../../components/ui/Dialog.jsx';
 import { FeaturedIcon } from '../../components/ui/FeaturedIcon.jsx';
 import { Icon } from '../../components/ui/Icon.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
+import { Hero, Kpi, KpiStrip, Panel, hueFor, tint } from './ui.jsx';
 import { CopyField, ago } from './parts.jsx';
 
 const KIND = { registry: ['Container registry', 'blue', 'package'], git: ['Git token', 'purple', 'branch'], ssh: ['SSH key', 'orange', 'terminal'] };
@@ -46,27 +47,30 @@ export default function CredentialsPage() {
   const rows = query.data?.credentials ?? [];
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['deployments', 'credentials'] });
   return (
-    <div className="max-w-3xl space-y-5">
-      <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
-        <Button size="sm" variant="neutral" onClick={() => setGenName('')}><Icon name="key" className="size-4" />Generate SSH key</Button>
-        <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New credential</Button>
-      </PageToolbar>
-      <div><h1 className="text-lg font-semibold text-ink">Credentials</h1><p className="text-sm text-muted">Logins for private container registries and Git repositories.</p></div>
+    <div className="space-y-4">
+      <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>} />
+      <Hero icon="key" color="pink" title="Git, registry & SSH" subtitle="Logins you save once, encrypted, and pick whenever you create a service or add a server."
+        actions={<><Button size="sm" variant="neutral" onClick={() => setGenName('')}><Icon name="key" className="size-4" />Generate SSH key</Button><Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New credential</Button></>}>
+        <KpiStrip><Kpi icon="branch" color="purple" label="Git tokens" value={rows.filter((c) => c.kind === 'git').length} /><Kpi icon="package" color="blue" label="Registry logins" value={rows.filter((c) => c.kind === 'registry').length} /><Kpi icon="terminal" color="orange" label="SSH keys" value={rows.filter((c) => c.kind === 'ssh').length} /><Kpi icon="lock" color="success" label="Stored" value="Encrypted" /></KpiStrip>
+      </Hero>
       {error && <Alert tone="error">{error}</Alert>}
-      {rows.length === 0 && !query.isPending ? (
-        <div className="grid place-items-center gap-3 py-14 text-center"><FeaturedIcon icon="key" color="brand" size="xl" /><div><p className="text-base font-semibold text-ink">No credentials yet</p><p className="text-sm text-muted">Add one to deploy private images or repositories.</p></div></div>
-      ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-          {rows.map((c) => (
-            <li key={c.id} className="flex items-center gap-3 p-3">
-              <FeaturedIcon icon={KIND[c.kind][2]} color={KIND[c.kind][1]} size="sm" />
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{c.name}</p><p className="truncate text-xs text-muted">{[c.url, c.username].filter(Boolean).join(' · ') || (c.kind === 'ssh' ? 'Private key' : 'Token')} · added {ago(c.createdAt)}</p>{c.publicKey && <button type="button" onClick={() => setGenerated(c)} className="text-xs font-medium text-link hover:underline">Show public key</button>}</div>
-              <Badge tone="neutral">{KIND[c.kind][0]}</Badge>
-              <Button size="icon" variant="ghost" aria-label={`Delete ${c.name}`} onClick={async () => { setError(null); try { await deploymentsApi.deleteCredential(c.id); refresh(); } catch (e) { setError(e.message); } }}><Icon name="trash" className="size-4" /></Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        {Object.entries(KIND).map(([kind, [label, color, icon]]) => {
+          const list = rows.filter((c) => c.kind === kind);
+          return (
+            <Panel key={kind} icon={icon} color={color} title={label + (kind === 'git' ? 's' : kind === 'ssh' ? 's' : 's')} description={`${list.length} saved`} bodyClassName="p-0">
+              {list.length === 0 ? <p className="p-4 text-sm text-muted">{kind === 'git' ? 'For private repositories.' : kind === 'registry' ? 'For private images.' : 'For connecting to your servers.'}</p> : (
+                <ul className="divide-y divide-line">{list.map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink">{c.name}</p><p className="truncate text-xs text-muted">{[c.url, c.username].filter(Boolean).join(' · ') || (kind === 'ssh' ? 'Private key' : 'Token')} · {ago(c.createdAt)}</p>{c.publicKey && <button type="button" onClick={() => setGenerated(c)} className="text-xs font-medium text-link hover:underline">Show public key</button>}</div>
+                    <Button size="icon" variant="ghost" aria-label={`Delete ${c.name}`} onClick={async () => { setError(null); try { await deploymentsApi.deleteCredential(c.id); refresh(); } catch (e) { setError(e.message); } }}><Icon name="trash" className="size-4" /></Button>
+                  </li>
+                ))}</ul>
+              )}
+            </Panel>
+          );
+        })}
+      </div>
       <Dialog open={genName !== null} onClose={() => setGenName(null)} label="Generate SSH key" className="max-w-md">
         <form className="space-y-4 p-5" onSubmit={async (e) => { e.preventDefault(); if (!genName.trim()) return; try { const { credential } = await deploymentsApi.generateSshKey(genName.trim()); setGenName(null); refresh(); setGenerated(credential); } catch (err) { setError(err.message); setGenName(null); } }}>
           <div><h2 className="text-base font-semibold text-ink">Generate SSH key</h2><p className="mt-1 text-sm text-muted">Creates an ed25519 key pair. The private key stays encrypted here; you add the public key to your server.</p></div>

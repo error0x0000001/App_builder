@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Hero, Kpi, KpiStrip } from './ui.jsx';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { deploymentsApi } from '../../api/endpoints.js';
@@ -15,6 +16,7 @@ export default function SchedulesPage() {
   const query = useQuery({ queryKey: ['deployments', 'all-jobs'], queryFn: deploymentsApi.allJobs, refetchInterval: 15_000 });
   const [error, setError] = useState(null);
   const act = (fn) => async () => { setError(null); try { await fn(); await queryClient.invalidateQueries({ queryKey: ['deployments', 'all-jobs'] }); } catch (e) { setError(e.message); } };
+  const jobs = query.data?.jobs ?? [];
   const columns = [
     { key: 'name', label: 'Schedule', width: 220, render: (j) => <span className="font-medium">{j.name}</span> },
     { key: 'service', label: 'Service', width: 200, render: (j) => <Link to={`/app/deployments/s/${j.serviceId}/schedules`} className="font-medium text-link hover:underline">{j.service}</Link> },
@@ -26,9 +28,11 @@ export default function SchedulesPage() {
   ];
   return (
     <div className="space-y-5">
-      <div><h1 className="text-lg font-semibold text-ink">Schedules</h1><p className="text-sm text-muted">Commands and database backups that run on a cron schedule. Add them on a service’s Schedules tab.</p></div>
+      <Hero icon="clock" color="orange" title="Schedules" subtitle="Commands and database backups on a cron schedule. Add them on a service’s Schedules tab.">
+        <KpiStrip><Kpi icon="clock" color="orange" label="Schedules" value={jobs.length} /><Kpi icon="check-circle" color="success" label="Enabled" value={jobs.filter((j) => j.enabled).length} /><Kpi icon="database" color="purple" label="Backups" value={jobs.filter((j) => j.kind === 'backup').length} /><Kpi icon="terminal" color="blue" label="Commands" value={jobs.filter((j) => j.kind === 'command').length} /></KpiStrip>
+      </Hero>
       {error && <Alert tone="error">{error}</Alert>}
-      <DataTable columns={columns} rows={query.data?.jobs ?? []} loading={query.isPending} empty="Nothing is scheduled." storageKey="dp-jobs" />
+      <DataTable columns={columns} rows={jobs} loading={query.isPending} empty="Nothing is scheduled." storageKey="dp-jobs" />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Hero, Kpi, KpiStrip } from './ui.jsx';
 import { deploymentsApi } from '../../api/endpoints.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
@@ -9,8 +10,10 @@ export default function AuditPage() {
   const query = useQuery({ queryKey: ['deployments', 'audit'], queryFn: deploymentsApi.audit, refetchInterval: 20_000 });
   const rows = query.data?.audit ?? [];
   return (
-    <div className="max-w-3xl space-y-5">
-      <div><h1 className="text-lg font-semibold text-ink">Audit log</h1><p className="text-sm text-muted">The latest 100 actions in Deployments. Revealing a secret and opening a terminal are recorded here.</p></div>
+    <div className="space-y-4">
+      <Hero icon="shield" color="pink" title="Audit log" subtitle="The latest 100 actions in Deployments. Revealing a secret and opening a terminal are recorded here.">
+        <KpiStrip><Kpi icon="activity" color="pink" label="Recent actions" value={rows.length} /><Kpi icon="user" color="blue" label="People" value={new Set(rows.map((r) => r.who)).size} /><Kpi icon="eye" color="orange" label="Secrets viewed" value={rows.filter((r) => /Viewed secrets/.test(r.summary)).length} /><Kpi icon="terminal" color="purple" label="Terminals opened" value={rows.filter((r) => /Opened a terminal|Ran a command/.test(r.summary)).length} /></KpiStrip>
+      </Hero>
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
       <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
         {rows.length === 0 && !query.isPending && <li className="p-6 text-center text-sm text-muted">Nothing yet.</li>}

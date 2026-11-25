@@ -8,7 +8,6 @@ import OverviewPage from './OverviewPage.jsx';
 import ProjectPage from './ProjectPage.jsx';
 import ServersPage from './ServersPage.jsx';
 import ServicePage from './ServicePage.jsx';
-import AccessPage from './AccessPage.jsx';
 import ServicesPage from './ServicesPage.jsx';
 import QueuePage from './QueuePage.jsx';
 import SchedulesPage from './SchedulesPage.jsx';
@@ -39,7 +38,6 @@ export default function DeploymentsRoutes() {
       <Route path="audit" element={manager ? <AuditPage /> : <Navigate to="/app/deployments" replace />} />
       <Route path="templates" element={<TemplatesPage />} />
       <Route path="credentials" element={me.data.level === 'manager' ? <CredentialsPage /> : <Navigate to="/app/deployments" replace />} />
-      <Route path="access" element={<AccessPage />} />
       <Route path="servers" element={me.data.level === 'manager' ? <ServersPage /> : <Navigate to="/app/deployments" replace />} />
       <Route path="p/:projectId" element={<ProjectPage />} />
       <Route path="s/:serviceId/*" element={<ServicePage />} />

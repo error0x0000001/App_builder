@@ -20,6 +20,7 @@ import { Tabs } from '../../components/ui/Tabs.jsx';
 import { Textarea } from '../../components/ui/Textarea.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
 import { KINDS, KindTile, StatusBadge, ago, useCan } from './parts.jsx';
+import { Hero, Kpi, KpiStrip, hueFor, tint } from './ui.jsx';
 
 /** Drops what the form left empty or does not apply to the chosen kind, so the shared schema sees only real input. */
 const clean = (v) => {
@@ -120,13 +121,17 @@ export default function ProjectPage() {
   if (query.isError) return <Alert tone="error">{query.error.message}</Alert>;
   const tabs = project.environments.map((e) => ({ id: e.id, label: e.name }));
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
         {can('manager') && <Button size="sm" variant="neutral" onClick={() => setConfirm({ type: 'project' })}><Icon name="trash" className="size-4" />Delete project</Button>}
-        {can('manager') && <Button as={Link} to={`/app/deployments/templates?env=${env.id}`} size="sm" variant="neutral"><Icon name="grid" className="size-4" />From template</Button>}
-        {can('manager') && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New service</Button>}
       </PageToolbar>
-      <div><h1 className="text-lg font-semibold text-ink">{project.name}</h1>{project.description && <p className="text-sm text-muted">{project.description}</p>}</div>
+      <Hero icon="package" color={hueFor(project.name)} title={project.name} subtitle={project.description || 'No description'}
+        actions={<>
+          {can('manager') && <Button as={Link} to={`/app/deployments/templates?env=${env.id}`} size="sm" variant="neutral"><Icon name="grid" className="size-4" />From template</Button>}
+          {can('manager') && <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />New service</Button>}
+        </>}>
+        <KpiStrip><Kpi icon="cube" color="blue" label={`Services in ${env.name}`} value={env.services.length} /><Kpi icon="check-circle" color="success" label="Running" value={env.services.filter((x) => x.status === 'done').length} /><Kpi icon="alert" color={env.services.some((x) => x.status === 'error') ? 'error' : 'gray'} label="Failing" value={env.services.filter((x) => x.status === 'error').length} /><Kpi icon="layers" color="purple" label="Environments" value={project.environments.length} /></KpiStrip>
+      </Hero>
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1"><Tabs tabs={tabs} value={env.id} onChange={setEnvId} label="Environments" /></div>

@@ -5,6 +5,7 @@ import { AreaChart, ChartLegend } from '../../components/ui/charts/AreaChart.jsx
 import { FeaturedIcon } from '../../components/ui/FeaturedIcon.jsx';
 import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
 import { StatusBadge } from './parts.jsx';
+import { Hero, Kpi, KpiStrip } from './ui.jsx';
 
 function ServerCard({ server, metrics }) {
   const m = metrics ?? [];
@@ -36,12 +37,16 @@ export default function MonitoringPage() {
   const servers = useQuery({ queryKey: ['deployments', 'servers'], queryFn: deploymentsApi.servers, refetchInterval: 30_000 });
   const list = servers.data?.servers ?? [];
   const results = useQueries({ queries: list.map((s) => ({ queryKey: ['deployments', 'server-metrics', s.id, 6], queryFn: () => deploymentsApi.serverMetrics(s.id, 6), refetchInterval: 60_000 })) });
+  const lastOf = (i) => { const m = results[i]?.data?.metrics ?? []; return m[m.length - 1]; };
+  const avg = (kind) => { const v = list.map((_, i) => lastOf(i)).filter(Boolean).map((x) => (kind === 'cpu' ? x.cpu : x.memTotalMb ? (x.memUsedMb / x.memTotalMb) * 100 : 0)); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0; };
   return (
-    <div className="space-y-5">
-      <div><h1 className="text-lg font-semibold text-ink">Monitoring</h1><p className="text-sm text-muted">The last 6 hours on each server, sampled every 5 minutes.</p></div>
+    <div className="space-y-4">
+      <Hero icon="cpu" color="purple" title="Monitoring" subtitle="The last 6 hours on each server, sampled every 5 minutes.">
+        <KpiStrip><Kpi icon="server" color="purple" label="Servers" value={list.length} /><Kpi icon="check-circle" color="success" label="Ready" value={list.filter((x) => x.status === 'ready').length} /><Kpi icon="cpu" color="orange" label="Avg CPU now" value={`${avg('cpu')}%`} /><Kpi icon="database" color="teal" label="Avg memory now" value={`${avg('mem')}%`} /></KpiStrip>
+      </Hero>
       {servers.isError && <Alert tone="error">{servers.error.message}</Alert>}
       {!servers.isPending && list.length === 0 && <p className="py-10 text-center text-sm text-muted">Add a server to see its metrics.</p>}
-      <div className="space-y-4">{list.map((s, i) => <ServerCard key={s.id} server={s} metrics={results[i]?.data?.metrics} />)}</div>
+      <div className="grid items-start gap-4 2xl:grid-cols-2">{list.map((s, i) => <ServerCard key={s.id} server={s} metrics={results[i]?.data?.metrics} />)}</div>
     </div>
   );
 }

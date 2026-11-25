@@ -20,6 +20,7 @@ import { ProgressBar } from '../../components/ui/ProgressBar.jsx';
 import { Select } from '../../components/ui/Select.jsx';
 import { Sheet } from '../../components/ui/Sheet.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
+import { Hero, Kpi, KpiStrip, Panel, hueFor, tint } from './ui.jsx';
 import { TerminalView } from './TerminalView.jsx';
 import { LogView, StatusBadge, useDeploymentLog } from './parts.jsx';
 
@@ -170,11 +171,14 @@ export default function ServersPage() {
       </span>
     ) },
   ];
+  const list = query.data?.servers ?? [];
   return (
-    <div className="space-y-5">
-      <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>}>
-        <Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />Add server</Button>
-      </PageToolbar>
+    <div className="space-y-4">
+      <PageToolbar meta={<Link to="/app/deployments" className="inline-flex items-center gap-1 font-medium text-muted hover:text-ink"><Icon name="chevron-left" className="size-4" />Deployments</Link>} />
+      <Hero icon="server" color="purple" title="Servers" subtitle="Machines you own that Quelli reaches over SSH. Docker, Swarm and HTTPS are set up on each."
+        actions={<Button size="sm" onClick={() => setAdding(true)}><Icon name="plus" className="size-4" />Add server</Button>}>
+        <KpiStrip><Kpi icon="server" color="purple" label="Servers" value={list.length} /><Kpi icon="check-circle" color="success" label="Ready" value={list.filter((s) => s.status === 'ready').length} /><Kpi icon="alert" color={list.some((s) => s.status === 'error') ? 'error' : 'gray'} label="Need attention" value={list.filter((s) => s.status !== 'ready').length} /><Kpi icon="cube" color="blue" label="Services on them" value={list.reduce((n, s) => n + (s.services ?? 0), 0)} /></KpiStrip>
+      </Hero>
       {error && <Alert tone="error">{error}</Alert>}
       {query.isError && <Alert tone="error">{query.error.message}</Alert>}
       <DataTable columns={columns} rows={query.data?.servers ?? []} loading={query.isPending} storageKey="deployments:servers" empty="No servers yet. Add one to start deploying." />
