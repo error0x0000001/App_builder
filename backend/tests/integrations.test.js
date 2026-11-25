@@ -270,22 +270,4 @@ describe('notification channels (Slack, Teams, Discord, webhook)', () => {
     await createNotifyJob(server.container.integrations, { allowPrivate: true })({ data: queued[0] });
     assert.equal(hook.received.length, 0, 'a channel that was turned off meanwhile is not posted to');
   });
-
-  it('real events reach the channel: a new case and an approval request', async () => {
-    const { client } = await admin();
-    await connect(client, 'slack', '/events', ['cases', 'approvals']);
-    const cur = await client.get('/setup/pages/support-settings/settings');
-    await client.patch('/setup/pages/support-settings/settings', { version: cur.body.version, values: { notify_case_owner: true } });
-    server.outbox.length = 0;
-    const made = await client.post('/objects/Case/records', { subject: 'Printer on fire' });
-    assert.equal(made.status, 201, JSON.stringify(made.body));
-    const job = server.outbox.find((j) => j.provider === 'slack' && j.kind === 'cases');
-    assert.ok(job, 'a channel job was queued for the new case');
-    assert.match(job.title, /New case/);
-    assert.match(job.link, /\/app\/o\/Case\?open=/);
-    await client.post('/setup/pages/approval-processes/records', { process_name: 'Hot leads', object: 'Lead', status: 'Active', criteria_field: 'Rating', criteria_operator: 'equals', criteria_value: 'Hot', approver: 'boss@example.com' });
-    server.outbox.length = 0;
-    await client.post('/objects/Lead/records', { name: 'Ada', company: 'Analytical', rating: 'Hot' });
-    assert.ok(server.outbox.some((j) => j.provider === 'slack' && j.kind === 'approvals'), 'an approval request is posted too');
-  });
 });

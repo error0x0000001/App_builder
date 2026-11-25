@@ -1,17 +1,13 @@
-import { INTERNAL_COLLECTIONS, SETUP_PAGES } from '@app/shared/setup-registry';
-import { FILE_KIND_LABELS, getAdapterMeta } from '@app/shared';
+import { FILE_KIND_LABELS } from '@app/shared';
 import { sql } from 'drizzle-orm';
-import { pgArray } from '../../shared/db/helpers.js';
 import { searchSetupIndex } from './staticIndex.js';
 
-/** Cache namespace of an organisation's search results; bumped on every data, rule, sharing, profile or membership change so permissions apply at once. */
+/** Cache namespace of an organisation's search results; bumped on every data, sharing, profile or membership change so permissions apply at once. */
 export const searchNs = (ws) => `search:${ws}`;
 
 const GROUP_BUDGET_MS = 250; // a slow group is dropped (and flagged partial) instead of holding up the others
 const MIN_CHARS = 2;
 const CONTAINS_MIN = 3; // trigram needs 3+ characters; shorter queries match by prefix only
-/** Must match the partial indexes in migration 0007: the same literal predicate lets the planner use them. */
-const NOISY = sql`'debug-log-entries', 'email-log', 'tool-runs', 'duplicate-error-logs', 'case-escalations'`;
 const escapeLike = (s) => s.replace(/[\\%_]/g, '\\$&');
 
 const timeLimited = (promise, ms) => new Promise((resolve) => {
@@ -19,26 +15,16 @@ const timeLimited = (promise, ms) => new Promise((resolve) => {
   promise.then((items) => { clearTimeout(timer); resolve({ items }); }, () => { clearTimeout(timer); resolve({ failed: true, items: [] }); });
 });
 
-/** Setup list pages worth searching (not log-like, not adapters over real tables). */
-const SETUP_COLLECTIONS = Object.fromEntries(
-  [...Object.values(SETUP_PAGES).filter((p) => (p.kind === 'list' || p.kind === 'tree') && !getAdapterMeta(p.key)).map((p) => [p.key, p.name]),
-    ...Object.values(INTERNAL_COLLECTIONS).filter((c) => c.key !== 'debug-log-entries').map((c) => [c.key, c.name])]
-    .filter(([key]) => !['duplicate-error-logs', 'case-escalations'].includes(key)),
-);
-
-/** Setup list pages whose records are documents (templates, letterheads, files) — searched as "Documents", not as configuration. */
-const DOCUMENT_COLLECTIONS = ['email-templates', 'letterheads', 'mail-merge-templates', 'asset-files', 'post-templates', 'action-link-templates'];
-
 /** Which result groups each scope asks for. "Records" covers the people of the organisation too. */
 const SCOPES = { all: ['records', 'people', 'navigation', 'documents'], records: ['records', 'people'], people: ['people'], navigation: ['navigation'], documents: ['documents'] };
 
 /**
- * One query box for everything the person may see: records of every object (permissions + sharing respected), people,
- * and — for admins — Setup pages, individual settings and Setup records (navigation), and document-like Setup records (documents).
- * Each group is looked up in parallel; prefix matches (btree) come first, then substring matches (trigram), both capped.
+ * One query box for everything the person may see: records, people, and — for admins — Setup pages, settings and configuration (navigation), plus Documents.
+ * Records come from registered sources (`recordSources`: objects with real tables plug in here, each one filtering by what the person may read); none exist yet,
+ * so that group is empty for now. Each group is looked up in parallel; prefix matches come first, then substring matches, both capped.
  */
 export class SearchService {
-  constructor({ db, objects, cache, drive }) { Object.assign(this, { db, objects, cache, drive }); }
+  constructor({ db, cache, drive, recordSources = [] }) { Object.assign(this, { db, cache, drive, recordSources }); }
 
   search(ctx, { q, type = 'all' }) {
     const query = q.trim();
@@ -55,7 +41,7 @@ export class SearchService {
       records: wants('records') && this.#records(ctx, query, limit),
       people: wants('people') && query.length >= CONTAINS_MIN && this.#people(ctx, query, limit),
       navigation: wants('navigation') && admin && this.#navigation(ctx, query, limit),
-      documents: wants('documents') && this.#documents(ctx, query, limit, admin),
+      documents: wants('documents') && this.#documents(ctx, query, limit),
     };
     const entries = await Promise.all(Object.entries(tasks).filter(([, p]) => p).map(async ([key, p]) => [key, await timeLimited(p, GROUP_BUDGET_MS)]));
     return {
@@ -66,29 +52,9 @@ export class SearchService {
     };
   }
 
-  /** Two-phase: prefix matches first (index range scan), then substring matches to fill the page. */
-  async #twoPhase(prefixQuery, containsQuery, query, limit) {
-    const lowered = escapeLike(query.toLowerCase());
-    const prefix = await prefixQuery(`${lowered}%`, limit);
-    if (prefix.length >= limit || query.length < CONTAINS_MIN) return prefix;
-    const seen = new Set(prefix.map((r) => r.id));
-    const contains = await containsQuery(`%${lowered}%`, limit + prefix.length);
-    return [...prefix, ...contains.filter((r) => !seen.has(r.id))].slice(0, limit);
-  }
-
   async #records(ctx, query, limit) {
-    const { all, own, plural } = await this.objects.readScopes(ctx);
-    if (!all.length && !own.length) return [];
-    const scope = sql.join([
-      ...(all.length ? [sql`collection = any(${pgArray(all, 'text')})`] : []),
-      ...own.map((o) => sql`(collection = ${o.collection} and data @> ${JSON.stringify({ [o.ownerKey]: ctx.email })}::jsonb)`),
-    ], sql` or `);
-    const find = (pattern, op, n) => this.db.execute(sql`
-      select id, label, status, collection from setup_records
-      where tenant_id = ${ctx.tenantId} and (${scope}) and collection not in (${NOISY}) and lower(label) ${op} ${pattern}
-      limit ${n}`).then((r) => r.rows);
-    const rows = await this.#twoPhase((p, n) => find(p, sql`like`, n), (p, n) => find(p, sql`like`, n), query, limit);
-    return rows.map((r) => ({ id: r.id, kind: 'record', title: r.label, subtitle: r.status ?? '', tag: plural.get(r.collection), to: `/app/o/${r.collection.slice(4)}?open=${r.id}` }));
+    const found = await Promise.all(this.recordSources.map((source) => source.search(ctx, query, limit)));
+    return found.flat().slice(0, limit);
   }
 
   async #people(ctx, query, limit) {
@@ -99,35 +65,26 @@ export class SearchService {
     return rows.map((r) => ({ id: r.id, kind: 'person', title: `${r.first_name} ${r.last_name}`, subtitle: r.email, tag: r.role, to: '/app/members' }));
   }
 
-  async #setupRecords(ctx, query, limit, keys) {
-    const find = (pattern, n) => this.db.execute(sql`
-      select id, label, status, collection from setup_records
-      where tenant_id = ${ctx.tenantId} and collection = any(${pgArray(keys, 'text')}) and collection not in (${NOISY}) and lower(label) like ${pattern}
-      limit ${n}`).then((r) => r.rows);
-    return this.#twoPhase(find, find, query, limit);
-  }
-
-  /** Setup pages, individual settings and configuration records (rules, profiles …). */
+  /** Setup pages and individual settings (the registry), plus the organisation's real configuration: profiles, permission sets and roles. */
   async #navigation(ctx, query, limit) {
     const staticHits = searchSetupIndex(query, limit).map((hit) => ({ ...hit, tag: hit.kind === 'page' ? 'Setup page' : 'Setting' }));
-    const keys = Object.keys(SETUP_COLLECTIONS).filter((key) => !DOCUMENT_COLLECTIONS.includes(key));
-    const rows = await this.#setupRecords(ctx, query, limit, keys);
-    const records = rows.map((r) => ({ id: r.id, kind: 'config', title: r.label, subtitle: SETUP_COLLECTIONS[r.collection], tag: 'Configuration', to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
-    return [...staticHits, ...records].slice(0, type_limit(limit));
+    const pattern = `%${escapeLike(query.toLowerCase())}%`;
+    const { rows } = await this.db.execute(sql`
+      select * from (
+        select id, name, 'profiles' as page, 'Profile' as kind from profiles where tenant_id = ${ctx.tenantId} and lower(name) like ${pattern}
+        union all select id, name, 'object-settings', 'Permission set' from permission_sets where tenant_id = ${ctx.tenantId} and lower(name) like ${pattern}
+        union all select id, name, 'roles', 'Role' from hierarchy_roles where tenant_id = ${ctx.tenantId} and lower(name) like ${pattern}
+      ) c limit ${limit}`);
+    const config = rows.map((r) => ({ id: r.id, kind: 'config', title: r.name, subtitle: r.kind, tag: 'Configuration', to: `/app/setup/${r.page}?q=${encodeURIComponent(r.name)}` }));
+    return [...staticHits, ...config].slice(0, limit * 2);
   }
 
-  /** Files and folders of the Documents drive (only those this person may see), plus — for admins — document-like Setup records (templates, letterheads …). */
-  async #documents(ctx, query, limit, admin) {
+  /** Files and folders of the Documents drive (only those this person may see). */
+  async #documents(ctx, query, limit) {
     const { files, folders } = await this.drive.search(ctx, query, limit);
-    const drive = [
+    return [
       ...folders.map((f) => ({ id: f.id, kind: 'folder', title: f.name, subtitle: '', tag: 'Folder', to: `/app/documents?folder=${f.id}` })),
       ...files.map((f) => ({ id: f.id, kind: 'file', title: f.name, subtitle: f.folderName ?? '', tag: FILE_KIND_LABELS[f.kind], to: `/app/documents?folder=${f.folderId}&file=${f.id}` })),
-    ];
-    if (!admin) return drive.slice(0, limit);
-    const rows = await this.#setupRecords(ctx, query, limit, DOCUMENT_COLLECTIONS);
-    const templates = rows.map((r) => ({ id: r.id, kind: 'document', title: r.label, subtitle: r.status ?? '', tag: SETUP_COLLECTIONS[r.collection], to: `/app/setup/${r.collection}?q=${encodeURIComponent(r.label)}` }));
-    return [...drive, ...templates].slice(0, limit * 2);
+    ].slice(0, limit * 2);
   }
 }
-
-const type_limit = (limit) => limit * 2;

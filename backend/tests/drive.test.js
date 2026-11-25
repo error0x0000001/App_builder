@@ -135,7 +135,7 @@ describe('documents: access control', () => {
     const q1file = (await alice.upload(`${D}/files`, { fields: { folderId: q1.id }, filename: 'q1.txt', content: 'q1' })).body.file;
 
     // bob has no access: nothing visible, direct access answers 404 (existence is not revealed)
-    assert.deepEqual(names(await list(bob)), ['Records']);
+    assert.deepEqual(names(await list(bob)), []);
     assert.equal((await list(bob, `?folder=${finance.id}`)).status, 404);
     assert.equal((await bob.download(`${D}/files/${q1file.id}/download`)).status, 404);
     assert.equal((await bob.upload(`${D}/files`, { fields: { folderId: finance.id }, filename: 'x.txt' })).status, 404);
@@ -144,7 +144,7 @@ describe('documents: access control', () => {
     // alice (manager) shares with bob as viewer
     const shared = await alice.request('PUT', `${D}/folders/${finance.id}/access`, { entries: [{ principalType: 'user', principalId: bobId, role: 'viewer' }] });
     assert.equal(shared.status, 200, JSON.stringify(shared.body));
-    assert.deepEqual(names(await list(bob)), ['Finance', 'Records']);
+    assert.deepEqual(names(await list(bob)), ['Finance']);
     assert.deepEqual(names(await list(bob, '?view=shared')), ['Finance']);
     assert.deepEqual(names(await list(bob, `?folder=${finance.id}`)), ['Q1', 'budget.txt'], 'the subfolder inherits the grant');
     assert.equal((await bob.download(`${D}/files/${q1file.id}/download`)).text, 'q1');
@@ -181,57 +181,6 @@ describe('documents: access control', () => {
     const info = await alice.get(`${D}/folders/${finance.id}/access`);
     assert.equal(info.body.owner.id, aliceId); assert.equal(info.body.folder.role, 'manager');
     assert.equal((await boss.get(`/people?q=meera`)).body.people.length >= 2, true, 'every "add people" picker can search members');
-  });
-
-  it('record attachments use the record uuid, follow the record permission, and show up in Documents', async () => {
-    const { client: boss } = await registerUser(server);
-    const { person: viewer } = await join(boss, 'viewer');
-    const { person: member } = await join(boss, 'member');
-    const lead = (await boss.post('/objects/Lead/records', { name: 'Ada Lovelace' })).body.record;
-
-    const up = await boss.upload(`${D}/records/Lead/${lead.id}/files`, { filename: 'contract.pdf', content: '%PDF-1.4 test', type: 'application/pdf' });
-    assert.equal(up.status, 201, JSON.stringify(up.body));
-    assert.equal(up.body.file.recordObject, 'Lead'); assert.equal(up.body.file.recordId, lead.id);
-    const files = (await boss.get(`${D}/records/Lead/${lead.id}/files`)).body;
-    assert.deepEqual(files.files.map((f) => f.name), ['contract.pdf']); assert.equal(files.canUpload, true);
-
-    // visible in Documents: Records › Leads › the record
-    const root = (await list(boss)).body.folders.find((f) => f.name === 'Records');
-    const objectFolder = (await list(boss, `?folder=${root.id}`)).body.folders[0];
-    assert.equal(objectFolder.name, 'Leads');
-    const recordFolder = (await list(boss, `?folder=${objectFolder.id}`)).body.folders[0];
-    assert.equal(recordFolder.recordId, lead.id, 'the folder is keyed by the record uuid');
-    const inside = await list(boss, `?folder=${recordFolder.id}`);
-    assert.deepEqual(inside.body.files.map((f) => f.name), ['contract.pdf']);
-    assert.deepEqual(inside.body.folder.breadcrumbs.map((b) => b.name), ['Records', 'Leads', 'Ada Lovelace']);
-
-    // a second upload goes to the same folder (one folder per record uuid)
-    await boss.upload(`${D}/records/Lead/${lead.id}/files`, { filename: 'notes.txt' });
-    assert.equal((await list(boss, `?folder=${recordFolder.id}`)).body.files.length, 2);
-    assert.equal((await list(boss, `?folder=${objectFolder.id}`)).body.folders.length, 1);
-
-    // readers (viewer role) can see and download but not upload; the record permission decides, not folder grants
-    assert.equal((await viewer.get(`${D}/records/Lead/${lead.id}/files`)).body.files.length, 2);
-    assert.equal((await viewer.get(`${D}/records/Lead/${lead.id}/files`)).body.canUpload, false);
-    assert.equal((await viewer.upload(`${D}/records/Lead/${lead.id}/files`, { filename: 'v.txt' })).status, 403);
-    assert.equal((await viewer.download(`${D}/files/${up.body.file.id}/download`)).status, 200);
-    assert.deepEqual((await list(viewer, `?folder=${recordFolder.id}`)).body.files.length, 2, 'browsable through Records');
-    assert.equal((await viewer.post(`${D}/trash`, { type: 'file', id: up.body.file.id })).status, 403, 'a viewer cannot delete attachments');
-    assert.ok((await viewer.get('/search?q=contract&type=documents')).body.groups.documents.some((d) => d.title === 'contract.pdf'));
-
-    // a record that does not exist, or a profile without read access, gives nothing
-    assert.equal((await boss.get(`${D}/records/Lead/${'00000000-0000-4000-8000-000000000000'}/files`)).status, 404);
-    const ws = (await boss.get('/me')).body.activeTenantId;
-    await boss.get(`/setup/pages/profiles/records`);
-    const users = (await boss.get('/setup/pages/users/records')).body.items;
-    const mEmail = (await member.get('/me')).body.user.email;
-    await boss.patch(`/setup/pages/users/records/${users.find((u) => u.email === mEmail).id}`, { profile: 'Minimum Access - API Only' });
-    assert.equal((await member.get(`${D}/records/Lead/${lead.id}/files`)).status, 403, 'no read access to Leads');
-    assert.equal((await member.download(`${D}/files/${up.body.file.id}/download`)).status, 404);
-    const recordsRoot = (await list(member)).body.folders.find((f) => f.name === 'Records');
-    assert.deepEqual((await list(member, `?folder=${recordsRoot.id}`)).body.folders, [], 'the Leads folder disappears from Records');
-    assert.equal((await list(member, `?folder=${objectFolder.id}`)).status, 404);
-    assert.equal(ws.length > 0, true);
   });
 });
 

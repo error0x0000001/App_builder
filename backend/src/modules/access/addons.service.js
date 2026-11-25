@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { pgArray } from '../../shared/db/helpers.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/errors.js';
 
-const key = (ws, userId) => `${ws}:${userId}`;
+const key = (tenantId, userId) => `${tenantId}:${userId}`;
 const list = (values) => sql.join(values.map((v) => sql`${v}`), sql`, `);
 
 /**
@@ -12,7 +12,7 @@ const list = (values) => sql.join(values.map((v) => sql`${v}`), sql`, `);
  *  - A person's sets are ONE primary-key prefix lookup, memoised in a bounded in-process map (`peek` is synchronous and allocation-free),
  *    so the access check stays far below a millisecond once warm. A write drops the entry on this worker; other workers pick it up
  *    within `ttlMs` (the same <= 5 s convergence the rest of the access cache has).
- *  - Nothing here loads "every assignment in the organisation" — that is the pattern this replaces for new assignments.
+ *  - Nothing here loads "every assignment in the tenant".
  *  - Counts are exact and never capped. They accept several conditions at once (see `count`).
  *
  * `createAccessAddons({ enabled })` returns null when the feature is off: nothing is constructed, routed, queried or shown.
@@ -25,70 +25,46 @@ class AccessAddonsService {
   #map = new Map();
   #inflight = new Map();
 
-  constructor({ db, cache, repos, seed, ttlMs = 5_000, max = 500_000 }) { Object.assign(this, { db, cache, repos, seed, ttlMs, max }); }
+  constructor({ db, repos, changed = async () => {}, ttlMs = 5_000, max = 500_000 }) { Object.assign(this, { db, repos, changed, ttlMs, max }); }
 
-  /** Synchronous fast path: the person's sets if they are in memory and fresh, else undefined. */
-  peek(ws, userId) {
-    const hit = this.#map.get(key(ws, userId));
-    return hit && hit.until > Date.now() ? hit.sets : undefined;
+  /** Synchronous fast path: the ids of the person's permission sets if they are in memory and fresh, else undefined. */
+  peek(tenantId, userId) {
+    const hit = this.#map.get(key(tenantId, userId));
+    return hit && hit.until > Date.now() ? hit.ids : undefined;
   }
 
-  /** The person's permission-set names (cached). */
-  async setsFor(ws, userId) {
-    const fast = this.peek(ws, userId);
+  async setIdsFor(tenantId, userId) {
+    const fast = this.peek(tenantId, userId);
     if (fast) return fast;
-    const k = key(ws, userId);
+    const k = key(tenantId, userId);
     const running = this.#inflight.get(k);
     if (running) return running;
     const task = (async () => {
-      const { rows } = await this.db.execute(sql`select permission_set from user_permission_sets where tenant_id = ${ws} and user_id = ${userId}::uuid`);
-      const sets = rows.map((r) => r.permission_set);
-      if (this.#map.size >= this.max) this.#map.delete(this.#map.keys().next().value); // oldest first; bounded memory at any organisation size
-      this.#map.set(k, { sets, until: Date.now() + this.ttlMs });
-      return sets;
+      const ids = await this.repos.access.assignedSetIds(tenantId, userId);
+      if (this.#map.size >= this.max) this.#map.delete(this.#map.keys().next().value); // oldest first; bounded memory at any tenant size
+      this.#map.set(k, { ids, until: Date.now() + this.ttlMs });
+      return ids;
     })().finally(() => this.#inflight.delete(k));
     this.#inflight.set(k, task);
     return task;
   }
 
-  /** Names a person can be given: every Object Settings container that is not a profile. */
-  catalogue(ws) {
-    return this.cache.rememberValue(`r:${ws}:object-settings`, 'addons-catalogue', { ttlMs: 30_000 }, async () => { // same namespace as the grants: editing Object Settings refreshes it
-      await this.seed(ws, 'object-settings');
-      await this.seed(ws, 'profiles');
-      const { rows } = await this.db.execute(sql`
-        select distinct data->>'permission_set' as name from setup_records
-        where tenant_id = ${ws} and collection = 'object-settings' and coalesce(data->>'permission_set', '') <> ''
-          and data->>'permission_set' not in (select label from setup_records where tenant_id = ${ws} and collection = 'profiles')
-        order by 1`);
-      return rows.map((r) => r.name);
-    });
+  /** Every permission set of the tenant with how many people hold it (exact, uncapped). */
+  async catalogueWithCounts(tenantId) {
+    return (await this.repos.access.listPermissionSets(tenantId)).map((s) => ({ id: s.id, name: s.name, users: s.users }));
   }
 
-  /** Catalogue with how many people hold each set (exact, uncapped). */
-  async catalogueWithCounts(ws) {
-    const [names, counts] = await Promise.all([
-      this.catalogue(ws),
-      this.db.execute(sql`select permission_set, count(*)::int as n from user_permission_sets where tenant_id = ${ws} group by 1`),
-    ]);
-    const by = new Map(counts.rows.map((r) => [r.permission_set, r.n]));
-    return names.map((name) => ({ name, users: by.get(name) ?? 0 }));
-  }
+  list(tenantId, userId) { return this.repos.access.setsOfUser(tenantId, userId); }
 
-  async list(ws, userId) {
-    const { rows } = await this.db.execute(sql`select permission_set as name, created_at as "assignedAt" from user_permission_sets where tenant_id = ${ws} and user_id = ${userId}::uuid order by permission_set`);
-    return rows;
-  }
-
-  async #member(ws, userId) {
-    const { rows } = await this.db.execute(sql`select u.email from memberships m join users u on u.id = m.user_id where m.tenant_id = ${ws} and m.user_id = ${userId}::uuid`);
+  async #member(tenantId, userId) {
+    const { rows } = await this.db.execute(sql`select u.email from memberships m join users u on u.id = m.user_id where m.tenant_id = ${tenantId} and m.user_id = ${userId}::uuid`);
     if (!rows.length) throw new NotFoundError('That person is not a member of this organisation');
     return rows[0].email;
   }
 
-  async #changed(ws, userId) {
-    this.#map.delete(key(ws, userId));
-    await this.cache.bump(`search:${ws}`); // what someone may open decides what they may find
+  async #afterChange(tenantId, userId) {
+    this.#map.delete(key(tenantId, userId));
+    await this.changed(tenantId); // what someone may open decides what they may find
   }
 
   /** Nobody widens (or narrows) their own access — someone else does it, and it is audited. */
@@ -97,35 +73,38 @@ class AccessAddonsService {
   async assign(ctx, userId, name) {
     this.#notSelf(ctx, userId);
     const email = await this.#member(ctx.tenantId, userId);
-    if (!(await this.catalogue(ctx.tenantId)).includes(name)) throw new ValidationError([{ field: 'name', message: `No permission set named “${name}”` }]);
-    const { rowCount } = await this.db.execute(sql`insert into user_permission_sets (tenant_id, user_id, permission_set, assigned_by) values (${ctx.tenantId}, ${userId}::uuid, ${name}, ${ctx.userId}) on conflict do nothing`);
-    await this.#changed(ctx.tenantId, userId);
-    if (rowCount) await this.repos.setupAudit.record(ctx.tenantId, ctx.userId, 'users', 'update', `Added permission set “${name}” to ${email}`);
+    const set = await this.repos.access.permissionSetByName(ctx.tenantId, name);
+    if (!set) throw new ValidationError([{ field: 'name', message: `No permission set named “${name}”` }]);
+    const added = await this.repos.access.assign(ctx.tenantId, set.id, userId, ctx.userId);
+    await this.#afterChange(ctx.tenantId, userId);
+    if (added) await this.repos.auditLog.record(ctx.tenantId, ctx.userId, 'users', 'update', `Added permission set “${set.name}” to ${email}`);
     return this.list(ctx.tenantId, userId);
   }
 
   async unassign(ctx, userId, name) {
     this.#notSelf(ctx, userId);
     const email = await this.#member(ctx.tenantId, userId);
-    const { rowCount } = await this.db.execute(sql`delete from user_permission_sets where tenant_id = ${ctx.tenantId} and user_id = ${userId}::uuid and permission_set = ${name}`);
-    await this.#changed(ctx.tenantId, userId);
-    if (rowCount) await this.repos.setupAudit.record(ctx.tenantId, ctx.userId, 'users', 'update', `Removed permission set “${name}” from ${email}`);
+    const set = await this.repos.access.permissionSetByName(ctx.tenantId, name);
+    const removed = set ? await this.repos.access.unassign(ctx.tenantId, set.id, userId) : 0;
+    await this.#afterChange(ctx.tenantId, userId);
+    if (removed) await this.repos.auditLog.record(ctx.tenantId, ctx.userId, 'users', 'update', `Removed permission set “${set.name}” from ${email}`);
     return this.list(ctx.tenantId, userId);
   }
 
   /**
    * Exact member count for any combination of conditions — no cap. Every condition is optional and they all apply together (AND);
    * a condition with several values matches any of them (OR within it).
-   *   role: ['manager', …]   profile: […]   noProfile: true   permissionSet: […] (has any)   noPermissionSet: true   q: 'text in name or email'
+   *   role: ['member', …]   profile: ['Standard User', …]   noProfile: true   permissionSet: […] (has any)   noPermissionSet: true   q: 'text in name or email'
    */
-  async count(ws, { role, profile, noProfile, permissionSet, noPermissionSet, q } = {}) {
-    const where = [sql`m.tenant_id = ${ws}`];
+  async count(tenantId, { role, profile, noProfile, permissionSet, noPermissionSet, q } = {}) {
+    const where = [sql`m.tenant_id = ${tenantId}`];
+    const profileIds = (names) => sql`(select id from profiles where tenant_id = ${tenantId} and name = any(${pgArray(names, 'text')}))`;
     if (role?.length) where.push(sql`m.role in (${list(role)})`);
-    if (profile?.length && noProfile) where.push(sql`(m.profile in (${list(profile)}) or m.profile is null)`);
-    else if (profile?.length) where.push(sql`m.profile in (${list(profile)})`);
-    else if (noProfile) where.push(sql`m.profile is null`);
-    if (permissionSet?.length) where.push(sql`exists (select 1 from user_permission_sets ps where ps.tenant_id = m.tenant_id and ps.user_id = m.user_id and ps.permission_set = any(${pgArray(permissionSet, 'text')}))`);
-    if (noPermissionSet) where.push(sql`not exists (select 1 from user_permission_sets ps where ps.tenant_id = m.tenant_id and ps.user_id = m.user_id)`);
+    if (profile?.length && noProfile) where.push(sql`(m.profile_id in ${profileIds(profile)} or m.profile_id is null)`);
+    else if (profile?.length) where.push(sql`m.profile_id in ${profileIds(profile)}`);
+    else if (noProfile) where.push(sql`m.profile_id is null`);
+    if (permissionSet?.length) where.push(sql`exists (select 1 from permission_set_assignments a join permission_sets s on s.id = a.permission_set_id where a.tenant_id = m.tenant_id and a.user_id = m.user_id and s.name = any(${pgArray(permissionSet, 'text')}))`);
+    if (noPermissionSet) where.push(sql`not exists (select 1 from permission_set_assignments a where a.tenant_id = m.tenant_id and a.user_id = m.user_id)`);
     if (q) where.push(sql`exists (select 1 from users u where u.id = m.user_id and lower(u.first_name || ' ' || u.last_name || ' ' || u.email) like ${`%${q.toLowerCase().replace(/[\\%_]/g, '\\$&')}%`})`);
     const { rows } = await this.db.execute(sql`select count(*)::bigint as n from memberships m where ${sql.join(where, sql` and `)}`);
     return Number(rows[0].n);

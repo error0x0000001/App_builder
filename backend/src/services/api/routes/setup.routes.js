@@ -5,7 +5,7 @@ import { SETUP_COUNTS, SETUP_TREE, setupStatus, getCollection, getSetupPage, get
 import { createHash } from 'node:crypto';
 import { config } from '../../../shared/config.js';
 import { ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
-import { supportedViews } from '../../../modules/setup/records.service.js';
+import { supportedViews } from '../../../modules/setup/staticLists.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
@@ -78,11 +78,14 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
 
   router.get('/tree', (req, res) => sendEntry(req, res, stat('tree', () => ({ tree: SETUP_TREE, counts: SETUP_COUNTS })), 'private, max-age=300'));
 
+  /** What the UI may offer on a list: the adapter's declared abilities, or read-only when the page is a preview (no real table behind it yet). */
+  const PREVIEW = Object.freeze({ readOnly: true });
+  const abilitiesOf = (key, collection) => (records.adapters[key] ? getAdapterMeta(key) : collection ? PREVIEW : null);
   router.get('/pages/:key', params, resolve, (req, res) => {
     const { key } = req.params;
     sendEntry(req, res, stat(`page:${key}`, () => ({
-      page: req.page ?? req.collection, status: req.page ? setupStatus(req.page) : null, adapter: getAdapterMeta(key) ?? null, tool: getToolMeta(key),
-      views: req.collection ? supportedViews(req.collection) : [],
+      page: req.page ?? req.collection, status: req.page ? setupStatus(req.page) : null, adapter: abilitiesOf(key, req.collection), tool: getToolMeta(key),
+      views: req.collection && !records.adapters[key] ? supportedViews(req.collection) : [],
     })), 'private, max-age=300');
   });
 
@@ -128,12 +131,6 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
 
   router.post('/pages/:key/run', params, resolve, need((r) => r.page?.kind === 'info', 'Not a tool page'), async (req, res) => {
     res.json(await tools.run(req.setupCtx, req.page, req.body));
-  });
-
-  router.get('/pages/:key/export', params, resolve, need((r) => r.page?.kind === 'info' && getToolMeta(r.page.key)?.download, 'Not an export tool'), validate({ query: z.object({ object: z.string().max(200) }) }), async (req, res) => {
-    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${req.valid.query.object.replace(/[^\w .-]/g, '_')}.csv"`, 'Cache-Control': 'no-store' });
-    for await (const chunk of tools.exportRows({ ...req.setupCtx, pageKey: req.params.key }, req.valid.query.object)) if (!res.write(chunk)) await new Promise((r) => res.once('drain', r));
-    res.end();
   });
 
   return router;

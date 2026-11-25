@@ -1,0 +1,138 @@
+[
+ {
+  "key": "Lead",
+  "plural": "Leads"
+ },
+ {
+  "key": "Account",
+  "plural": "Accounts"
+ },
+ {
+  "key": "Contact",
+  "plural": "Contacts"
+ },
+ {
+  "key": "Opportunity",
+  "plural": "Opportunities"
+ },
+ {
+  "key": "Case",
+  "plural": "Cases"
+ },
+ {
+  "key": "Campaign",
+  "plural": "Campaigns"
+ },
+ {
+  "key": "Task",
+  "plural": "Tasks"
+ },
+ {
+  "key": "Event",
+  "plural": "Events"
+ },
+ {
+  "key": "Product",
+  "plural": "Products"
+ },
+ {
+  "key": "Quote",
+  "plural": "Quotes"
+ },
+ {
+  "key": "Contract",
+  "plural": "Contracts"
+ },
+ {
+  "key": "Employee",
+  "plural": "Employees"
+ },
+ {
+  "key": "Job",
+  "plural": "Job Openings"
+ },
+ {
+  "key": "Candidate",
+  "plural": "Candidates"
+ },
+ {
+  "key": "TimeOff",
+  "plural": "Time Off Requests"
+ },
+ {
+  "key": "Article",
+  "plural": "Knowledge Articles"
+ },
+ {
+  "key": "WorkOrder",
+  "plural": "Work Orders"
+ },
+ {
+  "key": "ServiceAppointment",
+  "plural": "Service Appointments"
+ },
+ {
+  "key": "ServiceResource",
+  "plural": "Service Resources"
+ },
+ {
+  "key": "Asset",
+  "plural": "Assets"
+ },
+ {
+  "key": "PriceBook",
+  "plural": "Price Books"
+ },
+ {
+  "key": "DataStream",
+  "plural": "Data Streams"
+ },
+ {
+  "key": "Order",
+  "plural": "Sales Orders"
+ },
+ {
+  "key": "PurchaseOrder",
+  "plural": "Purchase Orders"
+ },
+ {
+  "key": "Invoice",
+  "plural": "Invoices"
+ },
+ {
+  "key": "Payment",
+  "plural": "Payments"
+ },
+ {
+  "key": "StockTransfer",
+  "plural": "Stock Transfers"
+ },
+ {
+  "key": "BillOfMaterials",
+  "plural": "Bills of Materials"
+ },
+ {
+  "key": "ManufacturingOrder",
+  "plural": "Manufacturing Orders"
+ },
+ {
+  "key": "Project",
+  "plural": "Projects"
+ },
+ {
+  "key": "ProjectTask",
+  "plural": "Project Tasks"
+ },
+ {
+  "key": "Timesheet",
+  "plural": "Timesheet Entries"
+ },
+ {
+  "key": "Expense",
+  "plural": "Expenses"
+ },
+ {
+  "key": "StockItem",
+  "plural": "Stock Items"
+ }
+]

@@ -6,9 +6,12 @@ import fixtures from '../../../seed/setup-fixtures.generated.json' with { type: 
  *   write(ws, patch) -> applies bound keys to their real owner and returns the keys that should be stored as settings
  */
 export class SettingsBindings {
-  constructor({ repos, appHost, usage, intakeUrl }) { Object.assign(this, { repos, appHost, usage, intakeUrl }); this.map = this.#build(); }
+  constructor({ repos, appHost, usage }) { Object.assign(this, { repos, appHost, usage }); this.map = this.#build(); }
 
   async read(ws, pageKey) { return this.map[pageKey]?.read ? this.map[pageKey].read(ws) : {}; }
+
+  /** Keys of a bound page that can be written (applied to their real owner). */
+  writable(pageKey) { return this.map[pageKey]?.writable ?? []; }
 
   /** Keys that mirror real platform data and cannot be edited on the Setup page. */
   readOnly(pageKey) { return this.map[pageKey]?.readOnly ?? []; }
@@ -27,19 +30,19 @@ export class SettingsBindings {
     const date = (d) => new Date(d).toISOString().slice(0, 10);
     return {
       'company-information': {
+        writable: ['organization_name'],
         readOnly: ['salesforce_com_organization_id', 'created', 'edition', 'instance', 'used_data_space', 'used_file_space', 'api_requests_last_24_hours', 'streaming_api_events_last_24_hours'],
         read: async (ws) => {
           const w = await tenant(ws);
-          const [storage, api] = await Promise.all([this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws)]);
-          const mb = storage.reduce((n, r) => n + r.bytes, 0) / 1e6;
+          const api = await this.usage.last24h(ws);
           return {
             organization_name: w.name, salesforce_com_organization_id: w.id, created: date(w.createdAt), edition: 'Enterprise', instance: 'Quelli Cloud',
-            used_data_space: `${mb.toFixed(1)} MB`, used_file_space: '0 MB', api_requests_last_24_hours: api.toLocaleString('en-US'), streaming_api_events_last_24_hours: '0',
+            used_data_space: '—', used_file_space: '—', api_requests_last_24_hours: api.toLocaleString('en-US'), streaming_api_events_last_24_hours: '0',
           };
         },
         write: async (ws, patch) => {
           const { organization_name: name, ...rest } = patch;
-          if (name) await this.repos.tenants.update(ws, { name });
+          if (name) { await this.repos.tenants.update(ws, { name }); await this.repos.hierarchy.renameRoot(ws, name); }
           return rest;
         },
         tables: {
@@ -48,10 +51,6 @@ export class SettingsBindings {
             return [{ license: 'User Licenses', type: 'Organisation member', total: 'Unlimited', used: String(members), remaining: '∞' }];
           },
         },
-      },
-      'email-to-case': {
-        readOnly: ['routing_address'],
-        read: async (ws) => ({ routing_address: this.intakeUrl('email-to-case', ws) }),
       },
       'my-domain': {
         readOnly: ['current_my_domain_url', 'domain_type', 'status', 'domain_created'],

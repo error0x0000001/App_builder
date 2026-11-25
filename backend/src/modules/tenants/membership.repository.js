@@ -1,5 +1,5 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { memberships, users, tenants } from '../../shared/db/schema/index.js';
+import { hierarchyRoles, memberships, profiles, tenants, users } from '../../shared/db/schema/index.js';
 import { first } from '../../shared/db/helpers.js';
 
 export class MembershipRepository {
@@ -27,9 +27,10 @@ export class MembershipRepository {
     const cursor = after ? sql`and (${memberships.createdAt}, ${memberships.userId}) > (${after.createdAt}::timestamptz, ${after.userId}::uuid)` : sql``;
     return this.db.select({
       userId: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName,
-      role: memberships.role, profile: memberships.profile, joinedAt: memberships.createdAt,
+      role: memberships.role, profileId: memberships.profileId, profile: profiles.name, hierarchyRoleId: memberships.hierarchyRoleId, hierarchyRole: hierarchyRoles.name, joinedAt: memberships.createdAt,
       cursorTs: sql`${memberships.createdAt}::text`, // full microsecond precision, so keyset paging never repeats a row
     }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+      .leftJoin(profiles, eq(profiles.id, memberships.profileId)).leftJoin(hierarchyRoles, eq(hierarchyRoles.id, memberships.hierarchyRoleId))
       .where(sql`${memberships.tenantId} = ${tenantId} ${cursor}`)
       .orderBy(asc(memberships.createdAt), asc(memberships.userId)).limit(limit);
   }
@@ -38,8 +39,9 @@ export class MembershipRepository {
     return first(await this.db.update(memberships).set({ role }).where(and(eq(memberships.tenantId, tenantId), eq(memberships.userId, userId))).returning());
   }
 
-  async setProfile(tenantId, userId, profile) {
-    return first(await this.db.update(memberships).set({ profile }).where(and(eq(memberships.tenantId, tenantId), eq(memberships.userId, userId))).returning());
+  /** Gives the person a profile (profiles.id) or, with null, takes it away so their role's defaults apply. */
+  async setProfile(tenantId, userId, profileId) {
+    return first(await this.db.update(memberships).set({ profileId }).where(and(eq(memberships.tenantId, tenantId), eq(memberships.userId, userId))).returning());
   }
 
   async remove(tenantId, userId) {

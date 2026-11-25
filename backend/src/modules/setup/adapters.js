@@ -12,7 +12,7 @@ const PROFILE = { owner: 'System Administrator', admin: 'System Administrator', 
  * Adapters expose real platform tables through the same list contract as record-backed pages:
  *   list(ctx, { limit, after }) -> { items, nextCursor };  create/update/remove as the page allows.
  */
-export function createSetupAdapters({ db, tenants, invitations, sessions, repos, seedProfiles, addonsEnabled = false }) {
+export function createSetupAdapters({ db, tenants, invitations, sessions, repos, access, addonsEnabled = false }) {
   /** What the Users table shows beyond the membership row, for ONE page of people: three batched lookups, never per row. */
   const enrichUsers = async (ws, ids) => {
     if (!ids.length) return new Map();
@@ -20,7 +20,7 @@ export function createSetupAdapters({ db, tenants, invitations, sessions, repos,
     const [people, activity, sets] = await Promise.all([
       db.execute(sql`select id, avatar_version, mfa_enabled, status from users where id = any(${list})`),
       db.execute(sql`select user_id, max(last_used_at) as last_active from sessions where tenant_id = ${ws} and user_id = any(${list}) group by user_id`),
-      addonsEnabled ? db.execute(sql`select user_id, array_agg(permission_set order by permission_set) as sets from user_permission_sets where tenant_id = ${ws} and user_id = any(${list}) group by user_id`) : { rows: [] },
+      addonsEnabled ? db.execute(sql`select a.user_id, array_agg(s.name order by s.name) as sets from permission_set_assignments a join permission_sets s on s.id = a.permission_set_id where a.tenant_id = ${ws} and a.user_id = any(${list}) group by a.user_id`) : { rows: [] },
     ]);
     const out = new Map(people.rows.map((r) => [r.id, { avatar: avatarUrl(r.id, r.avatar_version ?? 0), mfa: r.mfa_enabled, active: r.status === 'active', lastActive: null, addons: [] }]));
     for (const r of activity.rows) if (out.has(r.user_id)) out.get(r.user_id).lastActive = r.last_active;
@@ -57,11 +57,10 @@ export function createSetupAdapters({ db, tenants, invitations, sessions, repos,
       }
       if (profile !== undefined) {
         const name = profile.trim();
-        if (name) { // must be an existing Setup profile
-          await seedProfiles(ctx.tenantId);
-          if (!(await repos.setupRecords.findByLabel(ctx.tenantId, 'profiles', name))) throw new ValidationError([{ field: 'profile', message: `No profile named “${name}”` }]);
-        }
-        await tenants.setProfile({ actor: ctx.actor, tenantId: ctx.tenantId, targetUserId: id, profile: name || null });
+        const found = name ? await repos.access.profileByName(ctx.tenantId, name) : null;
+        if (name && !found) throw new ValidationError([{ field: 'profile', message: `No profile named “${name}”` }]);
+        await tenants.setProfile({ actor: ctx.actor, tenantId: ctx.tenantId, targetUserId: id, profileId: found?.id ?? null });
+        await access.changed(ctx.tenantId);
       }
       return { id, role, profile };
     },
@@ -112,15 +111,15 @@ export function createSetupAdapters({ db, tenants, invitations, sessions, repos,
   const auditTrail = {
     async list(ctx, { limit, after }) {
       const cursor = decodeCursor(after)?.id;
-      const rows = await repos.setupAudit.list(ctx.tenantId, { limit: limit + 1, after: cursor });
+      const rows = await repos.auditLog.list(ctx.tenantId, { limit: limit + 1, after: cursor });
       return {
         nextCursor: rows.length > limit ? encodeCursor({ id: rows[limit - 1].id }) : null,
-        items: rows.slice(0, limit).map((r) => ({ id: r.id, date: r.created_at, user: r.email ?? '—', source_namespace_prefix: '', action: r.summary, section: r.page_key, delegate_user: '' })),
+        items: rows.slice(0, limit).map((r) => ({ id: r.id, date: r.created_at, user: r.email ?? '—', source_namespace_prefix: '', action: r.summary, section: r.area, delegate_user: '' })),
       };
     },
   };
 
-  /** Real schedules registered with the job queue (cleanup, case escalation). Read-only. */
+  /** Real schedules registered with the job queue (cleanup, chat retention, deployments). Read-only. */
   const scheduledJobs = {
     async list() {
       const { rows } = await db.execute(sql`select name, cron, timezone, created_on from pgboss.schedule order by name`).catch((e) => (e.cause?.code === '42P01' || e.code === '42P01' ? { rows: [] } : Promise.reject(e))); // queue schema not created yet
@@ -128,5 +127,6 @@ export function createSetupAdapters({ db, tenants, invitations, sessions, repos,
     },
   };
 
+  sessionManagement.volatile = true; users.volatile = true; loginHistory.volatile = true; scheduledJobs.volatile = true; auditTrail.volatile = true; // these change outside this service
   return { 'scheduled-jobs': scheduledJobs, users, 'login-history': loginHistory, 'session-management': sessionManagement, 'view-setup-audit-trail': auditTrail };
 }

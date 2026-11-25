@@ -174,7 +174,7 @@ describe('applications', () => {
     assert.match(log, /TOKEN=•••/);
     const revealed = await client.post(`${D}/services/${service.id}/secrets`);
     assert.match(revealed.body.env, /abcd-super-secret/);
-    const { rows: audit } = await db.execute(sql`select summary from setup_audit where tenant_id = ${(await client.get('/me')).body.activeTenantId} and page_key = 'deployments'`);
+    const { rows: audit } = await db.execute(sql`select summary from audit_log where tenant_id = ${(await client.get('/me')).body.activeTenantId} and area = 'deployments'`);
     assert.ok(audit.some((r) => /Viewed secrets of “Leaky”/.test(r.summary)), 'revealing secrets is audited');
   });
 
@@ -393,6 +393,30 @@ describe('server metrics history', () => {
   });
 });
 
+describe('deploy notifications', () => {
+  it('tells the connected channels when a deployment finishes, and when it fails', async () => {
+    const { client } = await admin();
+    const sid = await readyServer(client);
+    const { env } = await project(client);
+    const web = (await client.post(`${D}/environments/${env.id}/services`, { kind: 'application', name: 'Notified', serverId: sid, source: { type: 'docker', image: 'nginx:1.27' } })).body.service;
+    const posted = [];
+    const original = svc.notifier;
+    svc.notifier = { post: async (tenantId, event) => { posted.push(event); } };
+    try {
+      await client.post(`${D}/services/${web.id}/deploy`);
+      for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+      assert.equal(posted.at(-1).kind, 'deploys');
+      assert.match(posted.at(-1).title, /Notified/);
+      const before = fake.respond;
+      fake.respond = (c) => (c.startsWith('docker pull') || c.includes(' pull ') ? { code: 1, output: 'denied' } : before(c));
+      await client.post(`${D}/services/${web.id}/deploy`);
+      for (const job of server.outbox.splice(0).filter((j) => j.deploymentId)) await svc.run(job);
+      fake.respond = before;
+      assert.ok(posted.length >= 2, 'a failure is announced too');
+    } finally { svc.notifier = original; }
+  });
+});
+
 describe('console pages: services, queue, schedules, audit, docker, ssh keys', () => {
   it('lists across services, drives Docker on a server with validated ids, and generates a usable SSH key', async () => {
     const { client } = await admin();
@@ -560,7 +584,7 @@ describe('web terminal', () => {
     t.ws.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
     await t.until(() => fake.lastSize?.[0] === 120);
     t.ws.close();
-    const audit = await db.execute(sql`select count(*)::int as n from setup_audit where tenant_id = ${wsId} and summary like 'Opened a terminal%'`);
+    const audit = await db.execute(sql`select count(*)::int as n from audit_log where tenant_id = ${wsId} and summary like 'Opened a terminal%'`);
     assert.equal(audit.rows[0].n, 1);
 
     const bad = await open('garbage', {});

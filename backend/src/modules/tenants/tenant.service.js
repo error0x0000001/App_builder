@@ -11,6 +11,7 @@ export class TenantService {
   async createWithOwner(repos, { name, userId, teamSize }) {
     const tenant = await repos.tenants.create({ name, slug: await this.#uniqueSlug(repos, name), teamSize, createdBy: userId });
     await repos.memberships.add({ tenantId: tenant.id, userId, role: 'owner' });
+    await repos.access.provision(tenant.id, tenant.name); // standard profiles and grants, the role hierarchy's top node, default security policies
     return tenant;
   }
 
@@ -64,11 +65,11 @@ export class TenantService {
     return updated;
   }
 
-  /** Assigns a Setup profile (or clears it with null); takes effect immediately on every worker. */
-  async setProfile({ actor, tenantId, targetUserId, profile }) {
+  /** Assigns a profile (profiles.id) or clears it with null; takes effect immediately on every worker. */
+  async setProfile({ actor, tenantId, targetUserId, profileId }) {
     const target = await this.#requireMember(tenantId, targetUserId);
     assertCanManageMember({ actorRole: actor.role, targetRole: target.role, newRole: target.role });
-    const updated = await this.repos.memberships.setProfile(tenantId, targetUserId, profile);
+    const updated = await this.repos.memberships.setProfile(tenantId, targetUserId, profileId);
     await this.membershipLookup.invalidate(tenantId);
     return updated;
   }

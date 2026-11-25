@@ -79,7 +79,8 @@ describe('login, lockout & sessions', () => {
   it('locks the account after repeated failures, even for the correct password, and emails the owner', async () => {
     const { client, email } = await registerUser(server);
     // The threshold is the tenant's Password Policies setting (Setup), not a constant.
-    const saved = await client.patch('/setup/pages/password-policies/settings', { version: 0, values: { maximum_invalid_login_attempts: '3' } });
+    const current = await client.get('/setup/pages/password-policies/settings');
+    const saved = await client.patch('/setup/pages/password-policies/settings', { version: current.body.version, values: { maximum_invalid_login_attempts: '3' } });
     assert.equal(saved.status, 200);
     for (let i = 0; i < 2; i++) await new Client(server.base).post('/auth/login', { email, password: 'Wrong-password1' });
     assert.equal(server.mailTo(email, 'account_locked'), undefined, 'not locked before the configured limit');

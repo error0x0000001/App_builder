@@ -9,7 +9,6 @@ import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
 const idParam = z.object({ id: uuidField });
-const recordParams = z.object({ object: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,79}$/), id: uuidField });
 
 const contentDisposition = (kind, name) => `${kind}; filename*=UTF-8''${encodeURIComponent(name).replace(/['()]/g, escape)}`;
 
@@ -42,7 +41,7 @@ function sendFile(req, res, drive, file, { inline }) {
   return stream.pipe(res);
 }
 
-/** Documents (the Drive) and record attachments. Any member may call; the service decides per folder / per record. */
+/** Documents (the Drive). Any member may call; the service decides per folder. */
 export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
   const router = Router();
 
@@ -99,17 +98,6 @@ export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
   router.post('/restore', validate({ body: trashActionSchema }), async (req, res) => send(res, await drive.restore(ctx(req), req.valid.body)));
   router.post('/delete-forever', validate({ body: trashActionSchema }), async (req, res) => send(res, await drive.removeForever(ctx(req), req.valid.body)));
   router.put('/stars', validate({ body: starSchema }), async (req, res) => send(res, await drive.star(ctx(req), req.valid.body)));
-
-  // Attachments of a record: everything lands in Records/<Object>/<record uuid>, visible in Documents to whoever may read the record.
-  router.get('/records/:object/:id/files', validate({ params: recordParams }), async (req, res) => send(res, await drive.recordFiles(ctx(req), req.params.object, req.params.id)));
-  router.post('/records/:object/:id/files', validate({ params: recordParams }), async (req, res, next) => {
-    try {
-      const declared = Number(req.headers['content-length']) || undefined;
-      const result = await receiveUpload(req, ({ stream, filename, mime }) => drive.uploadToRecord(ctx(req), req.params.object, req.params.id, { filename, mime, stream, declaredSize: declared }))
-        .catch((error) => { throw tooLarge(error); });
-      send(res, result, 201);
-    } catch (error) { next(error); }
-  });
 
   return router;
 }

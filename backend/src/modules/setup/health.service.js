@@ -14,7 +14,6 @@ const BASELINE = [
   { page: 'session-settings', key: 'timeout_value', rule: 'atMost', standard: '2 hours', weight: 'medium' },
   { page: 'session-settings', key: 'lock_sessions_to_the_ip_address_from_which_they_originated', rule: 'eq', standard: true, weight: 'medium' },
   { page: 'session-settings', key: 'require_secure_connections_https', rule: 'eq', standard: true, weight: 'high' },
-  { page: 'session-settings', key: 'require_httponly_attribute', rule: 'eq', standard: true, weight: 'medium' },
   { page: 'session-settings', key: 'enable_clickjack_protection_for_setup_pages', rule: 'eq', standard: true, weight: 'medium' },
 ];
 const WEIGHT = { high: 3, medium: 2 };

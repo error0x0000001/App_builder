@@ -1,67 +1,57 @@
 import { ForbiddenError } from '../../shared/errors.js';
 
-const yes = (v) => String(v).toLowerCase() === 'yes';
 const ACTIONS = ['read', 'create', 'edit', 'delete'];
 const ALL = 'All';
 const NONE = Object.freeze([]);
-/** What a role may do when no Setup grant covers the object. */
+/** What a role may do when no profile or permission set covers the object. */
 const BASELINE = { viewer: { read: true }, member: { read: true, create: true, edit: true }, admin: { read: true, create: true, edit: true, delete: true }, owner: { read: true, create: true, edit: true, delete: true } };
 const SHARING = { Private: 'private', 'Public Read Only': 'read', 'Public Read/Write': 'write', 'Public Read/Write/Transfer': 'write', 'Public Full Access': 'write', 'Controlled by Parent': 'write' };
-const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
+const flagsOf = (r) => ({ read: r.can_read, create: r.can_create, edit: r.can_edit, delete: r.can_delete });
+export const accessNamespace = (tenantId) => `access:${tenantId}`;
 
 /**
- * Who may read / create / edit / delete which object, and which records they see.
- *   Grants   — Object Settings rows (object, permission set, Yes/No per action) attach to a container name:
- *              the user's Profile, or any permission set assigned to them in Manage Assignments. Union wins.
- *   Fallback — no grant covers the object → the organisation role's baseline (viewer read, member read/write, admin all).
- *   Sharing  — Organization-Wide Defaults per object: Private = own records only, Public Read Only = everyone reads but only
- *              owners edit, Public Read/Write = open. Admins and owners see everything.
- * Rule lists are cached and versioned per Setup collection, so changing a profile applies on the next request on every worker.
+ * Who may read / create / edit / delete which object, and which records they see — computed from real tables.
+ *   Grants   — object_permissions rows attach to a profile or a permission set. A person has one profile (memberships.profile_id) and any
+ *              number of permission sets (permission_set_assignments); the union of everything covering the object wins.
+ *   Fallback — nothing covers the object → the role's baseline (viewer reads, member reads and writes, admin and owner everything).
+ *   Sharing  — sharing_defaults per object: Private = own records only, Public Read Only = everyone reads but only owners edit,
+ *              Public Read/Write = open. Admins and owners see everything.
+ * Grants and sharing are cached per tenant and refreshed when `changed(tenantId)` is called (every worker sees it within the cache TTL).
  */
 export class AccessService {
-  constructor({ automation, cache, seed, addons = null }) { Object.assign(this, { automation, cache, seed, addons }); } // addons: permission-set add-ons (null = feature off) // seed(ws, collectionKey): loads a collection's built-in rows once
+  constructor({ repos, cache, addons = null }) { Object.assign(this, { repos, cache, addons }); } // addons: permission-set assignments on a person (null = feature off)
 
-  #index(ws) {
-    return this.cache.rememberValue(`r:${ws}:object-settings`, 'grants', { ttlMs: 30_000 }, async () => {
-      await this.seed(ws, 'object-settings'); // the standard profiles' grants are structural: they must exist before anyone is checked
-      const byContainer = {};
-      for (const r of await this.automation.rules(ws, 'object-settings')) {
-        const flags = Object.fromEntries(ACTIONS.map((a) => [a, yes(r.data[a])]));
-        ((byContainer[r.data.permission_set] ??= {})[r.data.object] ??= {}); // ensure shape
-        Object.assign(byContainer[r.data.permission_set][r.data.object], flags);
+  #grants(tenantId) {
+    return this.cache.rememberValue(accessNamespace(tenantId), 'grants', { ttlMs: 30_000 }, async () => {
+      const byGrantee = new Map();
+      for (const r of await this.repos.access.allGrants(tenantId)) {
+        const id = r.profile_id ?? r.permission_set_id;
+        if (!byGrantee.has(id)) byGrantee.set(id, new Map());
+        byGrantee.get(id).set(r.object_key, flagsOf(r));
       }
-      return byContainer;
+      return byGrantee;
     });
   }
 
-  #assignments(ws) {
-    return this.cache.rememberValue(`r:${ws}:manage-assignments`, 'by-user', { ttlMs: 30_000 }, async () => {
-      const byUser = {};
-      for (const r of await this.automation.rules(ws, 'manage-assignments')) (byUser[String(r.data.user).toLowerCase()] ??= []).push(r.data.permission_set);
-      return byUser;
-    });
+  #sharing(tenantId) {
+    return this.cache.rememberValue(accessNamespace(tenantId), 'sharing', { ttlMs: 30_000 }, async () => new Map((await this.repos.access.sharingOverrides(tenantId)).map((r) => [r.object_key, SHARING[r.internal_access] ?? 'write'])));
   }
 
-  #sharing(ws) {
-    return this.cache.rememberValue(`r:${ws}:sharing-defaults`, 'owd', { ttlMs: 30_000 }, async () => {
-      await this.seed(ws, 'sharing-defaults');
-      return Object.fromEntries((await this.automation.rules(ws, 'sharing-defaults')).map((r) => [r.data.object, SHARING[r.data.default_internal_access] ?? 'write']));
-    });
-  }
+  /** Call after any change to grants, assignments, profiles or sharing so the next check sees it. */
+  changed(tenantId) { return this.cache.bump(accessNamespace(tenantId)); }
 
-  /** Effective permissions on one object for the actor, plus how records are scoped. `ctx.actor === null` = system (public intake). */
-  async forObject(ctx, def) {
+  /** Effective permissions on one object for the actor, plus how records are scoped. `ctx.actor === null` = the system (public intake). */
+  async forObject(ctx, objectKey, { ownerKey } = {}) {
     if (!ctx.actor) return { read: true, create: true, edit: true, delete: false, scope: 'all' };
-    const { role, profile } = ctx.actor;
+    const { role, profileId } = ctx.actor;
     const admin = role === 'owner' || role === 'admin';
-    const [grants, assigned, sharing] = await Promise.all([this.#index(ctx.tenantId), this.#assignments(ctx.tenantId), this.#sharing(ctx.tenantId)]);
-    const extra = this.addons && ctx.userId ? (this.addons.peek(ctx.tenantId, ctx.userId) ?? await this.addons.setsFor(ctx.tenantId, ctx.userId)) : NONE;
-    const containers = [profile, ...(assigned[String(ctx.email ?? '').toLowerCase()] ?? []), ...extra].filter(Boolean);
-    const covering = containers.map((c) => grants[c]?.[def.key] ?? grants[c]?.[ALL]).filter(Boolean);
+    const [grants, sharing] = await Promise.all([this.#grants(ctx.tenantId), this.#sharing(ctx.tenantId)]);
+    const sets = this.addons && ctx.userId ? (this.addons.peek(ctx.tenantId, ctx.userId) ?? await this.addons.setIdsFor(ctx.tenantId, ctx.userId)) : NONE;
+    const covering = [profileId, ...sets].filter(Boolean).map((id) => grants.get(id)?.get(objectKey) ?? grants.get(id)?.get(ALL)).filter(Boolean);
     const base = BASELINE[role] ?? BASELINE.viewer;
     const perms = Object.fromEntries(ACTIONS.map((a) => [a, covering.length ? covering.some((g) => g[a]) : Boolean(base[a])]));
-    const owd = sharing[def.key] ?? 'write';
-    return { ...perms, scope: admin || owd === 'write' ? 'all' : owd === 'read' ? 'read-all' : 'own', ownerKey: ownerKey(def) };
+    const owd = sharing.get(objectKey) ?? 'write';
+    return { ...perms, scope: admin || owd === 'write' ? 'all' : owd === 'read' ? 'read-all' : 'own', ownerKey };
   }
 
   assert(perms, action) {

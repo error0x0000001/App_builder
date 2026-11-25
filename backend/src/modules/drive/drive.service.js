@@ -31,11 +31,10 @@ const withSuffix = (name, n) => { const i = name.lastIndexOf('.'); return i > 0 
  * Documents (the Drive). Everything here is tenant-scoped and permission-checked in this class — routes only translate HTTP.
  *
  * Access (see docs/tenant-suite-plan.md): per-folder grants inherited down the tree until a Restricted folder; folder owner = manager;
- * tenant owners/admins manage everything. Folders under `Records/<Object>/<record uuid>` are record attachments: access there is the
- * record's own permission (ObjectsService), never the folder grants.
+ * tenant owners/admins manage everything. Conversation folders (`Chat / <conversation>`) follow conversation membership only.
  */
 export class DriveService {
-  constructor({ db, storage, objects, cache, secret, limits }) { Object.assign(this, { db, storage, objects, cache, secret, limits }); }
+  constructor({ db, storage, cache, secret, limits }) { Object.assign(this, { db, storage, cache, secret, limits }); }
 
   // ---------------------------------------------------------------------------------------------------------------- access
 
@@ -54,13 +53,6 @@ export class DriveService {
     if (folder.kind === 'chats') return 'viewer'; // the container of the conversation folders: everyone may open it, but it only ever lists the conversations they are in
     if (folder.kind === 'chat') return (await this.#isChatMember(ctx, folder.record_id)) ? 'editor' : null; // conversation membership only — not even organisation admins
     if (this.#isAdmin(ctx)) return 'manager';
-    if (folder.kind === 'record') { // the record's own permission decides — even for whoever created the folder
-      try {
-        await this.objects.get(ctx, folder.record_object, folder.record_id);
-        return (await this.objects.permissions(ctx, folder.record_object)).edit ? 'editor' : 'viewer';
-      } catch { return null; }
-    }
-    if (folder.kind === 'records') return folder.record_object ? ((await this.#visibleObjectKeys(ctx)).includes(folder.record_object) ? 'viewer' : null) : 'viewer';
     if (folder.owner_id === ctx.userId) return 'manager';
     const ids = folder.path.split('/').filter(Boolean);
     const [nodes, grants] = await Promise.all([
@@ -91,11 +83,6 @@ export class DriveService {
     return Boolean(row);
   }
 
-  async #visibleObjectKeys(ctx) {
-    const { all, own } = await this.objects.readScopes(ctx);
-    return [...all, ...own.map((o) => o.collection)].map((c) => c.slice(4));
-  }
-
   /** SQL: is the item at `pathExpr` visible through a grant or ownership (respecting Restricted folders)? */
   #pathVisible(ctx, pathExpr) {
     const ws = ctx.tenantId; const me = ctx.userId;
@@ -106,23 +93,12 @@ export class DriveService {
         and not exists (select 1 from drive_folders r where r.tenant_id = ${ws} and r.inherit = false and r.id <> g.id and r.path like g.path || '%' and ${pathExpr} like r.path || '%'))`;
   }
 
-  /** SQL: may the person read the record behind a record-attachment file? (Same scopes as global search.) */
-  async #recordVisible(ctx, alias) {
-    const { all, own } = await this.objects.readScopes(ctx);
-    const parts = [
-      ...(all.length ? [sql`('obj:' || ${sql.raw(alias)}.record_object) = any(${pgArray(all, 'text')})`] : []),
-      ...own.map((o) => sql`(('obj:' || ${sql.raw(alias)}.record_object) = ${o.collection} and exists (select 1 from setup_records sr where sr.tenant_id = ${ctx.tenantId} and sr.collection = ${o.collection} and sr.id = ${sql.raw(alias)}.record_id and sr.data @> ${JSON.stringify({ [o.ownerKey]: ctx.email })}::jsonb))`),
-    ];
-    return parts.length ? sql.join(parts, sql` or `) : sql`false`;
-  }
-
   async #fileVisible(ctx, alias = 'f') {
     const a = sql.raw(alias);
     // chat files: only people in the conversation (admins included — a conversation is private to its members)
     const chat = sql`(${a}.record_object = ${CHAT_OBJECT} and exists (select 1 from chat_members cm where cm.conversation_id = ${a}.record_id and cm.user_id = ${ctx.userId} and cm.left_at is null))`;
-    if (this.#isAdmin(ctx)) return sql`(${a}.record_object is distinct from ${CHAT_OBJECT} or ${chat})`;
-    const record = await this.#recordVisible(ctx, alias);
-    return sql`((${a}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or (${a}.record_object is not null and ${a}.record_object <> ${CHAT_OBJECT} and (${record})) or ${chat})`;
+    if (this.#isAdmin(ctx)) return sql`(${a}.record_object is null or ${chat})`;
+    return sql`((${a}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or ${chat})`;
   }
 
   // ---------------------------------------------------------------------------------------------------------------- listing
@@ -153,14 +129,7 @@ export class DriveService {
       return { folder: head, folders: [], ...(await this.#childFiles(ctx, folder, { sort, after, limit })) };
     }
 
-    if (folder.kind === 'records' && !folder.record_object) { // the Records root: one folder per object the person can read
-      const keys = new Set(await this.#visibleObjectKeys(ctx));
-      const rows = await this.#rows(sql`select d.*, null::text as owner_name from drive_folders d where d.tenant_id = ${ctx.tenantId} and d.parent_id = ${folder.id} and d.trashed_at is null order by d.name`);
-      return { folder: head, folders: rows.filter((r) => keys.has(r.record_object)).map(folderDto), files: [], nextCursor: null };
-    }
-    if (folder.kind === 'records') return this.#recordFolders(ctx, folder, head, { after, limit });
-
-    const folders = folder.kind === 'record' ? [] : await this.#childFolders(ctx, folder, role);
+    const folders = await this.#childFolders(ctx, folder, role);
     const { files, nextCursor } = await this.#childFiles(ctx, folder, { sort, after, limit });
     return { folder: head, folders, files, nextCursor };
   }
@@ -197,7 +166,6 @@ export class DriveService {
 
   async #roots(ctx, { all }) {
     const ws = ctx.tenantId; const me = ctx.userId;
-    const records = await this.#recordsRoot(ctx);
     const visible = all || this.#isAdmin(ctx)
       ? sql`true`
       : sql`(d.owner_id = ${me} or exists (select 1 from drive_access a where a.folder_id = d.id and a.principal_id in (${me}, ${ws})))`;
@@ -205,7 +173,7 @@ export class DriveService {
       from drive_folders d ${this.#ownerJoin('d')} where d.tenant_id = ${ws} and d.parent_id is null and d.kind = 'folder' and d.trashed_at is null and ${visible} order by lower(d.name), d.id limit 500`);
     const [chats] = all ? [] : await this.#rows(sql`select d.* from drive_folders d where d.tenant_id = ${ws} and d.kind = 'chats' and d.parent_id is null
       and exists (select 1 from drive_folders k join chat_members cm on cm.conversation_id = k.record_id and cm.user_id = ${me} and cm.left_at is null where k.parent_id = d.id and k.kind = 'chat' and k.trashed_at is null) limit 1`);
-    return { folder: null, folders: [folderDto(records), ...(chats ? [folderDto(chats)] : []), ...rows.map(folderDto)], files: [], nextCursor: null };
+    return { folder: null, folders: [...(chats ? [folderDto(chats)] : []), ...rows.map(folderDto)], files: [], nextCursor: null };
   }
 
   async #childFolders(ctx, parent, parentRole) {
@@ -228,20 +196,6 @@ export class DriveService {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return { files: page.map(fileDto), nextCursor: rows.length > limit ? encodeCursor(byName ? last.name.toLowerCase() : new Date(last.updated_at).toISOString(), last.id) : null };
-  }
-
-  /** Record folders of one object, only for the records this person may read (a record folder per record that has attachments). */
-  async #recordFolders(ctx, objectFolder, head, { after, limit }) {
-    const { all, own } = await this.objects.readScopes(ctx);
-    const key = coll(objectFolder.record_object);
-    const mine = own.find((o) => o.collection === key);
-    if (!this.#isAdmin(ctx) && !all.includes(key) && !mine) throw new NotFoundError('Folder not found');
-    const scope = this.#isAdmin(ctx) || all.includes(key) ? sql`true` : sql`exists (select 1 from setup_records sr where sr.tenant_id = ${ctx.tenantId} and sr.collection = ${key} and sr.id = d.record_id and sr.data @> ${JSON.stringify({ [mine.ownerKey]: ctx.email })}::jsonb)`;
-    const c = after ? decodeCursor(after) : null;
-    const rows = await this.#rows(sql`select d.*, null::text as owner_name from drive_folders d where d.tenant_id = ${ctx.tenantId} and d.parent_id = ${objectFolder.id} and d.kind = 'record' and d.trashed_at is null and ${scope}
-      ${c ? sql`and (lower(d.name), d.id) > (${c.k}, ${c.id})` : sql``} order by lower(d.name), d.id limit ${limit + 1}`);
-    const page = rows.slice(0, limit); const last = page.at(-1);
-    return { folder: head, folders: page.map(folderDto), files: [], nextCursor: rows.length > limit ? encodeCursor(last.name.toLowerCase(), last.id) : null };
   }
 
   async #recent(ctx, { after, limit }) {
@@ -357,7 +311,6 @@ export class DriveService {
   }
 
   async #upload(ctx, folder, { filename, mime, stream, declaredSize }) {
-    if (folder.kind === 'records') throw new ForbiddenError('Upload attachments from the record itself');
     await this.#need(ctx, folder, 'editor');
     const maxBytes = this.limits.maxUploadBytes;
     if (declaredSize && declaredSize > maxBytes) { stream.resume(); throw new TooLargeError(maxBytes); }
@@ -435,9 +388,8 @@ export class DriveService {
     let target = null;
     if (folderId && folderId !== file.folder_id) {
       target = await this.#folder(ctx, folderId);
-      if (target.kind === 'records') throw new ValidationError({ folderId: 'You cannot move a file there' });
       await this.#need(ctx, target, 'editor');
-      if ((target.kind === 'record') !== Boolean(file.record_object) || (target.kind === 'record' && target.record_id !== file.record_id)) throw new ValidationError({ folderId: 'Record attachments stay with their record' });
+      if ((target.kind === 'chat') !== Boolean(file.record_object) || (target.kind === 'chat' && target.record_id !== file.record_id)) throw new ValidationError({ folderId: 'Conversation files stay with their conversation' });
     }
     const folder = target ?? { id: file.folder_id, path: file.folder_path };
     const newName = await this.#freeFileNameExcept(ctx, folder.id, name ?? file.name, id);
@@ -457,7 +409,7 @@ export class DriveService {
     const file = await this.#file(ctx, id);
     await this.#fileFolder(ctx, file, 'viewer');
     const target = await this.#folder(ctx, folderId ?? file.folder_id);
-    if (target.kind === 'records' || target.kind === 'record') throw new ValidationError({ folderId: 'Copy into one of your folders' });
+    if (target.kind === 'chats') throw new ValidationError({ folderId: 'Copy into one of your folders' });
     await this.#need(ctx, target, 'editor');
     const used = await this.usedBytes(ctx.tenantId);
     if (used + Number(file.size) > this.limits.quotaBytes) throw new ConflictError('This organisation has run out of Documents storage');
@@ -558,7 +510,7 @@ export class DriveService {
 
   async getAccess(ctx, folderId) {
     const folder = await this.#folder(ctx, folderId);
-    if (folder.kind !== 'folder') throw new ValidationError({ folder: 'Access to this folder follows the record it belongs to' });
+    if (folder.kind !== 'folder') throw new ValidationError({ folder: 'Access to this folder follows the conversation it belongs to' });
     const role = await this.#need(ctx, folder, 'viewer');
     const entries = await this.#rows(sql`select a.principal_type, a.principal_id, a.role, u.first_name, u.last_name, u.email from drive_access a left join users u on a.principal_type = 'user' and u.id = a.principal_id
       where a.tenant_id = ${ctx.tenantId} and a.folder_id = ${folderId} order by a.created_at`);
@@ -593,7 +545,7 @@ export class DriveService {
   /** Replaces the folder's own grants (and, optionally, whether it inherits). Managers only. */
   async setAccess(ctx, folderId, { inherit, entries }) {
     const folder = await this.#folder(ctx, folderId);
-    if (folder.kind !== 'folder') throw new ValidationError({ folder: 'Access to this folder follows the record it belongs to' });
+    if (folder.kind !== 'folder') throw new ValidationError({ folder: 'Access to this folder follows the conversation it belongs to' });
     await this.#need(ctx, folder, 'manager');
     const people = entries.filter((e) => e.principalType === 'user').map((e) => e.principalId);
     if (entries.some((e) => e.principalType === 'tenant' && e.principalId !== ctx.tenantId)) throw new ValidationError({ entries: 'Unknown tenant' });
@@ -610,61 +562,6 @@ export class DriveService {
     });
     await this.#bump(ctx);
     return this.getAccess(ctx, folderId);
-  }
-
-  // ---------------------------------------------------------------------------------------------------------------- record attachments
-
-  async #recordsRoot(ctx) {
-    const find = () => this.#rows(sql`select d.*, null::text as owner_name from drive_folders d where d.tenant_id = ${ctx.tenantId} and d.kind = 'records' and d.parent_id is null limit 1`);
-    const [hit] = await find();
-    if (hit) return hit;
-    return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.tenantId}:records`}))`);
-      const [again] = (await tx.execute(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and kind = 'records' and parent_id is null limit 1`)).rows;
-      if (again) return again;
-      const id = uuidv7();
-      return (await tx.execute(sql`insert into drive_folders (id, tenant_id, name, path, kind, inherit, owner_id) values (${id}, ${ctx.tenantId}, 'Records', ${`/${id}/`}, 'records', false, ${ctx.userId}) returning *`)).rows[0];
-    });
-  }
-
-  /** The folder `Records / <Object> / <record uuid>`, created on first use. */
-  async #recordFolder(ctx, objectKey, recordId, label) {
-    const [hit] = await this.#rows(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and kind = 'record' and record_object = ${objectKey} and record_id = ${recordId}`);
-    if (hit) return hit;
-    const root = await this.#recordsRoot(ctx);
-    const def = await this.objects.definition(ctx.tenantId, objectKey);
-    return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.tenantId}:${objectKey}:${recordId}`}))`);
-      const [again] = (await tx.execute(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and kind = 'record' and record_object = ${objectKey} and record_id = ${recordId}`)).rows;
-      if (again) return again;
-      let [objectFolder] = (await tx.execute(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and kind = 'records' and record_object = ${objectKey} limit 1`)).rows;
-      if (!objectFolder) {
-        const oid = uuidv7();
-        [objectFolder] = (await tx.execute(sql`insert into drive_folders (id, tenant_id, parent_id, name, path, kind, record_object, inherit, owner_id) values (${oid}, ${ctx.tenantId}, ${root.id}, ${def?.plural ?? objectKey}, ${`${root.path}${oid}/`}, 'records', ${objectKey}, false, ${ctx.userId}) returning *`)).rows;
-      }
-      const rid = uuidv7();
-      return (await tx.execute(sql`insert into drive_folders (id, tenant_id, parent_id, name, path, kind, record_object, record_id, inherit, owner_id)
-        values (${rid}, ${ctx.tenantId}, ${objectFolder.id}, ${String(label ?? recordId).slice(0, 200)}, ${`${objectFolder.path}${rid}/`}, 'record', ${objectKey}, ${recordId}, false, ${ctx.userId}) returning *`)).rows[0];
-    });
-  }
-
-  /** Attachments of one record. Requires read access to the record. */
-  async recordFiles(ctx, objectKey, recordId) {
-    const { record } = await this.objects.get(ctx, objectKey, recordId); // throws if the person may not read it
-    const [folder] = await this.#rows(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and kind = 'record' and record_object = ${objectKey} and record_id = ${recordId}`);
-    const perms = await this.objects.permissions(ctx, objectKey);
-    if (!folder) return { files: [], folderId: null, canUpload: perms.edit };
-    const rows = await this.#rows(sql`select f.*, ${this.#ownerName}, ${this.#starred(ctx, 'file', 'f')} from drive_files f ${this.#ownerJoin('f')}
-      where f.tenant_id = ${ctx.tenantId} and f.folder_id = ${folder.id} and f.trashed_at is null order by f.created_at desc limit 500`);
-    return { files: rows.map(fileDto), folderId: folder.id, canUpload: perms.edit, label: record.name ?? record.label };
-  }
-
-  /** Uploads an attachment for a record (needs edit access to it). Everything lands in `Records/<Object>/<record uuid>`. */
-  async uploadToRecord(ctx, objectKey, recordId, args) {
-    const { record } = await this.objects.get(ctx, objectKey, recordId);
-    if (!(await this.objects.permissions(ctx, objectKey)).edit) { args.stream.resume(); throw new ForbiddenError('You can view this record but not change it'); }
-    const folder = await this.#recordFolder(ctx, objectKey, recordId, record.name ?? record.label ?? recordId);
-    return this.#upload(ctx, folder, args);
   }
 
   async #chatsRoot(ctx) {

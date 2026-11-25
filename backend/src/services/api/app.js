@@ -15,8 +15,6 @@ import { peopleRoutes } from './routes/people.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
 import { invitationRoutes } from './routes/invitations.routes.js';
 import { meRoutes } from './routes/me.routes.js';
-import { objectRoutes } from './routes/objects.routes.js';
-import { publicRoutes } from './routes/public.routes.js';
 import { searchRoutes } from './routes/search.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { integrationsRoutes } from './routes/integrations.routes.js';
@@ -63,7 +61,6 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/setup', setupRoutes(container));
   app.use('/api/v1/integrations', integrationsRoutes(container));
   if (container.deployments) app.use('/api/v1/deployments', deploymentsRoutes(container)); // not mounted when DEPLOYMENTS_ENABLED=false: the paths do not exist
-  app.use('/api/v1/objects', objectRoutes(container));
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));
   app.use('/api/v1/chat', chatRoutes(container));
@@ -78,7 +75,6 @@ export function createApp(container, { recycler } = {}) {
     });
   }
   app.use('/api/v1/people', peopleRoutes(container));
-  app.use('/api/v1/public', publicRoutes(container));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

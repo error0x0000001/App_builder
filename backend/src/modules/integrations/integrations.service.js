@@ -41,7 +41,7 @@ export class IntegrationsService {
   }
 
   #forget(ws) { for (const k of [...this.#live.keys()]) if (k.startsWith(`${ws}:`)) this.#live.delete(k); }
-  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.tenantId, ctx.userId, 'integrations', 'update', text); }
+  #audit(ctx, text) { return this.repos?.auditLog?.record(ctx.tenantId, ctx.userId, 'integrations', 'update', text); }
   #need(key) { const def = getIntegration(key); if (!def) throw new NotFoundError('Unknown integration'); return def; }
 
   /** Saves credentials. Secrets left out keep their stored value. Always lands as "untested" and off. */

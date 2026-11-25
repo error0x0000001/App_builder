@@ -33,30 +33,32 @@ describe('access', () => {
 });
 
 describe('settings pages', () => {
-  it('returns defaults, saves with versioning, audits, and rejects stale writes', async () => {
+  it('returns the real values, saves with versioning, audits, and rejects stale writes', async () => {
     const first = await owner.get(`${S}/pages/password-policies/settings`);
-    assert.equal(first.body.version, 0);
+    assert.equal(first.body.version, 1);
     assert.equal(first.body.values.minimum_password_length, '8');
+    assert.equal(first.body.values.user_passwords_expire_in, '90 days');
+    assert.ok(first.body.readOnly.includes('password_question_requirement'), 'settings nothing enforces are shown read-only');
+    assert.ok(!first.body.readOnly.includes('minimum_password_length'));
 
-    const saved = await owner.patch(`${S}/pages/password-policies/settings`, { version: 0, values: { minimum_password_length: '12' } });
+    const saved = await owner.patch(`${S}/pages/password-policies/settings`, { version: 1, values: { minimum_password_length: '12', user_passwords_expire_in: 'Never expires' } });
     assert.equal(saved.status, 200);
-    assert.equal(saved.body.version, 1);
+    assert.equal(saved.body.version, 2);
     assert.equal(saved.body.values.minimum_password_length, '12');
+    assert.equal(saved.body.values.user_passwords_expire_in, 'Never expires');
 
-    const stale = await owner.patch(`${S}/pages/password-policies/settings`, { version: 0, values: { minimum_password_length: '10' } });
+    const stale = await owner.patch(`${S}/pages/password-policies/settings`, { version: 1, values: { minimum_password_length: '10' } });
     assert.equal(stale.status, 409);
-
-    const bad = await owner.patch(`${S}/pages/password-policies/settings`, { version: 1, values: { minimum_password_length: '99' } });
-    assert.equal(bad.status, 400);
-    const unknown = await owner.patch(`${S}/pages/password-policies/settings`, { version: 1, values: { nope: 'x' } });
-    assert.equal(unknown.status, 400);
+    assert.equal((await owner.patch(`${S}/pages/password-policies/settings`, { version: 2, values: { minimum_password_length: '99' } })).status, 400);
+    assert.equal((await owner.patch(`${S}/pages/password-policies/settings`, { version: 2, values: { nope: 'x' } })).status, 400);
+    assert.equal((await owner.patch(`${S}/pages/password-policies/settings`, { version: 2, values: { password_question_requirement: 'None' } })).status, 400, 'a setting that nothing enforces cannot be saved');
 
     const audit = await owner.get(`${S}/pages/view-setup-audit-trail/records`);
     assert.ok(audit.body.items.some((r) => /Password Policies/.test(r.action)));
   });
   it('is isolated per tenant', async () => {
     const theirs = await other.get(`${S}/pages/password-policies/settings`);
-    assert.equal(theirs.body.version, 0);
+    assert.equal(theirs.body.version, 1);
     assert.equal(theirs.body.values.minimum_password_length, '8');
   });
   it('company information is bound to the real tenant', async () => {
@@ -68,65 +70,144 @@ describe('settings pages', () => {
     const me = await owner.get('/me');
     assert.equal(me.body.tenants[0].name, 'Acme Holdings');
   });
+  it('a settings page without a real table is a read-only preview', async () => {
+    const page = await owner.get(`${S}/pages/deliverability/settings`);
+    assert.equal(page.status, 200);
+    assert.equal(page.body.version, 0);
+    const fields = Object.keys(page.body.values);
+    assert.deepEqual([...page.body.readOnly].sort(), [...fields].sort());
+    assert.equal((await owner.patch(`${S}/pages/deliverability/settings`, { version: 0, values: { [fields[0]]: page.body.values[fields[0]] } })).status, 400);
+  });
 });
 
-describe('record pages', () => {
-  it('seeds initial content once, paginates by keyset, filters and searches', async () => {
-    const page1 = await owner.get(`${S}/pages/profiles/records?limit=2&total=true`);
+describe('profiles (a real table)', () => {
+  it('lists the standard profiles, pages by keyset and searches', async () => {
+    const page1 = await owner.get(`${S}/pages/profiles/records?limit=2`);
     assert.equal(page1.status, 200);
     assert.equal(page1.body.items.length, 2);
     assert.ok(page1.body.nextCursor);
     const page2 = await owner.get(`${S}/pages/profiles/records?limit=2&after=${page1.body.nextCursor}`);
-    assert.notEqual(page2.body.items[0].id, page1.body.items[0].id);
     assert.ok(!page1.body.items.some((r) => page2.body.items.some((x) => x.id === r.id)));
-    const all = await owner.get(`${S}/pages/profiles/records?limit=200`);
-    const searched = await owner.get(`${S}/pages/profiles/records?q=${encodeURIComponent(all.body.items[0].profile_name.slice(0, 4))}`);
-    assert.ok(searched.body.items.length >= 1);
+    const all = (await owner.get(`${S}/pages/profiles/records?limit=200`)).body.items;
+    assert.deepEqual(all.map((p) => p.profile_name), ['Minimum Access - API Only', 'Read Only', 'Standard User', 'System Administrator']);
+    assert.ok(all.every((p) => p.custom === false));
+    assert.equal((await owner.get(`${S}/pages/profiles/records?q=read`)).body.items.length, 1);
   });
-  it('sorts server-side in both directions and pages with a cursor that carries the sort value', async () => {
-    const all = await owner.get(`${S}/pages/profiles/records?limit=200&sort=profile_name&dir=asc`);
-    const names = all.body.items.map((r) => r.profile_name ?? '');
-    assert.deepEqual(names, [...names].sort());
-    const seen = [];
-    let after;
-    do {
-      const r = await owner.get(`${S}/pages/profiles/records?limit=3&sort=profile_name&dir=desc${after ? `&after=${after}` : ''}`);
-      assert.equal(r.status, 200);
-      seen.push(...r.body.items.map((x) => x.id));
-      after = r.body.nextCursor;
-    } while (after);
-    assert.equal(seen.length, all.body.items.length);
-    assert.equal(new Set(seen).size, seen.length);
-    const bogus = await owner.get(`${S}/pages/profiles/records?limit=2&sort=data;drop`);
-    assert.equal(bogus.status, 400);
-    const unknown = await owner.get(`${S}/pages/profiles/records?limit=2&sort=nope`);
-    assert.equal(unknown.status, 200);
-  });
-  it('creates, updates and deletes records and invalidates the cache', async () => {
-    const before = await owner.get(`${S}/pages/profiles/records?limit=200`);
+  it('creates, edits and deletes custom profiles; the standard ones are fixed; names are unique', async () => {
     const created = await owner.post(`${S}/pages/profiles/records`, { profile_name: 'Auditor' });
-    assert.equal(created.status, 201);
-    const listed = await owner.get(`${S}/pages/profiles/records?limit=200`);
-    assert.equal(listed.body.items.length, before.body.items.length + 1);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
     const { id } = created.body.record;
-    const updated = await owner.patch(`${S}/pages/profiles/records/${id}`, { description: 'Read-only auditor' });
-    assert.equal(updated.body.record.description, 'Read-only auditor');
+    assert.equal((await owner.post(`${S}/pages/profiles/records`, { profile_name: 'auditor' })).status, 409, 'names are unique, whatever the case');
     assert.equal((await owner.post(`${S}/pages/profiles/records`, {})).status, 400);
-    const removed = await owner.post(`${S}/pages/profiles/records/delete`, { ids: [id] });
-    assert.equal(removed.body.removed, 1);
-    assert.equal((await owner.get(`${S}/pages/profiles/records?limit=200`)).body.items.length, before.body.items.length);
+    const updated = await owner.patch(`${S}/pages/profiles/records/${id}`, { description: 'Read-only auditor' });
+    assert.equal(updated.status, 200);
+    assert.equal((await owner.get(`${S}/pages/profiles/records?q=auditor`)).body.items[0].description, 'Read-only auditor');
+
+    const standard = (await owner.get(`${S}/pages/profiles/records?q=standard`)).body.items[0];
+    assert.equal((await owner.patch(`${S}/pages/profiles/records/${standard.id}`, { description: 'x' })).status, 403);
+    assert.equal((await owner.post(`${S}/pages/profiles/records/delete`, { ids: [standard.id] })).status, 403);
+
+    assert.equal((await owner.post(`${S}/pages/profiles/records/delete`, { ids: [id] })).body.removed, 1);
+    assert.equal((await owner.get(`${S}/pages/profiles/records?q=auditor`)).body.items.length, 0);
   });
-  it('never exposes another tenant\'s records', async () => {
+  it('never exposes another tenant\'s profiles', async () => {
     await owner.post(`${S}/pages/profiles/records`, { profile_name: 'OwnerOnlyProfile' });
-    const theirs = await other.get(`${S}/pages/profiles/records?limit=200&q=OwnerOnlyProfile`);
-    assert.equal(theirs.body.items.length, 0);
+    assert.equal((await other.get(`${S}/pages/profiles/records?limit=200&q=OwnerOnlyProfile`)).body.items.length, 0);
     const id = (await owner.get(`${S}/pages/profiles/records?q=OwnerOnlyProfile`)).body.items[0].id;
     assert.equal((await other.patch(`${S}/pages/profiles/records/${id}`, { description: 'x' })).status, 404);
   });
-  it('serves the roles hierarchy as a tree', async () => {
-    const tree = await owner.get(`${S}/pages/roles/tree`);
-    assert.equal(tree.body.roots.length, 1);
-    assert.ok(tree.body.roots[0].children.length >= 1);
+});
+
+describe('preview pages (no real table yet)', () => {
+  it('render from fixtures: searchable, sortable and paged, with the same list contract', async () => {
+    const page1 = await owner.get(`${S}/pages/apex-classes/records?limit=3&total=true`);
+    assert.equal(page1.status, 200);
+    assert.equal(page1.body.items.length, 3);
+    assert.equal(page1.body.total, 9);
+    const page2 = await owner.get(`${S}/pages/apex-classes/records?limit=3&after=${page1.body.nextCursor}`);
+    assert.ok(!page1.body.items.some((r) => page2.body.items.some((x) => x.id === r.id)));
+    const sorted = (await owner.get(`${S}/pages/apex-classes/records?limit=50&sort=name&dir=desc`)).body.items.map((r) => r.name);
+    assert.deepEqual(sorted, [...sorted].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })));
+    const first = sorted.at(-1);
+    assert.ok((await owner.get(`${S}/pages/apex-classes/records?q=${encodeURIComponent(first.slice(0, 4))}`)).body.items.length >= 1);
+  });
+  it('cannot be changed, and say so to the page', async () => {
+    const def = (await owner.get(`${S}/pages/apex-classes`)).body;
+    assert.equal(def.adapter.readOnly, true);
+    assert.equal(def.status.level, 'preview');
+    assert.equal((await owner.post(`${S}/pages/apex-classes/records`, { name: 'Nope' })).status, 403);
+    const id = (await owner.get(`${S}/pages/apex-classes/records?limit=1`)).body.items[0].id;
+    assert.equal((await owner.patch(`${S}/pages/apex-classes/records/${id}`, { name: 'x' })).status, 400, 'not even a valid record id');
+  });
+});
+
+describe('roles hierarchy (a real table)', () => {
+  it('starts with the tenant itself at the top, and builds, moves and deletes roles with paths kept in step', async () => {
+    const tree = (await owner.get(`${S}/pages/roles/tree`)).body;
+    assert.equal(tree.roots.length, 1);
+    assert.equal(tree.roots[0].name, 'Acme Holdings');
+    const root = tree.roots[0];
+
+    const ceo = (await owner.post(`${S}/pages/roles/records`, { name: 'CEO', parentId: root.id })).body.record;
+    const vp = (await owner.post(`${S}/pages/roles/records`, { name: 'VP Sales', parentId: ceo.id })).body.record;
+    const rep = (await owner.post(`${S}/pages/roles/records`, { name: 'Sales Rep', parentId: vp.id })).body.record;
+    assert.equal((await owner.post(`${S}/pages/roles/records`, { name: 'ceo', parentId: root.id })).status, 409, 'sibling names are unique');
+
+    let nested = (await owner.get(`${S}/pages/roles/tree`)).body.roots[0];
+    assert.deepEqual(nested.children[0].children[0].children.map((c) => c.name), ['Sales Rep']);
+
+    // move the VP (and the rep below them) up under the top node; paths and depth follow
+    assert.equal((await owner.patch(`${S}/pages/roles/records/${vp.id}`, { parentId: root.id })).status, 200);
+    nested = (await owner.get(`${S}/pages/roles/tree`)).body.roots[0];
+    assert.deepEqual(nested.children.map((c) => c.name).sort(), ['CEO', 'VP Sales']);
+    assert.equal(nested.children.find((c) => c.name === 'VP Sales').children[0].name, 'Sales Rep');
+    const { rows } = await pool.query('select name, depth, path from hierarchy_roles where id = $1', [rep.id]);
+    assert.equal(rows[0].depth, 2);
+    assert.ok(rows[0].path.includes(vp.id) && !rows[0].path.includes(ceo.id));
+
+    assert.equal((await owner.patch(`${S}/pages/roles/records/${vp.id}`, { parentId: rep.id })).status, 400, 'a role cannot move below itself');
+    assert.equal((await owner.patch(`${S}/pages/roles/records/${root.id}`, { parentId: ceo.id })).status, 400, 'the top cannot move');
+    assert.equal((await owner.post(`${S}/pages/roles/records/delete`, { ids: [vp.id] })).status, 409, 'roles with sub-roles are kept');
+    assert.equal((await owner.post(`${S}/pages/roles/records/delete`, { ids: [rep.id, ceo.id] })).body.removed, 2);
+    assert.equal((await owner.post(`${S}/pages/roles/records/delete`, { ids: [vp.id] })).body.removed, 1);
+    assert.equal((await owner.post(`${S}/pages/roles/records/delete`, { ids: [root.id] })).status, 403, 'the top cannot be deleted');
+  });
+  it('is isolated per tenant', async () => {
+    const mine = (await owner.get(`${S}/pages/roles/tree`)).body.roots[0];
+    const theirs = (await other.get(`${S}/pages/roles/tree`)).body.roots[0];
+    assert.notEqual(mine.id, theirs.id);
+    assert.equal((await other.post(`${S}/pages/roles/records`, { name: 'Intruder', parentId: mine.id })).status, 404);
+  });
+});
+
+describe('object permissions, permission sets and sharing (real tables)', () => {
+  it('Object Settings grants a profile or a permission set per object; a new name creates a permission set', async () => {
+    const made = await owner.post(`${S}/pages/object-settings/records`, { object: 'Lead', permission_set: 'Read Only', read: 'Yes', create: 'Yes', edit: 'No', delete: 'No' });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    const viaSet = await owner.post(`${S}/pages/object-settings/records`, { object: 'Account', permission_set: 'Territory Planner', read: 'Yes', create: 'No', edit: 'Yes', delete: 'No' });
+    assert.equal(viaSet.status, 201);
+    const rows = (await owner.get(`${S}/pages/object-settings/records?limit=200`)).body.items;
+    assert.ok(rows.some((r) => r.permission_set === 'Territory Planner' && r.object === 'Account' && r.edit === 'Yes'));
+    assert.ok(rows.some((r) => r.permission_set === 'System Administrator' && r.object === 'All'), 'the standard profiles have their grants');
+    assert.equal((await owner.post(`${S}/pages/object-settings/records`, { object: 'Nothing', permission_set: 'Read Only', read: 'Yes', create: 'No', edit: 'No', delete: 'No' })).status, 400, 'objects must exist');
+    const id = rows.find((r) => r.permission_set === 'Territory Planner').id;
+    assert.equal((await owner.patch(`${S}/pages/object-settings/records/${id}`, { delete: 'Yes' })).status, 200);
+    assert.equal((await owner.get(`${S}/pages/object-settings/records?q=Territory`)).body.items[0].delete, 'Yes');
+    assert.equal((await owner.post(`${S}/pages/object-settings/records/delete`, { ids: [id] })).body.removed, 1);
+    assert.equal((await other.get(`${S}/pages/object-settings/records?q=Territory`)).body.items.length, 0, 'another tenant sees none of it');
+  });
+  it('a profile and a permission set cannot share a name', async () => {
+    await owner.post(`${S}/pages/object-settings/records`, { object: 'Case', permission_set: 'Case Closer', read: 'Yes', create: 'No', edit: 'No', delete: 'No' });
+    assert.equal((await owner.post(`${S}/pages/profiles/records`, { profile_name: 'case closer' })).status, 409);
+  });
+  it('sharing defaults list every standard object, default open, and can be changed', async () => {
+    const list = (await owner.get(`${S}/pages/sharing-defaults/records?limit=200`)).body.items;
+    assert.equal(list.length, 34);
+    assert.ok(list.every((r) => r.default_internal_access === 'Public Read/Write'));
+    const lead = list.find((r) => r.object === 'Lead');
+    assert.equal((await owner.patch(`${S}/pages/sharing-defaults/records/${lead.id}`, { default_internal_access: 'Private' })).status, 200);
+    assert.equal((await owner.get(`${S}/pages/sharing-defaults/records?q=Lead`)).body.items.find((r) => r.object === 'Lead').default_internal_access, 'Private');
+    assert.equal((await other.get(`${S}/pages/sharing-defaults/records?q=Lead`)).body.items.find((r) => r.object === 'Lead').default_internal_access, 'Public Read/Write');
   });
 });
 
@@ -192,19 +273,19 @@ describe('dashboards, health and tools', () => {
     const settings = await owner.get(`${S}/pages/password-policies/settings`);
     assert.equal(settings.body.values.maximum_invalid_login_attempts, '5');
   });
-  it('imports CSV into a collection, exports it, and mass-deletes', async () => {
-    const csv = 'Profile Name,Description\nImported A,first\nImported B,second\n,missing name';
-    const run = await owner.post(`${S}/pages/data-import-wizard/run`, { object: 'Profiles', csv });
-    assert.equal(run.body.imported, 2);
-    assert.equal(run.body.skipped, 1);
+  it('tools that needed the old generic store are recorded, not faked, and no export endpoint remains', async () => {
+    for (const key of ['data-import-wizard', 'data-loader', 'mass-delete-records', 'mass-transfer-records']) {
+      const res = await owner.post(`${S}/pages/${key}/run`, {});
+      assert.equal(res.status, 200, key);
+      assert.equal(res.body.active, false, key);
+    }
     const exp = await fetch(`${server.base}${S}/pages/data-loader/export?object=Profiles`, { headers: { Authorization: `Bearer ${owner.token}` } });
-    const text = await exp.text();
-    assert.match(text, /Imported A/);
-    assert.match(text, /^Profile Name,/);
-    const refused = await owner.post(`${S}/pages/mass-delete-records/run`, { object: 'Profiles', confirm: false });
-    assert.equal(refused.status, 400);
-    const del = await owner.post(`${S}/pages/mass-delete-records/run`, { object: 'Profiles', confirm: true });
-    assert.ok(del.body.removed >= 2);
+    assert.equal(exp.status, 404);
+  });
+  it('test-deliverability sends a real test email', async () => {
+    const res = await owner.post(`${S}/pages/test-deliverability/run`, { email: 'someone@example.com' });
+    assert.equal(res.body.active, true);
+    assert.ok(server.outbox.some((j) => j.template === 'test_email' && j.to === 'someone@example.com'));
   });
   it('tools without an engine are recorded, not faked', async () => {
     const res = await owner.post(`${S}/pages/snap-ins/run`, {});

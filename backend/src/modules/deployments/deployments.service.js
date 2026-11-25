@@ -24,7 +24,7 @@ export class DeploymentsService {
   #q(rows) { return rows.rows ?? rows; }
   #enc(obj) { return this.secretBox.encrypt(JSON.stringify(obj ?? {})); }
   #dec(text) { return text ? JSON.parse(this.secretBox.decrypt(text)) : {}; }
-  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.tenantId, ctx.userId, 'deployments', 'update', text); }
+  #audit(ctx, text) { return this.repos?.auditLog?.record(ctx.tenantId, ctx.userId, 'deployments', 'update', text); }
 
   // ---------- servers ----------
   #serverView(r) { return { id: r.id, name: r.name, kind: r.kind, host: r.host, port: r.port, username: r.username, status: r.status, statusMessage: r.status_message, dockerVersion: r.docker_version, readyAt: r.ready_at, hasKey: Boolean(r.ssh_key_enc), createdAt: r.created_at }; }
@@ -497,7 +497,7 @@ export class DeploymentsService {
 
   async auditLog(ws, { limit = 100 } = {}) {
     const { rows } = await this.db.execute(sql`select a.id, a.summary, a.created_at, coalesce(nullif(trim(concat(u.first_name, ' ', u.last_name)), ''), u.email, 'Webhook') as who
-      from setup_audit a left join users u on u.id = a.user_id where a.tenant_id = ${ws} and a.page_key = 'deployments' order by a.id desc limit ${limit}`);
+      from audit_log a left join users u on u.id = a.user_id where a.tenant_id = ${ws} and a.area = 'deployments' order by a.id desc limit ${limit}`);
     return rows.map((r) => ({ id: r.id, summary: r.summary, at: r.created_at, who: r.who }));
   }
 

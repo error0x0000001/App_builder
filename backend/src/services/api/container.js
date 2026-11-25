@@ -27,21 +27,15 @@ import { HealthService } from '../../modules/setup/health.service.js';
 import { MetricsService } from '../../modules/setup/metrics.service.js';
 import { UserDetailsService } from '../../modules/setup/userDetails.service.js';
 import { RecordsService } from '../../modules/setup/records.service.js';
-import { getCollection } from '@app/shared/setup-registry';
 import { AccessService } from '../../modules/access/access.service.js';
 import { createAccessAddons } from '../../modules/access/addons.service.js';
 import { IntegrationsService } from '../../modules/integrations/integrations.service.js';
 import { ChannelNotifier } from '../../modules/integrations/channelNotifier.js';
 import { createDeployments, createTerminals } from '../../modules/deployments/index.js';
 import { SearchService } from '../../modules/search/search.service.js';
-import { SecurityPolicyService } from '../../modules/setup/securityPolicy.service.js';
-import { EmailPolicyService } from '../../modules/setup/emailPolicy.service.js';
-import { EscalationService } from '../../modules/automation/escalation.service.js';
-import { SettingsReader } from '../../modules/setup/settingsReader.js';
+import { SecurityPolicyService } from '../../modules/security/securityPolicy.service.js';
+import { createAccessLists } from '../../modules/setup/accessLists.js';
 import { SettingsService } from '../../modules/setup/settings.service.js';
-import { AutomationService } from '../../modules/automation/automation.service.js';
-import { IntakeService } from '../../modules/automation/intake.service.js';
-import { ObjectsService } from '../../modules/objects/objects.service.js';
 import { ToolsService } from '../../modules/setup/tools.service.js';
 import { DriveService } from '../../modules/drive/drive.service.js';
 import { PhotoStore } from '../../modules/users/photoStore.js';
@@ -62,11 +56,10 @@ export function createContainer({ boss }) {
   const repos = createRepositories(db);
   const uow = new UnitOfWork(db);
   const cache = createCache();
-  const intakeUrl = (kind, ws) => (kind === 'email-to-case' ? `${new URL(`/api/v1/public/email-to-case/${ws}/${intake.emailToken(ws)}`, config.APP_URL)}` : `${new URL(`/api/v1/public/${kind}/${ws}`, config.APP_URL)}`);
   const usage = new UsageMeter({ redis: cache.redis });
   const membershipLookup = new MembershipLookup({ repos, cache });
-  const setupSettings = new SettingsService({ repos, cache, bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host, intakeUrl: (kind, ws) => intakeUrl(kind, ws) }) });
-  const securityPolicy = new SecurityPolicyService({ repos, settings: setupSettings, cache, defaults: { maxAttempts: config.MAX_FAILED_LOGINS, lockMs: config.LOCKOUT_MINUTES * MINUTE_MS } });
+  const securityPolicy = new SecurityPolicyService({ repos, cache, defaults: { maxAttempts: config.MAX_FAILED_LOGINS, lockMs: config.LOCKOUT_MINUTES * MINUTE_MS } });
+  const setupSettings = new SettingsService({ repos, cache, onSecurityChange: (tenantId) => securityPolicy.changed(tenantId), bindings: new SettingsBindings({ repos, usage, appHost: new URL(config.APP_URL).host }) });
   const hasher = new PasswordHasher();
   const tokens = new TokenService({ secret: config.JWT_SECRET, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS });
   const secretBox = new SecretBox(config.ENCRYPTION_KEY);
@@ -97,20 +90,14 @@ export function createContainer({ boss }) {
     })
     : null;
 
-  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, tenants, invitations, sessions, repos, addonsEnabled: config.ACCESS_ADDONS_ENABLED, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
   const health = new HealthService({ settings: setupSettings });
-  const settingsReader = new SettingsReader({ repos, cache });
-  const emailPolicy = new EmailPolicyService({ settings: settingsReader });
   const integrations = new IntegrationsService({ db, secretBox, repos, allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS });
   const notifier = new ChannelNotifier({ boss, integrations, logger });
-  const automation = new AutomationService({ repos, cache, mail, notifier, logger, settings: settingsReader });
-  const escalation = new EscalationService({ repos, automation, cache, logger });
-  const seedSetup = (ws, key) => setupRecords.ensureSeeded(ws, getCollection(key));
-  const addons = createAccessAddons({ enabled: config.ACCESS_ADDONS_ENABLED, db, cache, repos, seed: seedSetup }); // null when ACCESS_ADDONS_ENABLED=false: the feature never runs
-  const access = new AccessService({ automation, cache, seed: seedSetup, addons });
-  const objects = new ObjectsService({ repos, records: setupRecords, cache, automation, access });
+  const addons = createAccessAddons({ enabled: config.ACCESS_ADDONS_ENABLED, db, repos, changed: (tenantId) => access.changed(tenantId) }); // null when ACCESS_ADDONS_ENABLED=false: the feature never runs
+  const access = new AccessService({ repos, cache, addons });
+  const setupRecords = new RecordsService({ cache, adapters: { ...createSetupAdapters({ db, tenants, invitations, sessions, repos, access, addonsEnabled: Boolean(addons) }), ...createAccessLists({ repos, cache, access, security: securityPolicy, addons }) } });
   const drive = new DriveService({
-    db, storage: new LocalStorageDriver(config.STORAGE_DIR), objects, cache, secret: config.JWT_SECRET,
+    db, storage: new LocalStorageDriver(config.STORAGE_DIR), cache, secret: config.JWT_SECRET,
     limits: { maxUploadBytes: config.MAX_UPLOAD_MB * 1024 * 1024, quotaBytes: config.DRIVE_QUOTA_MB * 1024 * 1024 },
   });
   const avatars = new PhotoStore({ db, storage: drive.storage, kind: 'avatars', table: 'users', column: 'avatar_version', touchUpdatedAt: true });
@@ -122,19 +109,18 @@ export function createContainer({ boss }) {
   const linkPreviews = new LinkPreviewService({ db, cache });
   const calls = new CallService({ db, chat, livekit: new LiveKitClient({ url: config.LIVEKIT_URL, apiKey: config.LIVEKIT_API_KEY, apiSecret: config.LIVEKIT_API_SECRET }) });
   const realtime = new RealtimeHub({ tokens, chat, bus, presence, logger }).start();
-  const search = new SearchService({ db: readDb, objects, cache, drive });
-  const intake = new IntakeService({ objects, settings: setupSettings, secret: config.JWT_SECRET });
+  const search = new SearchService({ db: readDb, cache, drive });
   const setup = {
     settings: setupSettings, records: setupRecords, health,
     metrics: new MetricsService({ repos, db: readDb, cache, usage, health }),
     userDetails: new UserDetailsService({ db, repos, cache, addons }),
     addons,
-    tools: new ToolsService({ repos, records: setupRecords, mail, boss, intakeUrl, emailPolicy, escalation, objects }),
+    tools: new ToolsService({ repos, mail, boss }),
   };
   const close = async () => { await terminals?.close(); await realtime.close(); await bus.close(); usage.stop(); await usage.flush().catch(() => {}); await cache.close?.(); };
 
   const deployments = createDeployments({ enabled: config.DEPLOYMENTS_ENABLED, db, secretBox, repos, integrations, notifier, boss, logger });
   const terminals = createTerminals({ deployments, tokens, membershipLookup, logger });
   const features = Object.freeze({ accessAddons: Boolean(addons), deployments: Boolean(deployments) });
-  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
+  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, access, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
 }

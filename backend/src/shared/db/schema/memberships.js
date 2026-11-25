@@ -12,13 +12,14 @@ export const memberships = pgTable(
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: tenantRole('role').notNull().default('member'),
-    profile: text('profile'), // Setup profile name (grants come from Object Settings rows of that name); null = role defaults
+    profileId: uuid('profile_id'), // the person's profile (profiles.id); null = the role's defaults
+    hierarchyRoleId: uuid('hierarchy_role_id'), // where the person sits in the role hierarchy (hierarchy_roles.id)
     createdAt: createdAt(),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.userId] }),
     index('memberships_user_idx').on(t.userId, t.createdAt), // "my tenants"
-    index('memberships_role_profile_idx').on(t.tenantId, t.role, t.profile), // counts / filters by role and profile
+    index('memberships_role_profile_id_idx').on(t.tenantId, t.role, t.profileId), // counts / filters by role and profile
     index('memberships_tenant_page_idx').on(t.tenantId, t.createdAt, t.userId), // keyset member listing
   ],
 );
