@@ -1,5 +1,5 @@
 export * from './users.js';
-export * from './workspaces.js';
+export * from './tenants.js';
 export * from './memberships.js';
 export * from './sessions.js';
 export * from './authTokens.js';

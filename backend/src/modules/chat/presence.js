@@ -11,16 +11,16 @@ export class PresenceStore {
     this.local = new Map();
   }
 
-  #key = (workspaceId, userId) => `chat:p:${workspaceId}:${userId}`;
+  #key = (tenantId, userId) => `chat:p:${tenantId}:${userId}`;
 
-  async touch(workspaceId, userId) {
-    const key = this.#key(workspaceId, userId);
+  async touch(tenantId, userId) {
+    const key = this.#key(tenantId, userId);
     if (this.redis) { try { await this.redis.set(key, '1', 'EX', TTL_SECONDS); return; } catch { /* fall through to memory */ } }
     this.local.set(key, Date.now() + TTL_SECONDS * 1000);
   }
 
-  async online(workspaceId, userIds) {
-    const keys = userIds.map((id) => this.#key(workspaceId, id));
+  async online(tenantId, userIds) {
+    const keys = userIds.map((id) => this.#key(tenantId, id));
     if (this.redis) {
       try { const values = await this.redis.mget(keys); return userIds.filter((_, i) => values[i]); } catch { /* fall through */ }
     }

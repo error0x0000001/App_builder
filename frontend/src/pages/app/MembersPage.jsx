@@ -1,10 +1,10 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROLES, ROLE_LABELS, hasRole, outranks } from '@app/shared';
-import { workspacesApi } from '../../api/endpoints.js';
+import { tenantsApi } from '../../api/endpoints.js';
 import { cursorPagination } from '../../api/queries.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { PageToolbar } from '../../layouts/PageToolbar.jsx';
-import { InviteForm } from '../../components/workspace/InviteForm.jsx';
+import { InviteForm } from '../../components/tenant/InviteForm.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { Avatar } from '../../components/ui/Avatar.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -16,12 +16,12 @@ import { Select } from '../../components/ui/Select.jsx';
 import { Spinner } from '../../components/ui/Spinner.jsx';
 import { formatDate } from '../../lib/format.js';
 
-function MemberList({ workspaceId, actorRole, currentUserId }) {
+function MemberList({ tenantId, actorRole, currentUserId }) {
   const queryClient = useQueryClient();
-  const query = useInfiniteQuery({ queryKey: ['members', workspaceId], queryFn: ({ pageParam }) => workspacesApi.members(workspaceId, { after: pageParam }), ...cursorPagination });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['members', workspaceId] });
-  const changeRole = useMutation({ mutationFn: ({ userId, role }) => workspacesApi.changeRole(workspaceId, userId, role), onSettled: refresh });
-  const remove = useMutation({ mutationFn: (userId) => workspacesApi.removeMember(workspaceId, userId), onSettled: refresh });
+  const query = useInfiniteQuery({ queryKey: ['members', tenantId], queryFn: ({ pageParam }) => tenantsApi.members(tenantId, { after: pageParam }), ...cursorPagination });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['members', tenantId] });
+  const changeRole = useMutation({ mutationFn: ({ userId, role }) => tenantsApi.changeRole(tenantId, userId, role), onSettled: refresh });
+  const remove = useMutation({ mutationFn: (userId) => tenantsApi.removeMember(tenantId, userId), onSettled: refresh });
   const error = changeRole.error ?? remove.error;
 
   if (query.isLoading) return <Spinner />;
@@ -53,12 +53,12 @@ function MemberList({ workspaceId, actorRole, currentUserId }) {
   );
 }
 
-function PendingInvitations({ workspaceId }) {
+function PendingInvitations({ tenantId }) {
   const queryClient = useQueryClient();
-  const { data } = useQuery({ queryKey: ['invitations', workspaceId], queryFn: () => workspacesApi.invitations(workspaceId) });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['invitations', workspaceId] });
-  const resend = useMutation({ mutationFn: (id) => workspacesApi.resendInvitation(workspaceId, id), onSettled: refresh });
-  const revoke = useMutation({ mutationFn: (id) => workspacesApi.revokeInvitation(workspaceId, id), onSettled: refresh });
+  const { data } = useQuery({ queryKey: ['invitations', tenantId], queryFn: () => tenantsApi.invitations(tenantId) });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['invitations', tenantId] });
+  const resend = useMutation({ mutationFn: (id) => tenantsApi.resendInvitation(tenantId, id), onSettled: refresh });
+  const revoke = useMutation({ mutationFn: (id) => tenantsApi.revokeInvitation(tenantId, id), onSettled: refresh });
   if (!data?.invitations.length) return null;
   return (
     <Section title="Pending invitations" description="These people haven’t accepted yet.">
@@ -80,21 +80,21 @@ function PendingInvitations({ workspaceId }) {
 }
 
 export default function MembersPage() {
-  const { activeWorkspace, user } = useAuth();
-  if (!activeWorkspace) return <Alert tone="info">Select or create a workspace to manage its members.</Alert>;
-  const canInvite = hasRole(activeWorkspace.role, 'admin');
+  const { activeTenant, user } = useAuth();
+  if (!activeTenant) return <Alert tone="info">Select or create a tenant to manage its members.</Alert>;
+  const canInvite = hasRole(activeTenant.role, 'admin');
   return (
  <>
       {canInvite && (
         <PageToolbar><Button size="sm" onClick={() => document.getElementById('invite-people')?.scrollIntoView({ behavior: 'smooth' })}><Icon name="plus" />Invite people</Button></PageToolbar>
       )}
-      <Section title="Members" description={`People with access to ${activeWorkspace.name}.`}>
-        <MemberList workspaceId={activeWorkspace.id} actorRole={activeWorkspace.role} currentUserId={user.id} />
+      <Section title="Members" description={`People with access to ${activeTenant.name}.`}>
+        <MemberList tenantId={activeTenant.id} actorRole={activeTenant.role} currentUserId={user.id} />
       </Section>
       {canInvite && (
         <>
-          <div id="invite-people"><Section title="Invite people" description="They’ll get an email to set a password and join."><InviteForm workspaceId={activeWorkspace.id} /></Section></div>
-          <PendingInvitations workspaceId={activeWorkspace.id} />
+          <div id="invite-people"><Section title="Invite people" description="They’ll get an email to set a password and join."><InviteForm tenantId={activeTenant.id} /></Section></div>
+          <PendingInvitations tenantId={activeTenant.id} />
         </>
       )}
     </>

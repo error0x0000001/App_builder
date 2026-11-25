@@ -25,13 +25,13 @@ export class ToolsService {
     if (!meta) return this.#record(ctx, page, input);
     const data = toolInputSchema(page.key).parse(input);
     const result = await this.handlers[meta.handler]({ ...ctx, pageKey: page.key }, data);
-    await this.repos.setupAudit.record(ctx.workspaceId, ctx.userId, page.key, 'tool', `Ran ${page.name}: ${result.message}`);
+    await this.repos.setupAudit.record(ctx.tenantId, ctx.userId, page.key, 'tool', `Ran ${page.name}: ${result.message}`);
     return result;
   }
 
   async #record(ctx, page, input) {
-    await this.repos.setupRecords.insert(ctx.workspaceId, 'tool-runs', { label: page.name, status: 'Recorded', data: { page: page.key, input }, createdBy: ctx.userId });
-    await this.repos.setupAudit.record(ctx.workspaceId, ctx.userId, page.key, 'tool', `Requested ${page.name} (engine not active)`);
+    await this.repos.setupRecords.insert(ctx.tenantId, 'tool-runs', { label: page.name, status: 'Recorded', data: { page: page.key, input }, createdBy: ctx.userId });
+    await this.repos.setupAudit.record(ctx.tenantId, ctx.userId, page.key, 'tool', `Requested ${page.name} (engine not active)`);
     return { ok: true, active: false, message: `${page.name} was recorded. This tool's engine is not active yet, so nothing was changed.` };
   }
 
@@ -64,7 +64,7 @@ export class ToolsService {
       if (result.success) valid.push({ label: result.data[label], status: status ? result.data[status] ?? null : null, data: result.data });
       else if (errors.length < 5) errors.push(`Row ${i + 2}: ${result.error.issues[0].message} (${result.error.issues[0].path.join('.') || 'row'})`);
     });
-    for (let i = 0; i < valid.length; i += BATCH) await this.repos.setupRecords.insertMany(ctx.workspaceId, collection.key, valid.slice(i, i + BATCH), ctx.userId);
+    for (let i = 0; i < valid.length; i += BATCH) await this.repos.setupRecords.insertMany(ctx.tenantId, collection.key, valid.slice(i, i + BATCH), ctx.userId);
     await this.records.changed(ctx, collection, 'import', `Imported ${valid.length} ${collection.name} record(s)`);
     return { ok: true, active: true, imported: valid.length, skipped: rows.length - valid.length, errors, unmappedColumns: header.filter((_, i) => !mapped[i]), message: `Imported ${valid.length} of ${rows.length} rows${valid.length < rows.length ? ` (${rows.length - valid.length} skipped)` : ''}.` };
   }
@@ -74,7 +74,7 @@ export class ToolsService {
     if (getToolMeta(ctx.pageKey)?.handler === 'emailLog') {
       yield toCsv([['Time', 'To', 'Subject', 'Kind', 'Result', 'BCC']]);
       for (let after; ;) {
-        const rows = await this.repos.setupRecords.list(ctx.workspaceId, 'email-log', { after }, 1000);
+        const rows = await this.repos.setupRecords.list(ctx.tenantId, 'email-log', { after }, 1000);
         if (!rows.length) return;
         yield toCsv(rows.map((r) => [r.created_at.toISOString?.() ?? r.created_at, r.data.to, r.data.subject, r.data.kind, r.data.result, r.data.bcc]));
         after = rows.at(-1).id;
@@ -85,7 +85,7 @@ export class ToolsService {
     yield toCsv([collection.columns.map((c) => c.label)]);
     let after; let sent = 0;
     while (sent < EXPORT_MAX_ROWS) {
-      const rows = await this.repos.setupRecords.list(ctx.workspaceId, collection.key, { after }, 1000);
+      const rows = await this.repos.setupRecords.list(ctx.tenantId, collection.key, { after }, 1000);
       if (!rows.length) break;
       yield toCsv(rows.map((r) => collection.columns.map((c) => r.data[c.key] ?? '')));
       sent += rows.length; after = rows.at(-1).id;
@@ -99,59 +99,59 @@ export class ToolsService {
 
   async #massDelete(ctx, { object }) {
     const collection = this.#collectionFor(object);
-    const removed = await this.repos.setupRecords.removeWhere(ctx.workspaceId, collection.key);
+    const removed = await this.repos.setupRecords.removeWhere(ctx.tenantId, collection.key);
     await this.records.changed(ctx, collection, 'mass-delete', `Mass deleted ${removed} ${collection.name} record(s)`);
     return { ok: true, active: true, removed, message: `Deleted ${removed} ${collection.name} record(s).` };
   }
 
   async #massTransfer(ctx, { object, from, to }) {
     const collection = this.#collectionFor(object);
-    const [a, b] = await Promise.all([from, to].map((e) => this.#member(ctx.workspaceId, e)));
-    const moved = await this.repos.setupRecords.reassignCreator(ctx.workspaceId, collection.key, a, b);
+    const [a, b] = await Promise.all([from, to].map((e) => this.#member(ctx.tenantId, e)));
+    const moved = await this.repos.setupRecords.reassignCreator(ctx.tenantId, collection.key, a, b);
     await this.records.changed(ctx, collection, 'mass-transfer', `Transferred ${moved} ${collection.name} record(s)`);
     return { ok: true, active: true, moved, message: `Transferred ${moved} record(s).` };
   }
 
   async #member(ws, email) {
     const user = await this.repos.users.findByEmail(email.toLowerCase());
-    if (!user || !(await this.repos.memberships.find(ws, user.id))) throw new ValidationError(undefined, `${email} is not a member of this workspace`);
+    if (!user || !(await this.repos.memberships.find(ws, user.id))) throw new ValidationError(undefined, `${email} is not a member of this tenant`);
     return user.id;
   }
 
   async #massTransferApprovals(ctx, { from, to }) {
     const [a, b] = [from, to].map((e) => e.toLowerCase());
-    await Promise.all([a, b].map((e) => this.#member(ctx.workspaceId, e)));
-    const moved = await this.repos.setupRecords.reassignApprover(ctx.workspaceId, a, b);
-    await Promise.all(CRM_NAV_OBJECTS.map((o) => this.objects.invalidate(ctx.workspaceId, o.key)));
+    await Promise.all([a, b].map((e) => this.#member(ctx.tenantId, e)));
+    const moved = await this.repos.setupRecords.reassignApprover(ctx.tenantId, a, b);
+    await Promise.all(CRM_NAV_OBJECTS.map((o) => this.objects.invalidate(ctx.tenantId, o.key)));
     return { ok: true, active: true, moved, message: `Moved ${moved} pending approval request(s) to ${b}.` };
   }
 
   /** Replaces one value of a field with another across an object's records (e.g. "USA" → "United States"). Name and status are excluded. */
   async #massReplace(ctx, { object, field, from, to }) {
-    const def = await this.objects.definition(ctx.workspaceId, object);
+    const def = await this.objects.definition(ctx.tenantId, object);
     const key = def?.fields.find((f) => f.label.toLowerCase() === field.toLowerCase() || f.key === field.toLowerCase().replace(/\s+/g, '_'))?.key;
     if (!key) throw new ValidationError([{ field: 'field', message: `${object} has no field “${field}”` }]);
     if (key === def.nameKey || key === def.statusKey) throw new ValidationError([{ field: 'field', message: 'The name and status fields cannot be mass updated' }]);
-    const updated = await this.repos.setupRecords.replaceFieldValue(ctx.workspaceId, `obj:${object}`, key, from, to);
-    await this.objects.invalidate(ctx.workspaceId, object);
+    const updated = await this.repos.setupRecords.replaceFieldValue(ctx.tenantId, `obj:${object}`, key, from, to);
+    await this.objects.invalidate(ctx.tenantId, object);
     return { ok: true, active: true, updated, message: `Updated ${updated} ${object} record(s).` };
   }
 
   async #pendingEscalations(ctx) {
-    const pending = await this.escalation.preview(ctx.workspaceId);
+    const pending = await this.escalation.preview(ctx.tenantId);
     const total = pending.reduce((n, p) => n + p.count, 0);
     return { ok: true, active: true, message: total ? `${total} case(s) will escalate on the next run: ${pending.map((p) => `${p.rule}: ${p.count}`).join('; ')}.` : 'Nothing is waiting to escalate.', errors: pending.flatMap((p) => p.cases.map((c) => `${p.rule}: ${c}`)) };
   }
 
   async #testEmail(ctx, { email }) {
-    const reason = this.emailPolicy.blockedReason(await this.emailPolicy.forWorkspace(ctx.workspaceId), 'user');
+    const reason = this.emailPolicy.blockedReason(await this.emailPolicy.forTenant(ctx.tenantId), 'user');
     if (reason) return { ok: false, active: true, message: `Not sent: ${reason}.` }; // the real deliverability result, not a fake success
-    await this.mail.send('test_email', email.toLowerCase(), { workspace: ctx.workspaceName ?? 'your workspace' }, { workspaceId: ctx.workspaceId, kind: 'user' });
+    await this.mail.send('test_email', email.toLowerCase(), { tenant: ctx.tenantName ?? 'your tenant' }, { tenantId: ctx.tenantId, kind: 'user' });
     return { ok: true, active: true, message: `A test email was queued for ${email}.` };
   }
 
   async #expirePasswords(ctx) {
-    await this.boss.send(QUEUES.EXPIRE_PASSWORDS, { workspaceId: ctx.workspaceId, actorId: ctx.userId });
+    await this.boss.send(QUEUES.EXPIRE_PASSWORDS, { tenantId: ctx.tenantId, actorId: ctx.userId });
     return { ok: true, active: true, message: 'Started. Everyone else will be signed out and emailed a link to choose a new password.' };
   }
 
@@ -159,7 +159,7 @@ export class ToolsService {
     const rows = { Name: 'name', Email: 'web_email', Subject: 'subject', Description: 'description' };
     const inputs = fields.split(', ').map((f) => `  <label>${f} <${f === 'Description' ? 'textarea' : 'input'} name="${rows[f]}"${f === 'Description' ? '></textarea>' : ' />'}</label>`).join('\n');
     const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    const html = `<form action="${esc(this.intakeUrl('web-to-case', ctx.workspaceId))}" method="POST">\n  <input type="hidden" name="return_url" value="${esc(returnUrl)}" />\n${inputs}\n  <button type="submit">Submit</button>\n</form>`;
+    const html = `<form action="${esc(this.intakeUrl('web-to-case', ctx.tenantId))}" method="POST">\n  <input type="hidden" name="return_url" value="${esc(returnUrl)}" />\n${inputs}\n  <button type="submit">Submit</button>\n</form>`;
     return { ok: true, active: true, output: html, message: 'HTML generated. Submissions create Cases when “Enable Web-to-Case” is on (Setup › Web-to-Case).' };
   }
 }

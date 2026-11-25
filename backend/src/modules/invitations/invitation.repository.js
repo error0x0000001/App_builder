@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { invitations, users, workspaces } from '../../shared/db/schema/index.js';
+import { invitations, users, tenants } from '../../shared/db/schema/index.js';
 import { first } from '../../shared/db/helpers.js';
 
 export class InvitationRepository {
@@ -10,21 +10,21 @@ export class InvitationRepository {
   async findById(id) {
     return first(
       await this.db.select({
-        id: invitations.id, workspaceId: invitations.workspaceId, email: invitations.email, role: invitations.role,
+        id: invitations.id, tenantId: invitations.tenantId, email: invitations.email, role: invitations.role,
         tokenHash: invitations.tokenHash, expiresAt: invitations.expiresAt, acceptedAt: invitations.acceptedAt, revokedAt: invitations.revokedAt,
-        workspaceName: workspaces.name, invitedBy: invitations.invitedBy,
-      }).from(invitations).innerJoin(workspaces, eq(workspaces.id, invitations.workspaceId)).where(eq(invitations.id, id)).limit(1),
+        tenantName: tenants.name, invitedBy: invitations.invitedBy,
+      }).from(invitations).innerJoin(tenants, eq(tenants.id, invitations.tenantId)).where(eq(invitations.id, id)).limit(1),
     );
   }
 
-  async findPending(workspaceId, email) {
+  async findPending(tenantId, email) {
     return first(await this.db.select().from(invitations)
-      .where(and(eq(invitations.workspaceId, workspaceId), eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).limit(1));
+      .where(and(eq(invitations.tenantId, tenantId), eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).limit(1));
   }
 
-  listPending(workspaceId) {
+  listPending(tenantId) {
     return this.db.select({ id: invitations.id, email: invitations.email, role: invitations.role, expiresAt: invitations.expiresAt, createdAt: invitations.createdAt })
-      .from(invitations).where(and(eq(invitations.workspaceId, workspaceId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
+      .from(invitations).where(and(eq(invitations.tenantId, tenantId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
       .orderBy(desc(invitations.createdAt)).limit(100);
   }
 
@@ -34,9 +34,9 @@ export class InvitationRepository {
       .where(and(eq(invitations.id, id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), sql`${invitations.expiresAt} > now()`)).returning({ id: invitations.id })).length === 1;
   }
 
-  async revoke(id, workspaceId) {
+  async revoke(id, tenantId) {
     return (await this.db.update(invitations).set({ revokedAt: new Date() })
-      .where(and(eq(invitations.id, id), eq(invitations.workspaceId, workspaceId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).returning({ id: invitations.id })).length === 1;
+      .where(and(eq(invitations.id, id), eq(invitations.tenantId, tenantId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).returning({ id: invitations.id })).length === 1;
   }
 
   async reissue(id, { tokenHash, expiresAt }) {

@@ -39,14 +39,14 @@ function NewUserForm({ token, preview }) {
 }
 
 function ExistingUserAction({ token, preview }) {
-  const { user, signOut, switchWorkspace } = useAuth();
+  const { user, signOut, switchTenant } = useAuth();
   const navigate = useNavigate();
   const { form, submit, formError } = useAppForm({
     schema: tokenOnlySchema,
     defaultValues: { token },
     onSubmit: async (values) => {
-      const { workspaceId } = await invitationsApi.accept(values);
-      await switchWorkspace(workspaceId);
+      const { tenantId } = await invitationsApi.accept(values);
+      await switchTenant(tenantId);
       navigate('/app', { replace: true });
     },
   });
@@ -86,7 +86,7 @@ export default function AcceptInvitePage() {
   return (
     <AuthCard
       title="You’ve been invited"
-      description={<>{preview.inviterName ?? 'A teammate'} invited you to join <b className="text-ink">{preview.workspaceName}</b> as <b className="text-ink">{ROLE_LABELS[preview.role]}</b>.</>}
+      description={<>{preview.inviterName ?? 'A teammate'} invited you to join <b className="text-ink">{preview.tenantName}</b> as <b className="text-ink">{ROLE_LABELS[preview.role]}</b>.</>}
       width={preview.userExists ? 'sm' : 'md'}
     >
       {preview.userExists ? <ExistingUserAction token={token} preview={preview} /> : <NewUserForm token={token} preview={preview} />}

@@ -22,7 +22,7 @@ export class SettingsService {
   async update(ws, page, patch, { userId, expectedVersion }) {
     const locked = Object.keys(patch).filter((k) => this.bindings.readOnly(page.key).includes(k));
     if (locked.length) throw new ValidationError(locked.map((field) => ({ field, message: 'This value is managed by the platform' })));
-    const writable = await this.bindings.write(ws, page.key, patch); // bound keys are applied to their real owner (e.g. workspace name)
+    const writable = await this.bindings.write(ws, page.key, patch); // bound keys are applied to their real owner (e.g. tenant name)
     const row = await this.repos.setupSettings.patch(ws, page.key, writable, userId, expectedVersion);
     if (!row) throw new ConflictError('This page was changed by someone else. Reload to see the latest values.');
     await this.cache.bump(NS(ws, page.key));

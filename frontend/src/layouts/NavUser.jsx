@@ -10,7 +10,7 @@ import { Icon } from '../components/ui/Icon.jsx';
 
 /** Account menu body (identity, Profile, Security, Log out) — shared by the sidebar footer and the top bar. */
 function UserMenuContent({ side, align, className }) {
-  const { user, signOut, activeWorkspace, setThemeMode } = useAuth();
+  const { user, signOut, activeTenant, setThemeMode } = useAuth();
   const { mode } = useTheme();
   const { show: showCustomize } = useCustomize();
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ function UserMenuContent({ side, align, className }) {
         </DropdownMenuItem>
       ))}
       <DropdownMenuSeparator />
-      {activeWorkspace?.role === 'owner' && <DropdownMenuItem icon="sliders" onSelect={showCustomize}>Customize</DropdownMenuItem>}
+      {activeTenant?.role === 'owner' && <DropdownMenuItem icon="sliders" onSelect={showCustomize}>Customize</DropdownMenuItem>}
       <DropdownMenuItem icon="user" onSelect={() => navigate('/app/profile')}>Profile</DropdownMenuItem>
       <DropdownMenuItem icon="shield" onSelect={() => navigate('/app/security')}>Security</DropdownMenuItem>
       <DropdownMenuSeparator />

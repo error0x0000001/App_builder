@@ -20,7 +20,7 @@ export const signupSchema = z.object({
 export const loginSchema = z.object({
   email: emailField,
   password: z.string().min(1, 'Enter your password').max(256),
-  workspace: slugField.optional().or(z.literal('').transform(() => undefined)),
+  tenant: slugField.optional().or(z.literal('').transform(() => undefined)),
   rememberMe: z.boolean().optional(),
 });
 
@@ -50,4 +50,4 @@ export const updateProfileSchema = z.object({
   country: countryField,
 });
 
-export const workspaceLookupSchema = z.object({ workspace: slugField });
+export const tenantLookupSchema = z.object({ tenant: slugField });

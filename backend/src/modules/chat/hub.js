@@ -28,7 +28,7 @@ export class RealtimeHub {
   }
 
   #open(ws) {
-    const conn = { ws, userId: null, workspaceId: null, subs: new Map(), typingAt: new Map(), alive: true };
+    const conn = { ws, userId: null, tenantId: null, subs: new Map(), typingAt: new Map(), alive: true };
     this.sockets.add(conn);
     const deadline = setTimeout(() => ws.close(4401, 'auth timeout'), AUTH_TIMEOUT_MS);
     ws.on('message', (raw) => this.#onMessage(conn, raw, deadline).catch((e) => this.logger.warn({ err: e.message }, 'realtime message failed')));
@@ -68,14 +68,14 @@ export class RealtimeHub {
       let auth;
       try { auth = await this.tokens.verifyAccess(frame.token); } catch { return conn.ws.close(4401, 'invalid token'); }
       clearTimeout(deadline);
-      conn.userId = auth.userId; conn.workspaceId = auth.workspaceId;
+      conn.userId = auth.userId; conn.tenantId = auth.tenantId;
       this.#subscribe(conn, userChannel(auth.userId), (event) => this.#personal(conn, event));
-      for (const id of await this.chat.conversationIdsOf(auth.workspaceId, auth.userId)) this.#watch(conn, id);
-      await this.presence.touch(conn.workspaceId, conn.userId);
+      for (const id of await this.chat.conversationIdsOf(auth.tenantId, auth.userId)) this.#watch(conn, id);
+      await this.presence.touch(conn.tenantId, conn.userId);
       return this.#send(conn, { type: 'ready', userId: auth.userId });
     }
     switch (frame.type) {
-      case 'ping': await this.presence.touch(conn.workspaceId, conn.userId); return this.#send(conn, { type: 'pong' });
+      case 'ping': await this.presence.touch(conn.tenantId, conn.userId); return this.#send(conn, { type: 'pong' });
       case 'typing': {
         const channel = conversationChannel(frame.conversationId);
         const last = conn.typingAt.get(frame.conversationId) ?? 0;

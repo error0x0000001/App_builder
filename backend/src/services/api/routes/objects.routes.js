@@ -4,7 +4,7 @@ import { approvalDecisionSchema, setupIdsSchema, setupListQuerySchema, uuidField
 import { TooManyRequestsError } from '../../../shared/errors.js';
 import { config } from '../../../shared/config.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
 const objectParam = z.object({ object: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,79}$/) });
@@ -14,21 +14,21 @@ const recordParam = objectParam.extend({ id: uuidField });
 export function objectRoutes({ tokens, membershipLookup, cache, objects, users }) {
   const router = Router();
   router.use(authenticate(tokens));
-  const role = (minimum) => requireActiveWorkspaceRole(membershipLookup, minimum);
+  const role = (minimum) => requireActiveTenantRole(membershipLookup, minimum);
 
-  /** Fills req.objectCtx (workspace, user, email, role) and applies the per-workspace request ceiling. */
+  /** Fills req.objectCtx (tenant, user, email, role) and applies the per-tenant request ceiling. */
   router.use(role('viewer'), async (req, res, next) => {
     try {
-      const ws = req.auth.workspaceId;
+      const ws = req.auth.tenantId;
       if (!cache.allow(`objects:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`objects-w:${ws}:${req.auth.userId}`, 60)) > 300) throw new TooManyRequestsError(60);
-      req.objectCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
+      req.objectCtx = { tenantId: ws, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
   });
 
   router.get('/:object', validate({ params: objectParam }), async (req, res) => {
-    const def = await objects.definition(req.objectCtx.workspaceId, req.params.object);
+    const def = await objects.definition(req.objectCtx.tenantId, req.params.object);
     if (!def) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown object' } });
     res.set('Cache-Control', 'private, no-cache').json({ definition: def, permissions: await objects.permissions(req.objectCtx, req.params.object) });
   });

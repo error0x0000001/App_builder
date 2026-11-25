@@ -8,15 +8,15 @@ import { RateLimitRepository } from './rateLimit/rateLimit.repository.js';
 import { SessionRepository } from './sessions/session.repository.js';
 import { RecordsRepository, SettingsRepository, SetupAuditRepository } from './setup/repositories.js';
 import { UserRepository } from './users/user.repository.js';
-import { MembershipRepository } from './workspaces/membership.repository.js';
-import { WorkspaceRepository } from './workspaces/workspace.repository.js';
+import { MembershipRepository } from './tenants/membership.repository.js';
+import { TenantRepository } from './tenants/tenant.repository.js';
 
 /** Builds every repository over one executor (the pool, or a transaction). */
 export const createRepositories = (executor) => ({
   users: new UserRepository(executor),
   sessions: new SessionRepository(executor),
   authTokens: new AuthTokenRepository(executor),
-  workspaces: new WorkspaceRepository(executor),
+  tenants: new TenantRepository(executor),
   memberships: new MembershipRepository(executor),
   invitations: new InvitationRepository(executor),
   recoveryCodes: new RecoveryCodeRepository(executor),

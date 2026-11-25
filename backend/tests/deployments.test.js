@@ -30,7 +30,7 @@ const queued = () => server.outbox.filter((j) => j.deploymentId);
 
 async function admin() {
   const { client } = await registerUser(server);
-  const ws = (await client.get('/me')).body.activeWorkspaceId;
+  const ws = (await client.get('/me')).body.activeTenantId;
   return { client, ws };
 }
 async function readyServer(client) {
@@ -68,7 +68,7 @@ describe('servers', () => {
     assert.equal(created.status, 201);
     assert.equal(created.body.server.hasKey, true);
     assert.ok(!JSON.stringify(created.body).includes('OPENSSH'));
-    const { rows } = await db.execute(sql`select ssh_key_enc from dp_servers where workspace_id = ${ws}`);
+    const { rows } = await db.execute(sql`select ssh_key_enc from dp_servers where tenant_id = ${ws}`);
     assert.ok(rows[0].ssh_key_enc && !rows[0].ssh_key_enc.includes('OPENSSH'), 'encrypted at rest');
     const id = created.body.server.id;
     assert.equal((await client.post(`${D}/servers/${id}/test`)).body.server.dockerVersion, '27.3.1');
@@ -174,7 +174,7 @@ describe('applications', () => {
     assert.match(log, /TOKEN=•••/);
     const revealed = await client.post(`${D}/services/${service.id}/secrets`);
     assert.match(revealed.body.env, /abcd-super-secret/);
-    const { rows: audit } = await db.execute(sql`select summary from setup_audit where workspace_id = ${(await client.get('/me')).body.activeWorkspaceId} and page_key = 'deployments'`);
+    const { rows: audit } = await db.execute(sql`select summary from setup_audit where tenant_id = ${(await client.get('/me')).body.activeTenantId} and page_key = 'deployments'`);
     assert.ok(audit.some((r) => /Viewed secrets of “Leaky”/.test(r.summary)), 'revealing secrets is audited');
   });
 
@@ -265,7 +265,7 @@ describe('databases, jobs and backups', () => {
 
     // connect MinIO (as enabled + connected) and the backup goes out through rclone
     const box = new (await import('../src/shared/security/crypto.js')).SecretBox(process.env.ENCRYPTION_KEY);
-    await db.execute(sql`insert into workspace_integrations (workspace_id, provider, enabled, config, secrets_enc, status) values (${ws}, 'minio', true, ${JSON.stringify({ endpoint: 'https://minio.example.com', bucket: 'backups', region: 'us-east-1', access_key_id: 'AKIAX' })}::jsonb, ${box.encrypt(JSON.stringify({ secret_access_key: 'minio-secret-key' }))}, 'connected')`);
+    await db.execute(sql`insert into tenant_integrations (tenant_id, provider, enabled, config, secrets_enc, status) values (${ws}, 'minio', true, ${JSON.stringify({ endpoint: 'https://minio.example.com', bucket: 'backups', region: 'us-east-1', access_key_id: 'AKIAX' })}::jsonb, ${box.encrypt(JSON.stringify({ secret_access_key: 'minio-secret-key' }))}, 'connected')`);
     await new Promise((r) => setTimeout(r, 5100));
     fake.commands.length = 0;
     await client.post(`${D}/services/${database.id}/jobs/${backup.id}/run`); await runAll();
@@ -292,7 +292,7 @@ describe('databases, jobs and backups', () => {
     assert.equal(await svc.tick(now), 1);
     assert.equal(await svc.tick(now), 0, 'the same minute is not queued twice');
     assert.equal(queued().length, 1);
-    await db.execute(sql`insert into dp_deployments (id, workspace_id, kind, title, status, started_at) values (${crypto.randomUUID()}::uuid, ${ws}, 'deploy', 'stuck', 'running', now() - interval '3 hours')`);
+    await db.execute(sql`insert into dp_deployments (id, tenant_id, kind, title, status, started_at) values (${crypto.randomUUID()}::uuid, ${ws}, 'deploy', 'stuck', 'running', now() - interval '3 hours')`);
     await svc.tick(new Date(now.getTime() + 120_000));
     const { rows } = await db.execute(sql`select status, log from dp_deployments where title = 'stuck'`);
     assert.equal(rows[0].status, 'error');
@@ -331,7 +331,7 @@ describe('push-to-deploy webhooks', () => {
 });
 
 describe('isolation', () => {
-  it('another workspace cannot see or touch these resources', async () => {
+  it('another tenant cannot see or touch these resources', async () => {
     const { client } = await admin();
     const sid = await readyServer(client);
     const { project: p, env } = await project(client);
@@ -560,18 +560,18 @@ describe('web terminal', () => {
     t.ws.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
     await t.until(() => fake.lastSize?.[0] === 120);
     t.ws.close();
-    const audit = await db.execute(sql`select count(*)::int as n from setup_audit where workspace_id = ${wsId} and summary like 'Opened a terminal%'`);
+    const audit = await db.execute(sql`select count(*)::int as n from setup_audit where tenant_id = ${wsId} and summary like 'Opened a terminal%'`);
     assert.equal(audit.rows[0].n, 1);
 
     const bad = await open('garbage', {});
     await bad.until(() => bad.code() === 4401);
     // a deployer (not manager) is refused
     const email = uniqueEmail();
-    await client.post(`/workspaces/${wsId}/invitations`, { invitations: [{ email, role: 'member' }] });
+    await client.post(`/tenants/${wsId}/invitations`, { invitations: [{ email, role: 'member' }] });
     const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
     const person = new Client(server.base);
     await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-    await person.post(`/workspaces/${wsId}/switch`);
+    await person.post(`/tenants/${wsId}/switch`);
     const denied = await open(person.token, { serviceId: service.id });
     await denied.until(() => denied.code() === 4403);
   });
@@ -665,11 +665,11 @@ describe('saved credentials', () => {
 describe('access follows Quelli roles', () => {
   async function join(boss, ws, role) {
     const email = uniqueEmail();
-    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+    await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
     const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
     const person = new Client(server.base);
     await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-    await person.post(`/workspaces/${ws}/switch`);
+    await person.post(`/tenants/${ws}/switch`);
     return person;
   }
   it('admins manage, members deploy, viewers look, and there is no separate permission list', async () => {

@@ -10,13 +10,13 @@ after(async () => { await server.stop(); });
 const C = '/chat';
 
 async function join(boss, role = 'member', name = 'Meera') {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   await person.post('/invitations/accept', { token, firstName: name, lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   const id = (await person.get('/me')).body.user.id;
   return { person, email, ws, id };
 }
@@ -45,7 +45,7 @@ async function connect(client) {
 }
 
 describe('chat: conversations', () => {
-  it('opens a DM idempotently, only with workspace members, and lists it in both inboxes', async () => {
+  it('opens a DM idempotently, only with tenant members, and lists it in both inboxes', async () => {
     const { client: boss } = await registerUser(server);
     const a = await join(boss, 'member', 'Asha');
     const b = await join(boss, 'member', 'Bela');
@@ -58,7 +58,7 @@ describe('chat: conversations', () => {
 
     const outsider = await registerUser(server);
     const otherId = (await outsider.client.get('/me')).body.user.id;
-    assert.equal((await a.person.post(`${C}/dm`, { userId: otherId })).status, 400, 'people outside the workspace cannot be messaged');
+    assert.equal((await a.person.post(`${C}/dm`, { userId: otherId })).status, 400, 'people outside the tenant cannot be messaged');
 
     const inbox = await b.person.get(`${C}/conversations`);
     assert.deepEqual(inbox.body.conversations.map((c) => c.id), [first.body.conversation.id]);
@@ -168,8 +168,8 @@ describe('chat: conversations', () => {
 
     // group admins may delete anyone's message; legal hold blocks it
     const msg = (await d.person.post(`${C}/conversations/${id}/messages`, { body: 'draft numbers' })).body.message;
-    assert.equal((await c.person.put(`${C}/conversations/${id}/legal-hold`, { on: true })).status, 403, 'only workspace admins place holds');
-    assert.equal((await boss.put(`${C}/conversations/${id}/legal-hold`, { on: true })).status, 200, 'a workspace admin can freeze a conversation they are not even in');
+    assert.equal((await c.person.put(`${C}/conversations/${id}/legal-hold`, { on: true })).status, 403, 'only tenant admins place holds');
+    assert.equal((await boss.put(`${C}/conversations/${id}/legal-hold`, { on: true })).status, 200, 'a tenant admin can freeze a conversation they are not even in');
     const held = await c.person.delete(`${C}/conversations/${id}/messages/${msg.id}`);
     assert.equal(held.status, 409); assert.match(held.body.message ?? held.body.error?.message ?? JSON.stringify(held.body), /LEGAL_HOLD/);
     assert.equal((await d.person.patch(`${C}/conversations/${id}/messages/${msg.id}`, { body: 'changed' })).status, 409, 'edits are frozen too');
@@ -292,10 +292,10 @@ describe('chat: attachments, shared media, profile photos', () => {
     assert.deepEqual(sent.body.message.attachments.map((x) => x.name), ['team.png', 'plan.pdf']);
     assert.equal((await a.person.post(`${C}/conversations/${ab}/messages`, { attachments: [photo.id, doc.id] })).status, 201, 'a file alone is a message');
 
-    // members can download; everyone else cannot — including the workspace owner who is not in the conversation
+    // members can download; everyone else cannot — including the tenant owner who is not in the conversation
     assert.equal((await b.person.download(`/drive/files/${photo.id}/download`)).text, 'PNGDATA');
     assert.equal((await c.person.download(`/drive/files/${photo.id}/download`)).status, 404, 'a non-member gets nothing');
-    assert.equal((await boss.download(`/drive/files/${photo.id}/download`)).status, 404, 'workspace admins do not read other people\'s chats');
+    assert.equal((await boss.download(`/drive/files/${photo.id}/download`)).status, 404, 'tenant admins do not read other people\'s chats');
     assert.equal((await boss.get('/drive/list?view=recent')).body.files.some((f) => f.id === photo.id), false, 'and chat files do not leak into their Documents');
     assert.equal((await b.person.get('/drive/list?view=recent')).body.files.some((f) => f.id === photo.id), true, 'members see them in Documents');
 
@@ -376,7 +376,7 @@ describe('chat: files in Documents', () => {
     assert.deepEqual(inside.files.map((f) => f.name), ['dm.txt']);
     assert.equal(inside.folder.name, 'Asha Iyer'); assert.equal(inside.folder.role, 'viewer', 'read-only in Documents');
     assert.equal((await c.person.get(`/drive/list?folder=${forB.folders[0].id}`)).status, 404, 'Chitra cannot open the Asha/Bela folder by id');
-    assert.equal((await boss.get(`/drive/list?folder=${forB.folders[0].id}`)).status, 404, 'nor can the workspace owner');
+    assert.equal((await boss.get(`/drive/list?folder=${forB.folders[0].id}`)).status, 404, 'nor can the tenant owner');
     assert.equal((await b.person.upload('/drive/files', { fields: { folderId: forB.folders[0].id }, filename: 'x.txt' })).status, 403, 'files are sent from the conversation, not uploaded into its folder');
     assert.equal((await b.person.post('/drive/folders', { name: 'sub', parentId: forB.folders[0].id })).status, 400);
   });

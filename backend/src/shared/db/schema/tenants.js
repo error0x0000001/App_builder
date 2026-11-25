@@ -2,8 +2,8 @@ import { jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, tz } from '../helpers.js';
 import { users } from './users.js';
 
-export const workspaces = pgTable(
-  'workspaces',
+export const tenants = pgTable(
+  'tenants',
   {
     id: pk(),
     name: text('name').notNull(),
@@ -18,5 +18,5 @@ export const workspaces = pgTable(
     createdAt: createdAt(),
     updatedAt: tz('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
   },
-  (t) => [uniqueIndex('workspaces_slug_uq').on(t.slug)],
+  (t) => [uniqueIndex('tenants_slug_uq').on(t.slug)],
 );

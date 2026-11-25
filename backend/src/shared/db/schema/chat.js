@@ -10,7 +10,7 @@ export const chatConversations = pgTable(
   'chat_conversations',
   {
     id: pk(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     kind: text('kind').notNull(),
     dmKey: text('dm_key'),
     title: text('title'),
@@ -26,7 +26,7 @@ export const chatConversations = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex('chat_conversations_dm_uq').on(t.workspaceId, t.dmKey).where(sql`${t.dmKey} is not null`),
+    uniqueIndex('chat_conversations_dm_uq').on(t.tenantId, t.dmKey).where(sql`${t.dmKey} is not null`),
     uniqueIndex('chat_conversations_invite_uq').on(t.inviteCode).where(sql`${t.inviteCode} is not null`),
   ],
 );
@@ -37,7 +37,7 @@ export const chatMembers = pgTable(
   {
     conversationId: uuid('conversation_id').notNull(),
     userId: uuid('user_id').notNull(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     role: text('role').notNull().default('member'), // member | admin
     lastReadId: uuid('last_read_id'),
     mutedUntil: tz('muted_until'),
@@ -49,7 +49,7 @@ export const chatMembers = pgTable(
   (t) => [
     primaryKey({ columns: [t.conversationId, t.userId] }),
     // the inbox: my active conversations, newest activity first
-    index('chat_members_user_idx').on(t.workspaceId, t.userId).where(sql`${t.leftAt} is null`),
+    index('chat_members_user_idx').on(t.tenantId, t.userId).where(sql`${t.leftAt} is null`),
   ],
 );
 
@@ -59,7 +59,7 @@ export const chatMessages = pgTable(
   {
     conversationId: uuid('conversation_id').notNull(),
     id: uuid('id').notNull(), // client-generated UUIDv7: retries are idempotent and order follows time
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     senderId: uuid('sender_id'),
     kind: text('kind').notNull().default('text'), // text | system | call
     body: text('body').notNull().default(''),
@@ -110,7 +110,7 @@ export const chatCalls = pgTable(
   'chat_calls',
   {
     id: pk(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     conversationId: uuid('conversation_id').notNull(),
     startedBy: uuid('started_by').notNull(),
     video: boolean('video').notNull().default(true),

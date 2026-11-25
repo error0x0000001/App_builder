@@ -30,7 +30,7 @@ export class CallService {
     if (closeRoom) await this.livekit.closeRoom(call.conversation_id).catch(() => {});
     const others = (done.joined ?? []).filter((id) => id !== call.started_by);
     const seconds = Math.max(0, Math.round((new Date(done.ended_at) - new Date(done.created_at)) / 1000));
-    await this.chat.event({ workspaceId: call.workspace_id, userId: call.started_by }, call.conversation_id, 'call', others.length ? `ended:${seconds}:${call.video ? 'video' : 'audio'}` : `missed:0:${call.video ? 'video' : 'audio'}`, [call.id]);
+    await this.chat.event({ tenantId: call.tenant_id, userId: call.started_by }, call.conversation_id, 'call', others.length ? `ended:${seconds}:${call.video ? 'video' : 'audio'}` : `missed:0:${call.video ? 'video' : 'audio'}`, [call.id]);
     await this.chat.announce(call.conversation_id, { type: 'call.ended', callId: call.id });
     await this.chat.tell(await this.chat.memberIds(call.conversation_id), { type: 'call.dismissed', conversationId: call.conversation_id, callId: call.id });
   }
@@ -47,7 +47,7 @@ export class CallService {
     }
     if (call) return { call: this.#view(call), ringing: false };
     try {
-      [call] = await this.#rows(sql`insert into chat_calls (id, workspace_id, conversation_id, started_by, video) values (${uuidv7()}, ${ctx.workspaceId}, ${conversationId}, ${ctx.userId}, ${video}) returning *`);
+      [call] = await this.#rows(sql`insert into chat_calls (id, tenant_id, conversation_id, started_by, video) values (${uuidv7()}, ${ctx.tenantId}, ${conversationId}, ${ctx.userId}, ${video}) returning *`);
     } catch (error) {
       if (error.code === '23505' || error.cause?.code === '23505') return { call: this.#view(await this.#active(conversationId)), ringing: false }; // raced with someone else's start
       throw error;

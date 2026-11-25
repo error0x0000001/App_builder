@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 const SidebarContext = createContext(null);
 
 /**
- * Navigation state. Layout (rail | sidebar | top bar) and style (flat | inset | floating) are the workspace owner's choice
+ * Navigation state. Layout (rail | sidebar | top bar) and style (flat | inset | floating) are the tenant owner's choice
  * (Customize, saved in the database); phones always use the drawer. Icon-collapse is personal (this browser).
  * Cmd/Ctrl+B toggles the sidebar; Escape closes the mobile drawer.
  */

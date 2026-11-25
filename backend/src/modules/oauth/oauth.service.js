@@ -10,8 +10,8 @@ const GOOGLE = {
 
 /** Google sign-in via authorization-code flow with PKCE and a signed, short-lived state cookie. */
 export class OAuthService {
-  constructor({ repos, uow, tokens, auth, workspaces, audit, mfaTokens, settings }) {
-    Object.assign(this, { repos, uow, tokens, auth, workspaces, audit, mfaTokens, settings });
+  constructor({ repos, uow, tokens, auth, tenants, audit, mfaTokens, settings }) {
+    Object.assign(this, { repos, uow, tokens, auth, tenants, audit, mfaTokens, settings });
   }
 
   get redirectUri() { return new URL('/api/v1/auth/oauth/google/callback', this.settings.appUrl).toString(); }
@@ -74,7 +74,7 @@ export class OAuthService {
     return this.uow.run(async (repos) => {
       const firstName = profile.given_name ?? email.split('@')[0];
       const user = await repos.users.create({ email, emailVerifiedAt: new Date(), firstName, lastName: profile.family_name ?? '-' });
-      await this.workspaces.createWithOwner(repos, { name: `${firstName}’s Workspace`, userId: user.id });
+      await this.tenants.createWithOwner(repos, { name: `${firstName}’s Tenant`, userId: user.id });
       await repos.oauthAccounts.link({ userId: user.id, provider: 'google', providerUserId: profile.sub, email });
       return user;
     });

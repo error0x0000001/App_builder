@@ -15,12 +15,12 @@ import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 
 /** navigation.js → sections (the unnamed top-level rows are "Overview", then one section per group). Role-hidden items are dropped. */
 export function useNavSections() {
-  const { activeWorkspace } = useAuth();
+  const { activeTenant } = useAuth();
   return useMemo(() => {
-    const show = (items) => items.filter((item) => isVisibleTo(item, activeWorkspace));
+    const show = (items) => items.filter((item) => isVisibleTo(item, activeTenant));
     return [{ id: 'overview', label: 'Overview', icon: 'home', items: show(NAV.main) }, ...NAV.groups.map((g) => ({ id: g.label, label: g.label, icon: g.icon, panel: g.panel, items: show(g.items) }))]
       .filter((section) => section.items.length);
-  }, [activeWorkspace]);
+  }, [activeTenant]);
 }
 
 /** Panel rows are 44px: 22px icon, 15px label, optional "+" on the right; active = tinted. */
@@ -34,10 +34,10 @@ function useNavBadge(item) {
 }
 
 function PanelRow({ item }) {
-  const { activeWorkspace } = useAuth();
+  const { activeTenant } = useAuth();
   const { pathname } = useLocation();
   const badge = useNavBadge(item);
-  const canCreate = item.create && hasRole(activeWorkspace?.role, 'member');
+  const canCreate = item.create && hasRole(activeTenant?.role, 'member');
   return (
     <li className="flex items-center">
       <NavLink to={item.to} end={item.end} className={({ isActive }) => cn(ROW, (isActive || isActivePath(item, pathname)) && 'bg-sidebar-accent')}>

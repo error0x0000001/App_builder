@@ -1,9 +1,9 @@
-/** Workspace roles in ascending order of privilege. */
+/** Tenant roles in ascending order of privilege. */
 export const ROLES = Object.freeze(['viewer', 'member', 'admin', 'owner']);
 export const ASSIGNABLE_ROLES = Object.freeze(['viewer', 'member', 'admin']);
 export const ROLE_LABELS = Object.freeze({ viewer: 'Viewer', member: 'Member', admin: 'Admin', owner: 'Owner' });
 
-/** Tenant (workspace) colour themes. `colors` = [primary, sidebar] preview swatches; the real tokens live in frontend/src/index.css. */
+/** Tenant (tenant) colour themes. `colors` = [primary, sidebar] preview swatches; the real tokens live in frontend/src/index.css. */
 export const DEFAULT_TENANT_THEME = 'untitled';
 export const TENANT_THEMES = Object.freeze([
   { id: 'untitled', label: 'Untitled', colors: ['#7f56d9', '#f9fafb'] },
@@ -93,6 +93,6 @@ export const AUDIT_EVENT_LABELS = Object.freeze({
   refresh_token_reuse: 'Suspicious session activity — session revoked',
   account_locked: 'Account temporarily locked',
   oauth_login: 'Signed in with Google',
-  invitation_accepted: 'Joined a workspace',
+  invitation_accepted: 'Joined a tenant',
   impersonation: 'An administrator signed in as you',
 });

@@ -4,7 +4,7 @@
 /* ---------------------------------------------------------------------------------------------
    Tokens. Two independent axes:
    - mode   (html[data-theme="light|dark"])        -> neutrals; a personal preference
-   - tenant (html[data-tenant-theme="<id>"])       -> brand accent + sidebar tone; chosen per workspace by admins
+   - tenant (html[data-tenant-theme="<id>"])       -> brand accent + sidebar tone; chosen per tenant by admins
    Default tenant theme = graphite. A tenant theme only overrides what differs; add one by adding two blocks below
    and an entry in TENANT_THEMES (packages/shared/src/constants.js).
    --------------------------------------------------------------------------------------------- */

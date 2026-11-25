@@ -18,14 +18,14 @@ const durationMs = (s) => {
 
 /**
  * Turns the saved Setup pages (Password Policies, Session Settings, Network Access) into rules the auth code enforces.
- * A user can belong to several workspaces; the strictest rule across them applies to anything not tied to one workspace.
+ * A user can belong to several tenants; the strictest rule across them applies to anything not tied to one tenant.
  */
 export class SecurityPolicyService {
   constructor({ repos, settings, cache, defaults }) { Object.assign(this, { repos, settings, cache, defaults }); }
 
   async #values(ws, pageKey) { return (await this.settings.get(ws, getSetupPage(pageKey))).value.values; }
 
-  async forWorkspace(ws) {
+  async forTenant(ws) {
     const [pw, sess, access] = await Promise.all([this.#values(ws, 'password-policies'), this.#values(ws, 'session-settings'), this.#values(ws, 'login-access-policies')]);
     const attempts = pw.maximum_invalid_login_attempts;
     return {
@@ -44,11 +44,11 @@ export class SecurityPolicyService {
     };
   }
 
-  /** Strictest combination over every workspace the user belongs to (or the built-in defaults when they have none). */
+  /** Strictest combination over every tenant the user belongs to (or the built-in defaults when they have none). */
   async forUser(userId) {
-    const workspaces = await this.repos.memberships.listWorkspacesForUser(userId);
-    if (!workspaces.length) return { minLength: PASSWORD_MIN, complexity: 0, historyCount: 0, expireMs: null, minLifetime: false, sessionTimeoutMs: null, lockIp: false, maxAttempts: this.defaults.maxAttempts, lockMs: this.defaults.lockMs };
-    const all = await Promise.all(workspaces.map((w) => this.forWorkspace(w.id)));
+    const tenants = await this.repos.memberships.listTenantsForUser(userId);
+    if (!tenants.length) return { minLength: PASSWORD_MIN, complexity: 0, historyCount: 0, expireMs: null, minLifetime: false, sessionTimeoutMs: null, lockIp: false, maxAttempts: this.defaults.maxAttempts, lockMs: this.defaults.lockMs };
+    const all = await Promise.all(tenants.map((w) => this.forTenant(w.id)));
     return {
       minLength: Math.max(...all.map((p) => p.minLength)),
       complexity: Math.max(...all.map((p) => p.complexity)),
@@ -84,7 +84,7 @@ export class SecurityPolicyService {
     for (const hash of hashes) if (await hasher.verify(hash, password)) throw new ValidationError([{ field: 'password', message: `You can't reuse your last ${policy.historyCount} passwords` }], 'Choose a password you have not used recently');
   }
 
-  /** Trusted IP ranges of a workspace. Empty list = no restriction. */
+  /** Trusted IP ranges of a tenant. Empty list = no restriction. */
   ranges(ws) {
     return this.cache.rememberValue(`r:${ws}:network-access`, 'ranges', { ttlMs: 30_000 }, async () =>
       (await this.repos.setupRecords.listAll(ws, 'network-access')).map((r) => ({ start: r.data.start_ip_address, end: r.data.end_ip_address || r.data.start_ip_address })));
@@ -93,6 +93,6 @@ export class SecurityPolicyService {
   async assertIpAllowed(ws, ip) {
     if (!ws) return;
     const ranges = await this.ranges(ws);
-    if (ranges.length && !ranges.some((r) => ipInRange(ip, r.start, r.end))) throw new ForbiddenError('Sign-in from this network is not allowed for this workspace', 'IP_RESTRICTED');
+    if (ranges.length && !ranges.some((r) => ipInRange(ip, r.start, r.end))) throw new ForbiddenError('Sign-in from this network is not allowed for this tenant', 'IP_RESTRICTED');
   }
 }

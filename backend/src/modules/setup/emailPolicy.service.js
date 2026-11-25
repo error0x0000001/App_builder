@@ -1,5 +1,5 @@
 /**
- * Setup → Email pages applied to outgoing mail of a workspace:
+ * Setup → Email pages applied to outgoing mail of a tenant:
  *   Deliverability     access level: All email / System email only / No access
  *   Compliance BCC     copy every (user) email to an address; optionally system email too
  *   Email Footers      footer appended to user-facing automation email
@@ -8,7 +8,7 @@
 export class EmailPolicyService {
   constructor({ settings }) { this.settings = settings; }
 
-  async forWorkspace(ws) {
+  async forTenant(ws) {
     const [d, b, f] = await Promise.all(['deliverability', 'compliance-bcc-email', 'email-footers'].map((k) => this.settings.values(ws, k)));
     return {
       accessLevel: d.access_level,

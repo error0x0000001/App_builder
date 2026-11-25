@@ -6,7 +6,7 @@ import { Avatar } from './Avatar.jsx';
 import { SearchInput } from './SearchInput.jsx';
 
 /**
- * "Add people" search over the workspace's members (Documents sharing, chat, meetings). Typing opens a list of matches; `exclude` hides people
+ * "Add people" search over the tenant's members (Documents sharing, chat, meetings). Typing opens a list of matches; `exclude` hides people
  * already chosen. Calls `onPick(person)` and clears itself.
  */
 export function PeoplePicker({ label = 'Add people', placeholder = 'Add people by name or email', exclude = [], onPick, autoFocus = false, enabled = true }) {

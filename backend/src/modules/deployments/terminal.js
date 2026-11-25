@@ -48,8 +48,8 @@ export class TerminalHub {
           if (frame.type !== 'auth' || typeof frame.token !== 'string') return ws.close(4401, 'auth required');
           conn.starting = true; clearTimeout(deadline);
           let auth; try { auth = await this.tokens.verifyAccess(frame.token); } catch { return ws.close(4401, 'invalid token'); }
-          const membership = await this.membershipLookup.find(auth.workspaceId, auth.userId);
-          const ctx = { workspaceId: auth.workspaceId, userId: auth.userId, role: membership?.role };
+          const membership = await this.membershipLookup.find(auth.tenantId, auth.userId);
+          const ctx = { tenantId: auth.tenantId, userId: auth.userId, role: membership?.role };
           if (!membership || (await this.deployments.levelFor(ctx)) !== 'manager') return ws.close(4403, 'forbidden');
           if ((this.sessions.get(auth.userId) ?? 0) >= MAX_PER_USER) return ws.close(4429, 'too many sessions');
           this.sessions.set(auth.userId, (this.sessions.get(auth.userId) ?? 0) + 1); conn.userId = auth.userId;

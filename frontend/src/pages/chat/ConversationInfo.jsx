@@ -127,7 +127,7 @@ function Reschedule({ conversation, onSaved }) {
  * notification settings with tinted icons, members (groups) or groups in common (people). Always a panel on the right of the conversation.
  */
 export function ConversationInfo({ conversationId, onClose }) {
-  const { user, activeWorkspace } = useAuth();
+  const { user, activeTenant } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const calls = useCall();
@@ -143,7 +143,7 @@ export function ConversationInfo({ conversationId, onClose }) {
   const peer = peerId ? people[peerId] : null;
   const online = usePresence(peerId ? [peerId] : []).includes(peerId);
   const admin = conversation?.role === 'admin';
-  const workspaceAdmin = ['owner', 'admin'].includes(activeWorkspace?.role);
+  const tenantAdmin = ['owner', 'admin'].includes(activeTenant?.role);
   const muted = item?.mutedUntil && new Date(item.mutedUntil) > new Date();
   const { data: common } = useQuery({ queryKey: ['chat', 'common', peerId], queryFn: () => chatApi.commonGroups(peerId), enabled: Boolean(peerId && !group) });
 
@@ -215,7 +215,7 @@ export function ConversationInfo({ conversationId, onClose }) {
                 </div>
                 <Switch leading={<FeaturedIcon icon="pin" color="purple" size="sm" />} label="Pin chat" checked={Boolean(item?.pinned)} onChange={(e) => setState({ pinned: e.target.checked })} />
                 <Switch leading={<FeaturedIcon icon="archive" color="gray" size="sm" />} label="Archive chat" description="Hidden until someone writes again." checked={Boolean(item?.archived)} onChange={(e) => setState({ archived: e.target.checked })} />
-                {workspaceAdmin && <Switch leading={<FeaturedIcon icon="lock" color="error" size="sm" />} label="Legal hold" description="Nothing in this chat can be edited or deleted." checked={conversation.legalHold} onChange={(e) => run(() => chatApi.setLegalHold(conversationId, e.target.checked))()} />}
+                {tenantAdmin && <Switch leading={<FeaturedIcon icon="lock" color="error" size="sm" />} label="Legal hold" description="Nothing in this chat can be edited or deleted." checked={conversation.legalHold} onChange={(e) => run(() => chatApi.setLegalHold(conversationId, e.target.checked))()} />}
               </div>
             </Section>
 

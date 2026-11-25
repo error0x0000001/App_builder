@@ -34,17 +34,17 @@ export class RecordsService {
     const adapter = this.adapters[collection.key];
     const compute = async () => {
       if (adapter) return adapter.list(ctx, { ...params, limit });
-      await this.#ensureSeeded(ctx.workspaceId, collection);
-      return this.#list(ctx.workspaceId, collection, { ...params, limit });
+      await this.#ensureSeeded(ctx.tenantId, collection);
+      return this.#list(ctx.tenantId, collection, { ...params, limit });
     };
     // Adapter data changes outside this service (sessions, logins), so it gets a short TTL; generic data is invalidated by version.
-    return this.cache.remember(NS(ctx.workspaceId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
+    return this.cache.remember(NS(ctx.tenantId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
   }
 
-  /** The first Network Access range must contain the admin's own IP, otherwise saving it would lock them out of the workspace. */
+  /** The first Network Access range must contain the admin's own IP, otherwise saving it would lock them out of the tenant. */
   async #assertNotLockingOut(ctx, collection, data) {
     if (collection.key !== 'network-access' || !ctx.ip) return;
-    if ((await this.repos.setupRecords.countCapped(ctx.workspaceId, 'network-access', {}, 1)) > 0) return;
+    if ((await this.repos.setupRecords.countCapped(ctx.tenantId, 'network-access', {}, 1)) > 0) return;
     if (!ipInRange(ctx.ip, data.start_ip_address, data.end_ip_address || data.start_ip_address)) {
       throw new ConflictError(`Your current IP (${ctx.ip}) must be inside the first range, or you would lock yourself out.`);
     }
@@ -89,8 +89,8 @@ export class RecordsService {
     const { parentId, ...fields } = input ?? {};
     const data = recordSchemas(collection).create.parse(fields);
     await this.#assertNotLockingOut(ctx, collection, data);
-    await this.#ensureSeeded(ctx.workspaceId, collection);
-    const row = await this.repos.setupRecords.insert(ctx.workspaceId, collection.key, this.#parts(collection, data, ctx.userId, { parentId }));
+    await this.#ensureSeeded(ctx.tenantId, collection);
+    const row = await this.repos.setupRecords.insert(ctx.tenantId, collection.key, this.#parts(collection, data, ctx.userId, { parentId }));
     await this.changed(ctx, collection, 'create', `Created ${collection.name}: ${row.label}`);
     return flatten(row);
   }
@@ -105,7 +105,7 @@ export class RecordsService {
     if (data[label] !== undefined) parts.label = data[label];
     if (status && data[status] !== undefined) parts.status = data[status];
     if (parentId !== undefined) parts.parentId = parentId;
-    const row = await this.repos.setupRecords.update(ctx.workspaceId, collection.key, id, parts);
+    const row = await this.repos.setupRecords.update(ctx.tenantId, collection.key, id, parts);
     if (!row) throw new NotFoundError('Record not found');
     await this.changed(ctx, collection, 'update', `Changed ${collection.name}: ${row.label}`);
     return flatten(row);
@@ -115,18 +115,18 @@ export class RecordsService {
     if (ids.length > SETUP_LIST.bulkMax) throw new ValidationError(undefined, `At most ${SETUP_LIST.bulkMax} records at a time`);
     if (this.adapters[collection.key]) return this.#adapter(collection, 'canDelete').remove(ctx, ids);
     this.#assertWritable(collection);
-    if (collection.key === 'roles' && (await this.repos.setupRecords.hasChildren(ctx.workspaceId, ids))) throw new ConflictError('Remove or move the sub-roles first');
-    if (collection.key === 'object-manager-objects') await this.repos.setupRecords.removeChildren(ctx.workspaceId, 'object-manager-fields', ids);
-    const n = await this.repos.setupRecords.remove(ctx.workspaceId, collection.key, ids);
+    if (collection.key === 'roles' && (await this.repos.setupRecords.hasChildren(ctx.tenantId, ids))) throw new ConflictError('Remove or move the sub-roles first');
+    if (collection.key === 'object-manager-objects') await this.repos.setupRecords.removeChildren(ctx.tenantId, 'object-manager-fields', ids);
+    const n = await this.repos.setupRecords.remove(ctx.tenantId, collection.key, ids);
     if (n) await this.changed(ctx, collection, 'delete', `Deleted ${n} ${collection.name} record(s)`);
     return n;
   }
 
   /** Nested tree for hierarchy pages (roles). Capped; built in one pass. */
   tree(ctx, collection) {
-    return this.cache.remember(NS(ctx.workspaceId, collection.key), 'tree', { ttlMs: LIST_TTL_MS }, async () => {
-      await this.#ensureSeeded(ctx.workspaceId, collection);
-      const rows = await this.repos.setupRecords.listAll(ctx.workspaceId, collection.key);
+    return this.cache.remember(NS(ctx.tenantId, collection.key), 'tree', { ttlMs: LIST_TTL_MS }, async () => {
+      await this.#ensureSeeded(ctx.tenantId, collection);
+      const rows = await this.repos.setupRecords.listAll(ctx.tenantId, collection.key);
       const nodes = new Map(rows.map((r) => [r.id, { id: r.id, name: r.label, assignedTo: r.data.assigned_to ?? '', children: [] }]));
       const roots = [];
       for (const r of rows) (r.parent_id && nodes.has(r.parent_id) ? nodes.get(r.parent_id).children : roots).push(nodes.get(r.id));
@@ -135,7 +135,7 @@ export class RecordsService {
   }
 
   /**
-   * First touch of a collection in a workspace loads its initial content (from the design fixtures) exactly once:
+   * First touch of a collection in a tenant loads its initial content (from the design fixtures) exactly once:
    * a unique marker row is claimed inside the same transaction as the inserts, so concurrent first requests wait
    * for the commit instead of seeing a half-seeded list.
    */
@@ -167,10 +167,10 @@ export class RecordsService {
 
   async #seedRoles(repos, ws) {
     const ids = [];
-    const workspace = await repos.workspaces.findById(ws);
+    const tenant = await repos.tenants.findById(ws);
     for (const node of config.SETUP_SEED_SAMPLE_DATA ? roleNodes() : roleNodes().slice(0, 1)) {
-      const root = node.parent === null; // the hierarchy's top node is the workspace itself
-      const row = await repos.setupRecords.insert(ws, 'roles', { label: root ? workspace.name : node.label, data: root ? { ...node.data, name: workspace.name } : node.data, parentId: node.parent === null ? null : ids[node.parent] });
+      const root = node.parent === null; // the hierarchy's top node is the tenant itself
+      const row = await repos.setupRecords.insert(ws, 'roles', { label: root ? tenant.name : node.label, data: root ? { ...node.data, name: tenant.name } : node.data, parentId: node.parent === null ? null : ids[node.parent] });
       ids.push(row.id);
     }
   }
@@ -181,8 +181,8 @@ export class RecordsService {
   }
 
   async changed(ctx, collection, action, summary) {
-    await Promise.all([this.cache.bump(NS(ctx.workspaceId, collection.key)), this.cache.bump(`search:${ctx.workspaceId}`)]); // search results depend on Setup records, sharing and profiles
-    await this.repos.setupAudit.record(ctx.workspaceId, ctx.userId, collection.key, action, summary);
+    await Promise.all([this.cache.bump(NS(ctx.tenantId, collection.key)), this.cache.bump(`search:${ctx.tenantId}`)]); // search results depend on Setup records, sharing and profiles
+    await this.repos.setupAudit.record(ctx.tenantId, ctx.userId, collection.key, action, summary);
   }
 
   #hash(params, limit) {

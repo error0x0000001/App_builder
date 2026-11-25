@@ -13,13 +13,13 @@ after(async () => { await server.stop(); });
 
 const C = '/chat';
 async function join(boss, name) {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'member' }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role: 'member' }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   await person.post('/invitations/accept', { token, firstName: name, lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   return { person, id: (await person.get('/me')).body.user.id };
 }
 async function trio() {

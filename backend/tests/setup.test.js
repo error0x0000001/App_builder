@@ -54,19 +54,19 @@ describe('settings pages', () => {
     const audit = await owner.get(`${S}/pages/view-setup-audit-trail/records`);
     assert.ok(audit.body.items.some((r) => /Password Policies/.test(r.action)));
   });
-  it('is isolated per workspace', async () => {
+  it('is isolated per tenant', async () => {
     const theirs = await other.get(`${S}/pages/password-policies/settings`);
     assert.equal(theirs.body.version, 0);
     assert.equal(theirs.body.values.minimum_password_length, '8');
   });
-  it('company information is bound to the real workspace', async () => {
+  it('company information is bound to the real tenant', async () => {
     const info = await owner.get(`${S}/pages/company-information/settings`);
     assert.equal(info.body.values.organization_name, 'Acme Corp');
     assert.equal(info.body.tables.Licenses[0].used, '1');
     const renamed = await owner.patch(`${S}/pages/company-information/settings`, { version: info.body.version, values: { organization_name: 'Acme Holdings' } });
     assert.equal(renamed.body.values.organization_name, 'Acme Holdings');
     const me = await owner.get('/me');
-    assert.equal(me.body.workspaces[0].name, 'Acme Holdings');
+    assert.equal(me.body.tenants[0].name, 'Acme Holdings');
   });
 });
 
@@ -116,7 +116,7 @@ describe('record pages', () => {
     assert.equal(removed.body.removed, 1);
     assert.equal((await owner.get(`${S}/pages/profiles/records?limit=200`)).body.items.length, before.body.items.length);
   });
-  it('never exposes another workspace\'s records', async () => {
+  it('never exposes another tenant\'s records', async () => {
     await owner.post(`${S}/pages/profiles/records`, { profile_name: 'OwnerOnlyProfile' });
     const theirs = await other.get(`${S}/pages/profiles/records?limit=200&q=OwnerOnlyProfile`);
     assert.equal(theirs.body.items.length, 0);
@@ -232,18 +232,18 @@ describe('guards', () => {
 describe('role enforcement and cache invalidation', () => {
   it('refuses non-admins, and a demotion applies immediately despite the membership cache', async () => {
     const { client: boss } = await registerUser(server);
-    const ws = (await boss.get('/me')).body.activeWorkspaceId;
+    const ws = (await boss.get('/me')).body.activeTenantId;
     const email = uniqueEmail();
-    await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
+    await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
     const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
     const invitee = new Client(server.base);
     const accepted = await invitee.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
     assert.equal(accepted.status, 201);
-    await invitee.post(`/workspaces/${ws}/switch`);
+    await invitee.post(`/tenants/${ws}/switch`);
 
     assert.equal((await invitee.get(`${S}/pages/profiles/records`)).status, 200, 'admins may use Setup');
     const userId = (await invitee.get('/me')).body.user.id;
-    assert.equal((await boss.patch(`/workspaces/${ws}/members/${userId}`, { role: 'viewer' })).status, 204);
+    assert.equal((await boss.patch(`/tenants/${ws}/members/${userId}`, { role: 'viewer' })).status, 204);
     assert.equal((await invitee.get(`${S}/pages/profiles/records`)).status, 403, 'demotion is visible at once on this worker');
     assert.equal((await invitee.patch(`${S}/pages/password-policies/settings`, { version: 0, values: { minimum_password_length: '8' } })).status, 403);
   });
@@ -306,37 +306,37 @@ describe('security settings are enforced by the auth code', () => {
 });
 
 describe('UI customization and preferences', () => {
-  it('only the owner customizes the workspace UI; it is saved in the database and returned to everyone', async () => {
+  it('only the owner customizes the tenant UI; it is saved in the database and returned to everyone', async () => {
     const { client: owner } = await registerUser(server);
-    const ws = (await owner.get('/me')).body.activeWorkspaceId;
-    const before = (await owner.get('/me')).body.workspaces[0];
-    assert.deepEqual(before.uiSettings, {}, 'new workspaces store nothing (defaults apply)');
+    const ws = (await owner.get('/me')).body.activeTenantId;
+    const before = (await owner.get('/me')).body.tenants[0];
+    assert.deepEqual(before.uiSettings, {}, 'new tenants store nothing (defaults apply)');
 
-    const saved = await owner.patch(`/workspaces/${ws}/ui`, { layout: 'topbar', navColor: 'navy' });
+    const saved = await owner.patch(`/tenants/${ws}/ui`, { layout: 'topbar', navColor: 'navy' });
     assert.equal(saved.status, 200);
-    assert.deepEqual(saved.body.workspace.uiSettings, { layout: 'topbar', navColor: 'navy' });
-    const merged = await owner.patch(`/workspaces/${ws}/ui`, { variant: 'floating' });
-    assert.deepEqual(merged.body.workspace.uiSettings, { layout: 'topbar', navColor: 'navy', variant: 'floating' }, 'patches merge');
-    assert.equal((await owner.get('/me')).body.workspaces[0].uiSettings.navColor, 'navy');
+    assert.deepEqual(saved.body.tenant.uiSettings, { layout: 'topbar', navColor: 'navy' });
+    const merged = await owner.patch(`/tenants/${ws}/ui`, { variant: 'floating' });
+    assert.deepEqual(merged.body.tenant.uiSettings, { layout: 'topbar', navColor: 'navy', variant: 'floating' }, 'patches merge');
+    assert.equal((await owner.get('/me')).body.tenants[0].uiSettings.navColor, 'navy');
 
-    const custom = await owner.patch(`/workspaces/${ws}/ui`, { navHex: '#1E293B', accentHex: '#12b76a' });
+    const custom = await owner.patch(`/tenants/${ws}/ui`, { navHex: '#1E293B', accentHex: '#12b76a' });
     assert.equal(custom.status, 200);
-    assert.equal(custom.body.workspace.uiSettings.navHex, '#1e293b', 'custom colours are stored normalised');
-    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { navHex: 'url(javascript:x)' })).status, 400, 'only #rrggbb colours are accepted');
-    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { navHex: null, accentHex: null })).status, 200, 'null returns to the preset');
-    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { layout: 'diagonal' })).status, 400, 'values are validated');
-    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, { favouriteColour: 'red' })).status, 400, 'unknown options are refused');
-    assert.equal((await owner.patch(`/workspaces/${ws}/ui`, {})).status, 400);
+    assert.equal(custom.body.tenant.uiSettings.navHex, '#1e293b', 'custom colours are stored normalised');
+    assert.equal((await owner.patch(`/tenants/${ws}/ui`, { navHex: 'url(javascript:x)' })).status, 400, 'only #rrggbb colours are accepted');
+    assert.equal((await owner.patch(`/tenants/${ws}/ui`, { navHex: null, accentHex: null })).status, 200, 'null returns to the preset');
+    assert.equal((await owner.patch(`/tenants/${ws}/ui`, { layout: 'diagonal' })).status, 400, 'values are validated');
+    assert.equal((await owner.patch(`/tenants/${ws}/ui`, { favouriteColour: 'red' })).status, 400, 'unknown options are refused');
+    assert.equal((await owner.patch(`/tenants/${ws}/ui`, {})).status, 400);
 
     // an admin is not the owner; a member sees the owner's choice
     const email = uniqueEmail();
-    await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
+    await owner.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role: 'admin' }] });
     const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
     const admin = new Client(server.base);
     await admin.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-    await admin.post(`/workspaces/${ws}/switch`);
-    assert.equal((await admin.patch(`/workspaces/${ws}/ui`, { layout: 'sidebar' })).status, 403, 'admins cannot');
-    assert.equal((await admin.get('/me')).body.workspaces.find((w) => w.id === ws).uiSettings.layout, 'topbar', 'everyone sees the owner\'s layout');
+    await admin.post(`/tenants/${ws}/switch`);
+    assert.equal((await admin.patch(`/tenants/${ws}/ui`, { layout: 'sidebar' })).status, 403, 'admins cannot');
+    assert.equal((await admin.get('/me')).body.tenants.find((w) => w.id === ws).uiSettings.layout, 'topbar', 'everyone sees the owner\'s layout');
   });
 
   it('theme mode is a personal preference saved on the account', async () => {

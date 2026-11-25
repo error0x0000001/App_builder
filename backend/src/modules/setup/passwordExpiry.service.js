@@ -3,14 +3,14 @@ import { appLink } from '../../shared/links.js';
 const BATCH = 200;
 const TTL_MS = 24 * 3_600_000;
 
-/** Background job body: signs members out and mails them a reset link, in keyset batches (safe for very large workspaces). */
+/** Background job body: signs members out and mails them a reset link, in keyset batches (safe for very large tenants). */
 export class PasswordExpiryService {
   constructor({ repos, oneTime, mail, logger }) { Object.assign(this, { repos, oneTime, mail, logger }); }
 
-  async run({ workspaceId, actorId }) {
+  async run({ tenantId, actorId }) {
     let after; let done = 0;
     for (;;) {
-      const rows = await this.repos.memberships.listMembers(workspaceId, { limit: BATCH, after });
+      const rows = await this.repos.memberships.listMembers(tenantId, { limit: BATCH, after });
       for (const m of rows) {
         if (m.userId === actorId) continue;
         await this.repos.sessions.revokeAllForUser(m.userId, 'admin_expired');
@@ -21,7 +21,7 @@ export class PasswordExpiryService {
       if (rows.length < BATCH) break;
       const last = rows.at(-1); after = { createdAt: last.cursorTs, userId: last.userId };
     }
-    this.logger.info({ workspaceId, done }, 'expired passwords');
+    this.logger.info({ tenantId, done }, 'expired passwords');
     return done;
   }
 }

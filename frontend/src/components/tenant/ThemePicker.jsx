@@ -1,6 +1,6 @@
 import { TENANT_THEMES, hasRole } from '@app/shared';
 import { useState } from 'react';
-import { workspacesApi } from '../../api/endpoints.js';
+import { tenantsApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Alert } from '../ui/Alert.jsx';
 import { RadioCardGroup } from '../ui/RadioCardGroup.jsx';
@@ -15,19 +15,19 @@ const THEME_OPTIONS = TENANT_THEMES.map(({ id, label, colors }) => ({
   ),
 }));
 
-/** Workspace colour theme chooser: admins pick, everyone in the workspace sees it. Light/dark stays personal. */
+/** Tenant colour theme chooser: admins pick, everyone in the tenant sees it. Light/dark stays personal. */
 export function ThemePicker({ columns }) {
-  const { activeWorkspace, refresh } = useAuth();
+  const { activeTenant, refresh } = useAuth();
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(null); // optimistic selection while saving
-  if (!activeWorkspace) return <Alert tone="info">Select or create a workspace to change its theme.</Alert>;
-  const canEdit = hasRole(activeWorkspace.role, 'admin');
+  if (!activeTenant) return <Alert tone="info">Select or create a tenant to change its theme.</Alert>;
+  const canEdit = hasRole(activeTenant.role, 'admin');
 
   const choose = async (theme) => {
     setError(null);
     setPending(theme);
     try {
-      await workspacesApi.updateTheme(activeWorkspace.id, theme);
+      await tenantsApi.updateTheme(activeTenant.id, theme);
       await refresh();
     } catch (e) {
       setError(e.message);
@@ -39,8 +39,8 @@ export function ThemePicker({ columns }) {
   return (
     <div className="space-y-4">
       {error && <Alert tone="error">{error}</Alert>}
-      <RadioCardGroup name="tenant-theme" label="Workspace theme" value={pending ?? activeWorkspace.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} columns={columns} />
-      {!canEdit && <p className="text-sm text-muted">Only admins and owners can change the workspace theme.</p>}
+      <RadioCardGroup name="tenant-theme" label="Tenant theme" value={pending ?? activeTenant.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} columns={columns} />
+      {!canEdit && <p className="text-sm text-muted">Only admins and owners can change the tenant theme.</p>}
     </div>
   );
 }

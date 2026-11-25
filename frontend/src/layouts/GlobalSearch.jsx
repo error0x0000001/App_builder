@@ -15,7 +15,7 @@ import { useSearch } from './SearchContext.jsx';
 
 const GROUP_TITLES = { pages: 'Pages', navigation: 'Setup', records: 'Records', people: 'People', documents: 'Documents' };
 const GROUP_ORDER = ['pages', 'navigation', 'records', 'people', 'documents'];
-/** Which result groups each tab shows (Records includes the workspace's people). */
+/** Which result groups each tab shows (Records includes the tenant's people). */
 const SCOPE_GROUPS = { all: GROUP_ORDER, navigation: ['pages', 'navigation'], records: ['records', 'people'], documents: ['documents'] };
 const FILTER_BY_TAB = {
   all: (item) => ({ record: 'Records', person: 'People', document: 'Documents', file: 'Documents', folder: 'Documents' }[item.kind] ?? 'Navigation'),
@@ -33,9 +33,9 @@ const QUICK_ACTIONS = 5;
  */
 export function GlobalSearch() {
   const { open, close } = useSearch();
-  const { activeWorkspace } = useAuth();
+  const { activeTenant } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = Boolean(activeWorkspace && hasRole(activeWorkspace.role, 'admin'));
+  const isAdmin = Boolean(activeTenant && hasRole(activeTenant.role, 'admin'));
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
   const [chip, setChip] = useState(null);

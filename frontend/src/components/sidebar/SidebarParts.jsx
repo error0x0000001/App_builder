@@ -14,7 +14,7 @@ export const SidebarMenuItem = ({ children }) => <li className="relative">{child
 
 /**
  * Row button. Pass `to` for a router link (active state automatic) or use as a button.
- * Sizes: default (h-8) and lg (h-10: workspace switcher, user row).
+ * Sizes: default (h-8) and lg (h-10: tenant switcher, user row).
  */
 export const SidebarMenuButton = forwardRef(function SidebarMenuButton({ to, end, size = 'default', isActive = false, className, children, ...rest }, ref) {
   const base = cn(

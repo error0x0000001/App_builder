@@ -16,14 +16,14 @@ const schema = z.object({
   DEPLOYMENTS_ENABLED: bool, // the Deployments system app (servers, projects, services). Off = never constructed, routed or shown.
   DEPLOYMENTS_ALLOW_LOCAL: bool, // let Deployments run on the API's own machine (needs Docker there). Off = SSH servers only.
   ACCESS_ADDONS_ENABLED: bool, // permission-set add-ons on top of role + profile (assign on the user page). Off = the feature is never constructed, routed or shown.
-  SETUP_REQUESTS_PER_MINUTE: z.coerce.number().int().default(6000), // per-workspace ceiling on Setup API calls (noisy-neighbour guard)
+  SETUP_REQUESTS_PER_MINUTE: z.coerce.number().int().default(6000), // per-tenant ceiling on Setup API calls (noisy-neighbour guard)
   SEARCH_REQUESTS_PER_10S: z.coerce.number().int().default(200), // per person; typing is bursty, this only stops abuse
   STORAGE_DIR: z.string().default('./storage'), // where the local StorageDriver keeps uploaded bytes (Documents)
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).default(100), // largest single file
   LIVEKIT_URL: z.string().optional(), // the SFU clients connect to, e.g. ws://localhost:7880 (dev: `livekit-server --dev`) or wss://<project>.livekit.cloud
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
-  DRIVE_QUOTA_MB: z.coerce.number().int().min(1).default(10240), // total Documents storage per workspace
+  DRIVE_QUOTA_MB: z.coerce.number().int().min(1).default(10240), // total Documents storage per tenant
   API_MAX_REQUESTS: z.coerce.number().int().default(100_000), // a worker retires after this many requests (Odoo limit_request)
   API_MAX_RSS_MB: z.coerce.number().int().default(1024), // ...or when its memory passes this (Odoo limit_memory_soft)
   LOG_LEVEL: z.string().default('info'),

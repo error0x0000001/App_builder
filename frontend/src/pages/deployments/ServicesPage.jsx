@@ -9,7 +9,7 @@ import { DataTable } from '../../components/ui/DataTable.jsx';
 import { SearchInput } from '../../components/ui/SearchInput.jsx';
 import { KINDS, KindTile, StatusBadge, ago } from './parts.jsx';
 
-/** Every service in the workspace in one table (Dokploy's "Overview"). */
+/** Every service in the tenant in one table (Dokploy's "Overview"). */
 export default function ServicesPage() {
   const navigate = useNavigate();
   const query = useQuery({ queryKey: ['deployments', 'all-services'], queryFn: deploymentsApi.allServices, refetchInterval: 10_000 });

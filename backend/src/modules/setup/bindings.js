@@ -23,13 +23,13 @@ export class SettingsBindings {
   async table(ws, pageKey, title) { return this.map[pageKey]?.tables?.[title]?.(ws) ?? fixtures.details[pageKey]?.[title] ?? []; }
 
   #build() {
-    const workspace = (ws) => this.repos.workspaces.findById(ws);
+    const tenant = (ws) => this.repos.tenants.findById(ws);
     const date = (d) => new Date(d).toISOString().slice(0, 10);
     return {
       'company-information': {
         readOnly: ['salesforce_com_organization_id', 'created', 'edition', 'instance', 'used_data_space', 'used_file_space', 'api_requests_last_24_hours', 'streaming_api_events_last_24_hours'],
         read: async (ws) => {
-          const w = await workspace(ws);
+          const w = await tenant(ws);
           const [storage, api] = await Promise.all([this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws)]);
           const mb = storage.reduce((n, r) => n + r.bytes, 0) / 1e6;
           return {
@@ -39,13 +39,13 @@ export class SettingsBindings {
         },
         write: async (ws, patch) => {
           const { organization_name: name, ...rest } = patch;
-          if (name) await this.repos.workspaces.update(ws, { name });
+          if (name) await this.repos.tenants.update(ws, { name });
           return rest;
         },
         tables: {
           Licenses: async (ws) => {
             const members = await this.repos.memberships.countMembers(ws);
-            return [{ license: 'User Licenses', type: 'Workspace member', total: 'Unlimited', used: String(members), remaining: '∞' }];
+            return [{ license: 'User Licenses', type: 'Tenant member', total: 'Unlimited', used: String(members), remaining: '∞' }];
           },
         },
       },
@@ -56,8 +56,8 @@ export class SettingsBindings {
       'my-domain': {
         readOnly: ['current_my_domain_url', 'domain_type', 'status', 'domain_created'],
         read: async (ws) => {
-          const w = await workspace(ws);
-          return { current_my_domain_url: `${w.slug}.${this.appHost}`, domain_type: 'Workspace subdomain', status: 'Deployed to users', domain_created: date(w.createdAt) };
+          const w = await tenant(ws);
+          return { current_my_domain_url: `${w.slug}.${this.appHost}`, domain_type: 'Tenant subdomain', status: 'Deployed to users', domain_created: date(w.createdAt) };
         },
       },
     };

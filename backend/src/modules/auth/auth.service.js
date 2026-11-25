@@ -7,7 +7,7 @@ const MINUTE_MS = 60_000;
 
 export class AuthService {
   constructor(deps) {
-    Object.assign(this, deps); // repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces, password, securityPolicy, policy (built-in defaults)
+    Object.assign(this, deps); // repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, tenants, password, securityPolicy, policy (built-in defaults)
   }
 
   /** Always resolves the same way whether or not the email is already registered (no account enumeration). */
@@ -27,7 +27,7 @@ export class AuthService {
         ? await this.repos.users.update(existing.id, { ...profile, passwordHash, passwordChangedAt: new Date() }) // restarts an unverified signup
         : await this.uow.run(async (repos) => {
           const created = await repos.users.create({ email: input.email, passwordHash, passwordChangedAt: new Date(), ...profile });
-          await this.workspaces.createWithOwner(repos, { name: input.company, userId: created.id, teamSize: input.teamSize });
+          await this.tenants.createWithOwner(repos, { name: input.company, userId: created.id, teamSize: input.teamSize });
           return created;
         });
     } catch (error) {
@@ -55,7 +55,7 @@ export class AuthService {
   }
 
   /** @returns { session } on success or { mfaRequired, mfaToken } when a second factor is needed. */
-  async login({ email, password, workspace, rememberMe = true }, ctx) {
+  async login({ email, password, tenant, rememberMe = true }, ctx) {
     const user = await this.repos.users.findByEmail(email);
     if (!user?.passwordHash) {
       await this.hasher.verifyDummy(password);
@@ -76,15 +76,15 @@ export class AuthService {
     }
     if (this.hasher.needsRehash(user.passwordHash)) await this.repos.users.update(user.id, { passwordHash: await this.hasher.hash(password) });
 
-    const workspaceId = await this.#resolveWorkspace(user, workspace);
-    await this.securityPolicy.assertIpAllowed(workspaceId ?? (await this.sessions.defaultWorkspaceId(user)), ctx.ip); // Network Access allow-list
+    const tenantId = await this.#resolveTenant(user, tenant);
+    await this.securityPolicy.assertIpAllowed(tenantId ?? (await this.sessions.defaultTenantId(user)), ctx.ip); // Network Access allow-list
     await this.#assertPasswordCurrent(user);
-    if (user.mfaEnabled) return { mfaRequired: true, mfaToken: await this.tokens.signMfa({ userId: user.id, workspaceId, persistent: rememberMe }) };
-    return { session: await this.#completeLogin(user, workspaceId, ctx, rememberMe) };
+    if (user.mfaEnabled) return { mfaRequired: true, mfaToken: await this.tokens.signMfa({ userId: user.id, tenantId, persistent: rememberMe }) };
+    return { session: await this.#completeLogin(user, tenantId, ctx, rememberMe) };
   }
 
   async completeMfaLogin({ mfaToken, code, recoveryCode }, ctx) {
-    const { userId, workspaceId, persistent } = await this.tokens.verifyMfa(mfaToken);
+    const { userId, tenantId, persistent } = await this.tokens.verifyMfa(mfaToken);
     const user = await this.repos.users.findById(userId);
     if (!user?.mfaEnabled || user.status !== 'active' || (user.lockedUntil && user.lockedUntil > new Date())) throw new UnauthorizedError('Sign in again');
     try {
@@ -93,7 +93,7 @@ export class AuthService {
       await this.#registerFailure(user, ctx, AUDIT_EVENTS.MFA_FAILED);
       throw error;
     }
-    return this.#completeLogin(user, workspaceId ?? undefined, ctx, persistent);
+    return this.#completeLogin(user, tenantId ?? undefined, ctx, persistent);
   }
 
   async logout({ sessionId, userId }, ctx) {
@@ -107,17 +107,17 @@ export class AuthService {
   }
 
   /** Used by SSO flows once an identity has been verified externally. */
-  completeExternalLogin(user, ctx, workspaceId) { return this.#completeLogin(user, workspaceId, ctx); }
+  completeExternalLogin(user, ctx, tenantId) { return this.#completeLogin(user, tenantId, ctx); }
 
-  async #completeLogin(user, workspaceId, ctx, persistent = true) {
+  async #completeLogin(user, tenantId, ctx, persistent = true) {
     await this.repos.users.recordSuccessfulLogin(user.id);
-    const activeWorkspaceId = workspaceId ?? (await this.sessions.defaultWorkspaceId(user));
-    const session = await this.sessions.start({ user, workspaceId: activeWorkspaceId, ctx, persistent });
-    await this.audit.record(AUDIT_EVENTS.LOGIN_SUCCESS, { userId: user.id, workspaceId: activeWorkspaceId, ctx }); // tagged so workspace-wide login history stays index-only
+    const activeTenantId = tenantId ?? (await this.sessions.defaultTenantId(user));
+    const session = await this.sessions.start({ user, tenantId: activeTenantId, ctx, persistent });
+    await this.audit.record(AUDIT_EVENTS.LOGIN_SUCCESS, { userId: user.id, tenantId: activeTenantId, ctx }); // tagged so tenant-wide login history stays index-only
     return session;
   }
 
-  /** Lockout thresholds come from the strictest Password Policies page among the user's workspaces. */
+  /** Lockout thresholds come from the strictest Password Policies page among the user's tenants. */
   async #registerFailure(user, ctx, eventType) {
     const { maxAttempts, lockMs } = await this.securityPolicy.forUser(user.id);
     const limit = Number.isFinite(maxAttempts) ? maxAttempts : 2_147_483_647;
@@ -139,11 +139,11 @@ export class AuthService {
     }
   }
 
-  async #resolveWorkspace(user, slug) {
+  async #resolveTenant(user, slug) {
     if (!slug) return undefined;
-    const workspace = await this.repos.workspaces.findBySlug(slug);
-    if (!workspace || !(await this.repos.memberships.find(workspace.id, user.id))) throw new ForbiddenError('You are not a member of this workspace');
-    return workspace.id;
+    const tenant = await this.repos.tenants.findBySlug(slug);
+    if (!tenant || !(await this.repos.memberships.find(tenant.id, user.id))) throw new ForbiddenError('You are not a member of this tenant');
+    return tenant.id;
   }
 
   async #sendVerificationCode(user) {

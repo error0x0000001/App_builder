@@ -13,7 +13,7 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
  * Who may read / create / edit / delete which object, and which records they see.
  *   Grants   — Object Settings rows (object, permission set, Yes/No per action) attach to a container name:
  *              the user's Profile, or any permission set assigned to them in Manage Assignments. Union wins.
- *   Fallback — no grant covers the object → the workspace role's baseline (viewer read, member read/write, admin all).
+ *   Fallback — no grant covers the object → the tenant role's baseline (viewer read, member read/write, admin all).
  *   Sharing  — Organization-Wide Defaults per object: Private = own records only, Public Read Only = everyone reads but only
  *              owners edit, Public Read/Write = open. Admins and owners see everything.
  * Rule lists are cached and versioned per Setup collection, so changing a profile applies on the next request on every worker.
@@ -54,8 +54,8 @@ export class AccessService {
     if (!ctx.actor) return { read: true, create: true, edit: true, delete: false, scope: 'all' };
     const { role, profile } = ctx.actor;
     const admin = role === 'owner' || role === 'admin';
-    const [grants, assigned, sharing] = await Promise.all([this.#index(ctx.workspaceId), this.#assignments(ctx.workspaceId), this.#sharing(ctx.workspaceId)]);
-    const extra = this.addons && ctx.userId ? (this.addons.peek(ctx.workspaceId, ctx.userId) ?? await this.addons.setsFor(ctx.workspaceId, ctx.userId)) : NONE;
+    const [grants, assigned, sharing] = await Promise.all([this.#index(ctx.tenantId), this.#assignments(ctx.tenantId), this.#sharing(ctx.tenantId)]);
+    const extra = this.addons && ctx.userId ? (this.addons.peek(ctx.tenantId, ctx.userId) ?? await this.addons.setsFor(ctx.tenantId, ctx.userId)) : NONE;
     const containers = [profile, ...(assigned[String(ctx.email ?? '').toLowerCase()] ?? []), ...extra].filter(Boolean);
     const covering = containers.map((c) => grants[c]?.[def.key] ?? grants[c]?.[ALL]).filter(Boolean);
     const base = BASELINE[role] ?? BASELINE.viewer;

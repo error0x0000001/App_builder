@@ -9,7 +9,7 @@
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed?, create?, parent? }
  *   also – extra path prefixes that keep this row active (a row with `end` whose sub-pages belong to it)
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
- *   minRole – hide below this workspace role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
+ *   minRole – hide below this tenant role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
  */
 import { CRM_NAV_OBJECTS, hasRole } from '@app/shared';
 
@@ -46,12 +46,12 @@ export const NAV = {
 };
 
 /** Routes that exist but aren't nav rows. */
-const HIDDEN_PAGES = [{ to: '/app/workspaces/new', icon: 'plus', label: 'New workspace' }];
+const HIDDEN_PAGES = [{ to: '/app/tenants/new', icon: 'plus', label: 'New tenant' }];
 
 export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
 
 /** Items a role may not see are hidden by every navigation (the API enforces the same rule). */
-export const isVisibleTo = (item, workspace) => (!item.minRole || Boolean(workspace && hasRole(workspace.role, item.minRole))) && (!item.feature || Boolean(workspace?.features?.[item.feature])); // `feature`: a system app the install may have switched off
+export const isVisibleTo = (item, tenant) => (!item.minRole || Boolean(tenant && hasRole(tenant.role, item.minRole))) && (!item.feature || Boolean(tenant?.features?.[item.feature])); // `feature`: a system app the install may have switched off
 /** Is this item the current page? (`end`: exact path only; otherwise it also covers sub-routes.) */
 export const isActivePath = (item, pathname) => (item.end ? pathname === item.to || Boolean(item.also?.some((p) => pathname.startsWith(p))) : pathname === item.to || pathname.startsWith(`${item.to}/`));
 

@@ -183,6 +183,13 @@
       "when": 1795549600000,
       "tag": "0025_deployments_drop_access",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0026_tenants_rename",
+      "breakpoints": true
     }
   ]
 }

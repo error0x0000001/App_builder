@@ -1,5 +1,5 @@
 /**
- * Global-search load test against the perf workspace (seed-perf.js + seed-perf-objects.js). Needs the API on :4000
+ * Global-search load test against the perf tenant (seed-perf.js + seed-perf-objects.js). Needs the API on :4000
  * (start it with SEARCH_REQUESTS_PER_10S=100000000, one user would otherwise hit the per-person limit).
  *   node --env-file=../.env scripts/perf-token.js > /tmp/perf.token;  node scripts/search-bench.js 16
  * Scenarios that repeat queries are served from the 8 s result cache; "first + last + number" and "no match" are the uncached database path.

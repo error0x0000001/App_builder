@@ -10,13 +10,13 @@ after(async () => { await server.stop(); });
 
 const S = '/setup'; const O = '/objects';
 async function join(boss, role, firstName = 'Meera') {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   await person.post('/invitations/accept', { token, firstName, lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   const id = (await person.get('/me')).body.user.id;
   return { person, email, ws, id };
 }
@@ -63,7 +63,7 @@ describe('permission-set add-ons', () => {
     assert.equal((await boss.put(`${S}/users/${me}/permission-sets`, { name: 'Developer Tools' })).status, 403, 'nobody changes their own access');
     assert.equal((await person.put(`${S}/users/${id}/permission-sets`, { name: 'Developer Tools' })).status, 403, 'members cannot assign');
     const { client: elsewhere } = await registerUser(server);
-    assert.equal((await elsewhere.put(`${S}/users/${id}/permission-sets`, { name: 'Developer Tools' })).status, 404, 'another workspace cannot reach this person');
+    assert.equal((await elsewhere.put(`${S}/users/${id}/permission-sets`, { name: 'Developer Tools' })).status, 404, 'another tenant cannot reach this person');
   });
 
   it('counts exactly, with several conditions at once and no cap', async () => {
@@ -95,7 +95,7 @@ describe('when the feature is off', () => {
     const automation = { rules: async () => [] };
     const cache = { rememberValue: async (ns, k, o, load) => load() };
     const access = new AccessService({ automation, cache, seed: async () => {} });
-    const perms = await access.forObject({ workspaceId: 'w', userId: 'u', actor: { role: 'member', profile: null }, email: 'a@b.c' }, { key: 'Lead', fields: [] });
+    const perms = await access.forObject({ tenantId: 'w', userId: 'u', actor: { role: 'member', profile: null }, email: 'a@b.c' }, { key: 'Lead', fields: [] });
     assert.deepEqual([perms.read, perms.create, perms.edit, perms.delete], [true, true, true, false]);
   });
 });
@@ -109,7 +109,7 @@ describe('latency', () => {
     const addons = createAccessAddons({ enabled: true, db, cache, repos: {}, seed: async () => {}, max: 200_000, ttlMs: 60_000 });
     const access = new AccessService({ automation: { rules: async () => grants }, cache, seed: async () => {}, addons });
     const def = { key: 'Lead', fields: [{ key: 'lead_owner' }] };
-    const ctx = (i) => ({ workspaceId: 'w1', userId: `u${i}`, actor: { role: 'member', profile: 'Standard User' }, email: `u${i}@x.co` });
+    const ctx = (i) => ({ tenantId: 'w1', userId: `u${i}`, actor: { role: 'member', profile: 'Standard User' }, email: `u${i}@x.co` });
     const N = 100_000;
     for (let i = 0; i < N; i++) await access.forObject(ctx(i), def); // cold: one primary-key lookup each
     assert.equal(dbCalls, N);

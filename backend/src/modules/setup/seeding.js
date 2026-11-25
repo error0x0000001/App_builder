@@ -3,7 +3,7 @@ import { config } from '../../shared/config.js';
 import fixtures from '../../../seed/setup-fixtures.generated.json' with { type: 'json' };
 
 
-/** Initial content of a collection for a fresh workspace, derived from the design mock-up fixtures. */
+/** Initial content of a collection for a fresh tenant, derived from the design mock-up fixtures. */
 export const hasSeed = (key) => key in fixtures.lists || key in SPECIAL;
 
 const objectRows = () => fixtures.objects.map((o) => ({ label: o.key, data: { label: o.key, api_name: o.key, type: 'Standard', description: `${o.plural} (standard object)` }, status: 'Standard' }));

@@ -14,15 +14,15 @@ import { Spinner } from '../../components/ui/Spinner.jsx';
 import { Switch } from '../../components/ui/Switch.jsx';
 
 const ROLE_OPTIONS = DRIVE_ROLES.map((value) => ({ value, label: DRIVE_ROLE_LABELS[value] }));
-const GENERAL_OPTIONS = [{ value: '', label: 'Restricted — only people added below' }, { value: 'viewer', label: 'Everyone in this workspace can view' }, { value: 'editor', label: 'Everyone in this workspace can edit' }];
+const GENERAL_OPTIONS = [{ value: '', label: 'Restricted — only people added below' }, { value: 'viewer', label: 'Everyone in this tenant can view' }, { value: 'editor', label: 'Everyone in this tenant can edit' }];
 
 /**
- * Share a folder: add people (any member of the workspace) with a role, give the whole workspace access, and choose whether the folder
+ * Share a folder: add people (any member of the tenant) with a role, give the whole tenant access, and choose whether the folder
  * inherits access from the folder above. Managers edit; everyone else sees who has access. Saved in one call.
  */
 export function ShareDialog({ open, folder, onClose }) {
-  const { activeWorkspace } = useAuth();
-  const workspaceId = activeWorkspace?.id;
+  const { activeTenant } = useAuth();
+  const tenantId = activeTenant?.id;
   const queryClient = useQueryClient();
   const { data, isPending, error: loadError } = useQuery({ queryKey: ['drive', 'access', folder?.id], queryFn: () => driveApi.access(folder.id), enabled: open && Boolean(folder), gcTime: 0 });
   const [entries, setEntries] = useState([]);
@@ -34,11 +34,11 @@ export function ShareDialog({ open, folder, onClose }) {
   useEffect(() => { if (data) { setEntries(data.entries); setInherit(data.folder.inherit); setError(null); } }, [data]);
 
   const people = entries.filter((e) => e.principalType === 'user');
-  const general = entries.find((e) => e.principalType === 'workspace')?.role ?? '';
+  const general = entries.find((e) => e.principalType === 'tenant')?.role ?? '';
 
   const setRole = (principalId, role) => setEntries((list) => list.map((e) => (e.principalId === principalId ? { ...e, role } : e)));
   const add = (person) => { setEntries((list) => [...list, { principalType: 'user', principalId: person.id, role: 'viewer', name: person.name, email: person.email }]); };
-  const setGeneral = (role) => setEntries((list) => [...list.filter((e) => e.principalType !== 'workspace'), ...(role ? [{ principalType: 'workspace', principalId: workspaceId, role, name: 'Everyone in this workspace', email: null }] : [])]);
+  const setGeneral = (role) => setEntries((list) => [...list.filter((e) => e.principalType !== 'tenant'), ...(role ? [{ principalType: 'tenant', principalId: tenantId, role, name: 'Everyone in this tenant', email: null }] : [])]);
 
   const save = async () => {
     setSaving(true); setError(null);

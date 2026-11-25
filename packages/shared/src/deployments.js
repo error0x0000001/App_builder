@@ -154,7 +154,7 @@ export const jobPatchSchema = jobObject.omit({ kind: true }).partial();
 /** A short, URL- and Docker-safe name: `my-app-4f9a`. */
 export const appNameFor = (name, suffix) => `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'app'}-${suffix}`;
 
-/** Who may do what in Deployments. Derived from the Quelli workspace role: owner/admin = manager, member = deployer, viewer = viewer. */
+/** Who may do what in Deployments. Derived from the Quelli tenant role: owner/admin = manager, member = deployer, viewer = viewer. */
 export const ACCESS_LEVELS = ['viewer', 'deployer', 'manager'];
 export const accessRank = (level) => ACCESS_LEVELS.indexOf(level);
 export const hasAccess = (have, need) => accessRank(have) >= accessRank(need) && accessRank(have) >= 0;

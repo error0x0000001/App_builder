@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveUiSettings } from '@app/shared';
-import { authApi, meApi, workspacesApi } from '../api/endpoints.js';
+import { authApi, meApi, tenantsApi } from '../api/endpoints.js';
 import { applyCustomColors } from '../lib/customColors.js';
 import { applyThemeMode } from '../lib/themeMode.js';
 import { onSessionExpired, refreshSession, tokenStore } from '../api/http.js';
@@ -42,15 +42,15 @@ export function AuthProvider({ children }) {
   const signOut = useMemo(() => exit(authApi.logout), [exit]);
   const signOutEverywhere = useMemo(() => exit(authApi.logoutAll), [exit]);
 
-  const switchWorkspace = useCallback(async (workspaceId) => {
-    await workspacesApi.switch(workspaceId);
+  const switchTenant = useCallback(async (tenantId) => {
+    await tenantsApi.switch(tenantId);
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' && q.queryKey[0] !== 'auth-config' });
     return loadMe();
   }, [loadMe, queryClient]);
 
   /** Admin "log in as": the response carries a short-lived token (no cookie); drop cached data and reload as that person. */
-  const startImpersonation = useCallback(async (workspaceId, userId) => {
-    await workspacesApi.loginAs(workspaceId, userId);
+  const startImpersonation = useCallback(async (tenantId, userId) => {
+    await tenantsApi.loginAs(tenantId, userId);
     queryClient.clear();
     return loadMe();
   }, [loadMe, queryClient]);
@@ -62,15 +62,15 @@ export function AuthProvider({ children }) {
     return loadMe();
   }, [loadMe, queryClient]);
 
-  /** Owner's UI customization: applied at once, saved to the workspace, rolled back if the server refuses it. */
+  /** Owner's UI customization: applied at once, saved to the tenant, rolled back if the server refuses it. */
   const updateUi = useCallback(async (patch) => {
-    const workspaceId = me?.activeWorkspaceId;
-    const apply = (settings) => setMe((prev) => prev && ({ ...prev, workspaces: prev.workspaces.map((w) => (w.id === workspaceId ? { ...w, uiSettings: settings } : w)) }));
-    const previous = me?.workspaces.find((w) => w.id === workspaceId)?.uiSettings ?? {};
+    const tenantId = me?.activeTenantId;
+    const apply = (settings) => setMe((prev) => prev && ({ ...prev, tenants: prev.tenants.map((w) => (w.id === tenantId ? { ...w, uiSettings: settings } : w)) }));
+    const previous = me?.tenants.find((w) => w.id === tenantId)?.uiSettings ?? {};
     apply({ ...previous, ...patch });
     try {
-      const { workspace } = await workspacesApi.updateUi(workspaceId, patch);
-      apply(workspace.uiSettings);
+      const { tenant } = await tenantsApi.updateUi(tenantId, patch);
+      apply(tenant.uiSettings);
     } catch (error) {
       apply(previous);
       throw error;
@@ -83,25 +83,25 @@ export function AuthProvider({ children }) {
     meApi.updatePreferences({ themeMode: mode }).catch(() => {});
   }, []);
 
-  const activeTheme = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.theme;
+  const activeTheme = me?.tenants.find((w) => w.id === me.activeTenantId)?.theme;
   useEffect(() => {
     // Tenant theme only applies inside the app; sign-in screens always use the default.
     if (status === 'authenticated' && activeTheme) document.documentElement.dataset.tenantTheme = activeTheme;
     else delete document.documentElement.dataset.tenantTheme;
   }, [status, activeTheme]);
 
-  const storedUi = me?.workspaces.find((w) => w.id === me.activeWorkspaceId)?.uiSettings;
+  const storedUi = me?.tenants.find((w) => w.id === me.activeTenantId)?.uiSettings;
   useEffect(() => {
     // Navigation colour and the owner's custom colours only apply inside the app, like the tenant theme.
     applyCustomColors(status === 'authenticated' ? resolveUiSettings(storedUi) : null);
   }, [status, storedUi]);
 
   const value = useMemo(() => {
-    const found = me?.workspaces.find((w) => w.id === me.activeWorkspaceId) ?? null;
-    const activeWorkspace = found ? { ...found, features: me.features ?? {} } : null; // which optional system apps this install runs
-    const ui = resolveUiSettings(activeWorkspace?.uiSettings);
-    return { status, signedOut, me, user: me?.user ?? null, workspaces: me?.workspaces ?? [], activeWorkspace, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchWorkspace, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
-  }, [status, me, loadMe, signOut, signOutEverywhere, switchWorkspace, startImpersonation, stopImpersonation, updateUi, setThemeMode]);
+    const found = me?.tenants.find((w) => w.id === me.activeTenantId) ?? null;
+    const activeTenant = found ? { ...found, features: me.features ?? {} } : null; // which optional system apps this install runs
+    const ui = resolveUiSettings(activeTenant?.uiSettings);
+    return { status, signedOut, me, user: me?.user ?? null, tenants: me?.tenants ?? [], activeTenant, refresh: loadMe, signedIn: loadMe, signOut, signOutEverywhere, switchTenant, impersonatedBy: me?.impersonatedBy ?? null, startImpersonation, stopImpersonation, ui, updateUi, setThemeMode };
+  }, [status, me, loadMe, signOut, signOutEverywhere, switchTenant, startImpersonation, stopImpersonation, updateUi, setThemeMode]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

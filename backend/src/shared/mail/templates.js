@@ -7,16 +7,16 @@ import { ROLE_LABELS } from '@app/shared';
 export const TEMPLATES = Object.freeze({
   /** Generic message: workflow email alerts, auto-response rules, approval requests. */
   notification: ({ subject, body }) => ({ subject, heading: subject, paragraphs: String(body ?? '').split(/\n{2,}/).filter(Boolean), footnote: 'Sent by a Quelli automation rule.' }),
-  test_email: ({ workspace }) => ({
+  test_email: ({ tenant }) => ({
     subject: 'Quelli test email',
     heading: 'Email deliverability test',
-    paragraphs: [`This message confirms that email from ${workspace} is being delivered.`],
+    paragraphs: [`This message confirms that email from ${tenant} is being delivered.`],
     footnote: 'You can ignore this message.',
   }),
   password_expired: ({ url, ttlMinutes }) => ({
     subject: 'Choose a new Quelli password',
     heading: 'Your password has expired',
-    paragraphs: ['An administrator expired all passwords in your workspace. You were signed out everywhere — choose a new password to continue.'],
+    paragraphs: ['An administrator expired all passwords in your tenant. You were signed out everywhere — choose a new password to continue.'],
     cta: { label: 'Choose a new password', url },
     footnote: `The link expires in ${ttlMinutes} minutes and can be used once.`,
   }),
@@ -59,10 +59,10 @@ export const TEMPLATES = Object.freeze({
     paragraphs: [`Two-factor authentication was just ${enabled ? 'turned on' : 'turned off'} for your account.`],
     footnote: 'If this wasn’t you, reset your password immediately.',
   }),
-  invitation: ({ inviterName, workspaceName, role, url, ttlDays }) => ({
-    subject: `${inviterName} invited you to ${workspaceName} on Quelli`,
+  invitation: ({ inviterName, tenantName, role, url, ttlDays }) => ({
+    subject: `${inviterName} invited you to ${tenantName} on Quelli`,
     heading: 'You’ve been invited',
-    paragraphs: [`${inviterName} invited you to join ${workspaceName} as ${ROLE_LABELS[role] ?? role}.`],
+    paragraphs: [`${inviterName} invited you to join ${tenantName} as ${ROLE_LABELS[role] ?? role}.`],
     cta: { label: 'Accept invitation', url },
     footnote: `The invitation expires in ${ttlDays} days. If you weren’t expecting it, you can ignore this email.`,
   }),

@@ -48,7 +48,7 @@ function AccessCard({ user, onSaved }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   return (
-    <Section title="Access" description="Role decides what this person can do in the workspace; the profile sets their permissions on each object.">
+    <Section title="Access" description="Role decides what this person can do in the tenant; the profile sets their permissions on each object.">
       <div className="space-y-4">
         {error && <Alert tone="error">{error}</Alert>}
         {saved && !changed && <Alert tone="success">Saved.</Alert>}
@@ -62,7 +62,7 @@ function AccessCard({ user, onSaved }) {
   );
 }
 
-/** Permission-set add-ons: extra access on top of role + profile. Only exists when the workspace runs with ACCESS_ADDONS_ENABLED. */
+/** Permission-set add-ons: extra access on top of role + profile. Only exists when the tenant runs with ACCESS_ADDONS_ENABLED. */
 function AddonsCard({ user, assigned, onChanged }) {
   const catalogue = useQuery({ queryKey: ['setup', 'access', 'permission-sets'], queryFn: setupApi.permissionSets, staleTime: 30_000 });
   const anchor = useRef(null);
@@ -200,7 +200,7 @@ export default function UserDetailsPage() {
           </Section>
         </div>
       </div>
-      <ConfirmDialog open={confirmRemove} danger confirmLabel="Remove from workspace" title={`Remove ${user.name}?`} description="They lose access to this workspace and are signed out here. Their account and other workspaces are not affected." onConfirm={remove} onClose={() => setConfirmRemove(false)} />
+      <ConfirmDialog open={confirmRemove} danger confirmLabel="Remove from tenant" title={`Remove ${user.name}?`} description="They lose access to this tenant and are signed out here. Their account and other tenants are not affected." onConfirm={remove} onClose={() => setConfirmRemove(false)} />
     </div>
   );
 }

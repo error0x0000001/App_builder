@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { pgArray } from '../../shared/db/helpers.js';
 import { searchSetupIndex } from './staticIndex.js';
 
-/** Cache namespace of a workspace's search results; bumped on every data, rule, sharing, profile or membership change so permissions apply at once. */
+/** Cache namespace of a tenant's search results; bumped on every data, rule, sharing, profile or membership change so permissions apply at once. */
 export const searchNs = (ws) => `search:${ws}`;
 
 const GROUP_BUDGET_MS = 250; // a slow group is dropped (and flagged partial) instead of holding up the others
@@ -29,7 +29,7 @@ const SETUP_COLLECTIONS = Object.fromEntries(
 /** Setup list pages whose records are documents (templates, letterheads, files) — searched as "Documents", not as configuration. */
 const DOCUMENT_COLLECTIONS = ['email-templates', 'letterheads', 'mail-merge-templates', 'asset-files', 'post-templates', 'action-link-templates'];
 
-/** Which result groups each scope asks for. "Records" covers the people of the workspace too. */
+/** Which result groups each scope asks for. "Records" covers the people of the tenant too. */
 const SCOPES = { all: ['records', 'people', 'navigation', 'documents'], records: ['records', 'people'], people: ['people'], navigation: ['navigation'], documents: ['documents'] };
 
 /**
@@ -43,7 +43,7 @@ export class SearchService {
   search(ctx, { q, type = 'all' }) {
     const query = q.trim();
     if (query.length < MIN_CHARS) return Promise.resolve({ body: JSON.stringify({ q: query, groups: {}, partial: false }), etag: '"empty"' });
-    return this.cache.remember(searchNs(ctx.workspaceId), `${ctx.userId}|${type}|${query.toLowerCase()}`, { ttlMs: 8_000 }, () => this.#run(ctx, query, type));
+    return this.cache.remember(searchNs(ctx.tenantId), `${ctx.userId}|${type}|${query.toLowerCase()}`, { ttlMs: 8_000 }, () => this.#run(ctx, query, type));
   }
 
   async #run(ctx, query, type) {
@@ -85,7 +85,7 @@ export class SearchService {
     ], sql` or `);
     const find = (pattern, op, n) => this.db.execute(sql`
       select id, label, status, collection from setup_records
-      where workspace_id = ${ctx.workspaceId} and (${scope}) and collection not in (${NOISY}) and lower(label) ${op} ${pattern}
+      where tenant_id = ${ctx.tenantId} and (${scope}) and collection not in (${NOISY}) and lower(label) ${op} ${pattern}
       limit ${n}`).then((r) => r.rows);
     const rows = await this.#twoPhase((p, n) => find(p, sql`like`, n), (p, n) => find(p, sql`like`, n), query, limit);
     return rows.map((r) => ({ id: r.id, kind: 'record', title: r.label, subtitle: r.status ?? '', tag: plural.get(r.collection), to: `/app/o/${r.collection.slice(4)}?open=${r.id}` }));
@@ -94,7 +94,7 @@ export class SearchService {
   async #people(ctx, query, limit) {
     const { rows } = await this.db.execute(sql`
       select u.id, u.first_name, u.last_name, u.email, m.role from memberships m join users u on u.id = m.user_id
-      where m.workspace_id = ${ctx.workspaceId} and lower(u.first_name || ' ' || u.last_name || ' ' || u.email) like ${`%${escapeLike(query.toLowerCase())}%`}
+      where m.tenant_id = ${ctx.tenantId} and lower(u.first_name || ' ' || u.last_name || ' ' || u.email) like ${`%${escapeLike(query.toLowerCase())}%`}
       limit ${limit}`);
     return rows.map((r) => ({ id: r.id, kind: 'person', title: `${r.first_name} ${r.last_name}`, subtitle: r.email, tag: r.role, to: '/app/members' }));
   }
@@ -102,7 +102,7 @@ export class SearchService {
   async #setupRecords(ctx, query, limit, keys) {
     const find = (pattern, n) => this.db.execute(sql`
       select id, label, status, collection from setup_records
-      where workspace_id = ${ctx.workspaceId} and collection = any(${pgArray(keys, 'text')}) and collection not in (${NOISY}) and lower(label) like ${pattern}
+      where tenant_id = ${ctx.tenantId} and collection = any(${pgArray(keys, 'text')}) and collection not in (${NOISY}) and lower(label) like ${pattern}
       limit ${n}`).then((r) => r.rows);
     return this.#twoPhase(find, find, query, limit);
   }

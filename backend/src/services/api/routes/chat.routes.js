@@ -8,7 +8,7 @@ import { TooManyRequestsError } from '../../../shared/errors.js';
 import { receiveUpload, tooLarge } from '../middleware/upload.js';
 import { PHOTO_MAX_BYTES } from '../../../modules/users/photoStore.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 import { config } from '../../../shared/config.js';
 
@@ -17,14 +17,14 @@ const messageParams = z.object({ id: uuidField, messageId: uuidField });
 const memberParams = z.object({ id: uuidField, userId: uuidField });
 const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
-/** Chat. Any workspace member may call; the service authorises per conversation (membership is the only rule). */
+/** Chat. Any tenant member may call; the service authorises per conversation (membership is the only rule). */
 export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls, drive, icons, linkPreviews }) {
   const router = Router();
-  router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
+  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));
   router.use((req, res, next) => {
     try {
-      if (!cache.allow(`chat-api:${req.auth.workspaceId}`, 60, config.SETUP_REQUESTS_PER_MINUTE * 4)) throw new TooManyRequestsError(60);
-      req.chatCtx = { workspaceId: req.auth.workspaceId, userId: req.auth.userId, actor: req.membership };
+      if (!cache.allow(`chat-api:${req.auth.tenantId}`, 60, config.SETUP_REQUESTS_PER_MINUTE * 4)) throw new TooManyRequestsError(60);
+      req.chatCtx = { tenantId: req.auth.tenantId, userId: req.auth.userId, actor: req.membership };
       next();
     } catch (error) { next(error); }
   });
@@ -107,7 +107,7 @@ export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, ca
   });
 
   router.get('/search', validate({ query: chatSearchQuerySchema }), async (req, res) => send(res, await chat.search(ctx(req), req.valid.query)));
-  router.get('/presence', validate({ query: z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i) }) }), async (req, res) => send(res, { online: await presence.online(req.auth.workspaceId, req.valid.query.ids.split(',')) }));
+  router.get('/presence', validate({ query: z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i) }) }), async (req, res) => send(res, { online: await presence.online(req.auth.tenantId, req.valid.query.ids.split(',')) }));
 
   return router;
 }

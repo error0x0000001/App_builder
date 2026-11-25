@@ -5,7 +5,7 @@ import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { Tabs } from '../components/ui/Tabs.jsx';
 import { Tooltip } from '../components/ui/Tooltip.jsx';
-import { WorkspaceSwitcherLogo } from '../components/workspace/WorkspaceSwitcher.jsx';
+import { TenantSwitcherLogo } from '../components/tenant/TenantSwitcher.jsx';
 import { useLocalStorageState } from '../hooks/useLocalStorageState.js';
 import { cn } from '../lib/cn.js';
 import { NavRows, ROW_ACTION, SearchField, useNavSections } from './NavRows.jsx';
@@ -69,7 +69,7 @@ function Panel({ section, sections }) {
 }
 
 /**
- * Default desktop navigation. The sidebar surface holds a rounded icon-rail card (workspace mark, one icon per section, Setup, search,
+ * Default desktop navigation. The sidebar surface holds a rounded icon-rail card (tenant mark, one icon per section, Setup, search,
  * panel toggle, account) and, beside it, a 300px panel with the current section's pages. Both read navigation.js. Floating style
  * turns the whole sidebar into a bordered rounded card; inset leaves it flat. Hidden panel (⌘B) leaves just the rail card; pages
  * outside any section (Setup has its own tree) show the rail only. Phones use the drawer sidebar instead.
@@ -79,8 +79,8 @@ export function RailSidebar() {
   const { pathname } = useLocation();
   const { variant, layout, collapsed, toggle } = useSidebar();
   const { show: showSearch } = useSearch();
-  const { activeWorkspace } = useAuth();
-  const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
+  const { activeTenant } = useAuth();
+  const bottom = NAV.bottom.filter((item) => isVisibleTo(item, activeTenant));
   const floating = variant === 'floating';
   // a bottom item with its own panel (Setup) is a section too: it shows its panel beside the rail
   const bottomPanel = bottom.find((item) => item.panel && isActivePath({ ...item, end: false }, pathname));
@@ -90,7 +90,7 @@ export function RailSidebar() {
   return (
     <aside aria-label="Application" className={cn('flex min-h-0 shrink-0 self-stretch overflow-hidden', floating ? 'm-2 rounded-2xl border border-sidebar-line bg-sidebar' : variant === 'flat' && 'border-r border-sidebar-line')}>
       <div className="m-2 flex w-16 shrink-0 flex-col items-center gap-1.5 overflow-hidden rounded-2xl bg-rail py-4 text-sidebar-ink">
-        <div className="mb-4"><WorkspaceSwitcherLogo compact /></div>
+        <div className="mb-4"><TenantSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
           {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} badge={s.panel === 'chat' ? chatUnread : 0} />)}
         </nav>

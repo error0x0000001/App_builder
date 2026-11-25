@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ASSIGNABLE_ROLES, ROLE_LABELS, inviteSchema } from '@app/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { workspacesApi } from '../../api/endpoints.js';
+import { tenantsApi } from '../../api/endpoints.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Badge } from '../ui/Badge.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -16,7 +16,7 @@ const ROLE_OPTIONS = ASSIGNABLE_ROLES.map((value) => ({ value, label: ROLE_LABEL
  * Queue several invitees, then send them in one request.
  * Used by onboarding and by the members page — one implementation.
  */
-export function InviteForm({ workspaceId, onSent, submitLabel = 'Send invitations' }) {
+export function InviteForm({ tenantId, onSent, submitLabel = 'Send invitations' }) {
   const queryClient = useQueryClient();
   const [queued, setQueued] = useState([]);
   const [results, setResults] = useState([]);
@@ -37,10 +37,10 @@ export function InviteForm({ workspaceId, onSent, submitLabel = 'Send invitation
     setSending(true);
     setSendError(null);
     try {
-      const { results: outcome } = await workspacesApi.invite(workspaceId, queued);
+      const { results: outcome } = await tenantsApi.invite(tenantId, queued);
       setResults(outcome);
       setQueued([]);
-      await queryClient.invalidateQueries({ queryKey: ['invitations', workspaceId] });
+      await queryClient.invalidateQueries({ queryKey: ['invitations', tenantId] });
       onSent?.(outcome);
     } catch (error) {
       setSendError(error.message);

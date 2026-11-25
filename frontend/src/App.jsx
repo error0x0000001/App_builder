@@ -11,7 +11,7 @@ const DocumentsPage = page(() => import('./pages/documents/DocumentsPage.jsx'));
 const ChatPage = page(() => import('./pages/chat/ChatPage.jsx'));
 const JoinGroupPage = page(() => import('./pages/chat/JoinGroupPage.jsx'));
 const LoginPage = page(() => import('./pages/auth/LoginPage.jsx'));
-const WorkspaceLoginPage = page(() => import('./pages/auth/WorkspaceLoginPage.jsx'));
+const TenantLoginPage = page(() => import('./pages/auth/TenantLoginPage.jsx'));
 const MfaChallengePage = page(() => import('./pages/auth/MfaChallengePage.jsx'));
 const SignupPage = page(() => import('./pages/auth/SignupPage.jsx'));
 const VerifyEmailPage = page(() => import('./pages/auth/VerifyEmailPage.jsx'));
@@ -24,7 +24,7 @@ const HomePage = page(() => import('./pages/app/HomePage.jsx'));
 const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
 const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
 const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
-const NewWorkspacePage = page(() => import('./pages/app/NewWorkspacePage.jsx'));
+const NewTenantPage = page(() => import('./pages/app/NewTenantPage.jsx'));
 const ObjectListPage = page(() => import('./pages/objects/ObjectListPage.jsx'));
 const SetupLayout = page(() => import('./pages/setup/SetupLayout.jsx'));
 const SetupPage = page(() => import('./pages/setup/SetupPage.jsx'));
@@ -40,7 +40,7 @@ export default function App() {
         <Route element={<AuthLayout />}>
           <Route element={<GuestOnly />}>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/login/workspace" element={<WorkspaceLoginPage />} />
+            <Route path="/login/tenant" element={<TenantLoginPage />} />
             <Route path="/login/mfa" element={<MfaChallengePage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -73,7 +73,7 @@ export default function App() {
                   <Route path=":key" element={<SetupPage />} />
                 </Route>
               </Route>
-              <Route path="workspaces/new" element={<NewWorkspacePage />} />
+              <Route path="tenants/new" element={<NewTenantPage />} />
             </Route>
           </Route>
         </Route>

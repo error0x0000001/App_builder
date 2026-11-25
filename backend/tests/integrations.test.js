@@ -74,7 +74,7 @@ function fakeHook() {
 async function admin() {
   const { client } = await registerUser(server);
   const me = (await client.get('/me')).body;
-  return { client, ws: me.activeWorkspaceId };
+  return { client, ws: me.activeTenantId };
 }
 const smtpBody = (over = {}) => ({ config: { host: 'localhost', port: smtp.port, security: 'none', username: 'mailer', from_email: 'noreply@acme.test', from_name: 'Acme', ...over.config }, secrets: { password: 'pw-9f3k2', ...over.secrets } });
 
@@ -109,7 +109,7 @@ describe('connect → test → enable', () => {
     assert.equal(saved.body.integration.status, 'untested');
     assert.deepEqual(saved.body.integration.secretsSet, ['password']);
     assert.ok(!JSON.stringify(saved.body).includes('pw-9f3k2'), 'the password is never in a response');
-    const { rows } = await db.execute(sql`select secrets_enc, config from workspace_integrations where workspace_id = ${ws} and provider = 'smtp'`);
+    const { rows } = await db.execute(sql`select secrets_enc, config from tenant_integrations where tenant_id = ${ws} and provider = 'smtp'`);
     assert.ok(rows[0].secrets_enc && !rows[0].secrets_enc.includes('pw-9f3k2') && !JSON.stringify(rows[0].config).includes('pw-9f3k2'), 'encrypted at rest');
     assert.equal(new SecretBox(process.env.ENCRYPTION_KEY).decrypt(rows[0].secrets_enc).includes('"password":"pw-9f3k2"'), true);
 
@@ -145,14 +145,14 @@ describe('connect → test → enable', () => {
     const { client, ws } = await admin();
     await client.put(`${I}/smtp`, smtpBody());
     await client.post(`${I}/smtp/test`);
-    await db.execute(sql`insert into workspace_integrations (workspace_id, provider, enabled, config, secrets_enc, status) values (${ws}, 'ses', true, '{}'::jsonb, ${new SecretBox(process.env.ENCRYPTION_KEY).encrypt('{"password":"x"}')}, 'connected')`);
+    await db.execute(sql`insert into tenant_integrations (tenant_id, provider, enabled, config, secrets_enc, status) values (${ws}, 'ses', true, '{}'::jsonb, ${new SecretBox(process.env.ENCRYPTION_KEY).encrypt('{"password":"x"}')}, 'connected')`);
     const res = await client.post(`${I}/smtp/enabled`, { enabled: true });
     const by = Object.fromEntries(res.body.integrations.map((i) => [i.key, i.enabled]));
     assert.deepEqual([by.smtp, by.ses], [true, false]);
   });
 });
 
-describe('email goes through the workspace’s own provider', () => {
+describe('email goes through the tenant’s own provider', () => {
   it('sends via the live SMTP integration, and not at all via one that is off or untested', async () => {
     const { client, ws } = await admin();
     const mailerFor = server.container.integrations.mailerFor();
@@ -195,7 +195,7 @@ describe('storage providers are checked with a real signed request', () => {
   it('refuses private-network targets unless the install allows them', async () => {
     const { ws } = await admin();
     const strict = new IntegrationsService({ db, secretBox: new SecretBox(process.env.ENCRYPTION_KEY), repos: server.container.repos, allowPrivate: false });
-    const ctx = { workspaceId: ws, userId: null };
+    const ctx = { tenantId: ws, userId: null };
     await strict.save(ctx, 'minio', { config: { endpoint: `http://127.0.0.1:${s3.port}`, bucket: 'files', region: 'us-east-1', access_key_id: 'AKIATESTKEY', path_style: 'path' }, secrets: { secret_access_key: 'x' } });
     const result = await strict.test(ctx, 'minio');
     assert.equal(result.status, 'error');

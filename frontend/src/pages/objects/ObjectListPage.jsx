@@ -23,10 +23,10 @@ const formType = (f) => f.input;
 
 /** Approve / reject bar shown inside the dialog of a record that is waiting on the signed-in person. */
 function ApprovalBar({ object, record, onDecided }) {
-  const { user, activeWorkspace } = useAuth();
+  const { user, activeTenant } = useAuth();
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const allowed = hasRole(activeWorkspace.role, 'admin') || record.approver?.toLowerCase() === user.email.toLowerCase();
+  const allowed = hasRole(activeTenant.role, 'admin') || record.approver?.toLowerCase() === user.email.toLowerCase();
   const decide = async (decision) => {
     setBusy(true); setError(null);
     try { await objectsApi.decide(object, record.id, { decision }); onDecided(); } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -47,7 +47,7 @@ function ApprovalBar({ object, record, onDecided }) {
 
 function ObjectBody({ object, definition, permissions }) {
   const queryClient = useQueryClient();
-  const { activeWorkspace } = useAuth();
+  const { activeTenant } = useAuth();
   const { create: canCreate, edit: canEdit, delete: canDelete } = permissions; // per-object, from Profiles / Permission Sets / Sharing
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(() => new Set());
@@ -106,7 +106,7 @@ function ObjectBody({ object, definition, permissions }) {
         <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} placeholder={`Search ${definition.plural.toLowerCase()}`} label={`Search ${definition.plural}`} className="w-full sm:w-72" />
         {selected.size > 0 && canDelete && <Button size="sm" variant="neutral" className="ml-auto" onClick={() => setConfirm(true)}><Icon name="trash" className="size-4" />Delete ({selected.size})</Button>}
         <div className={cn('flex items-center gap-2', !(selected.size > 0 && canDelete) && 'ml-auto')}>
-          {hasRole(activeWorkspace.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral"><Icon name="sliders" className="size-4" />Customize</Button>}
+          {hasRole(activeTenant.role, 'admin') && <Button as={Link} to="/app/setup/object-manager" size="sm" variant="neutral"><Icon name="sliders" className="size-4" />Customize</Button>}
           {canCreate && <Button size="sm" onClick={() => setDialog({ mode: 'create' })}><Icon name="plus" className="size-4" />New {definition.key}</Button>}
         </div>
       </div>

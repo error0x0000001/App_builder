@@ -21,7 +21,7 @@ import { searchRoutes } from './routes/search.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { integrationsRoutes } from './routes/integrations.routes.js';
 import { deploymentsRoutes } from './routes/deployments.routes.js';
-import { workspaceRoutes } from './routes/workspaces.routes.js';
+import { tenantRoutes } from './routes/tenants.routes.js';
 
 export function createApp(container, { recycler } = {}) {
   const app = express();
@@ -58,7 +58,7 @@ export function createApp(container, { recycler } = {}) {
 
   app.use('/api/v1/auth', cookieParser(), authRoutes(container)); // only the auth flows read cookies
   app.use('/api/v1/me', meRoutes(container));
-  app.use('/api/v1/workspaces', workspaceRoutes(container));
+  app.use('/api/v1/tenants', tenantRoutes(container));
   app.use('/api/v1/invitations', invitationRoutes(container));
   app.use('/api/v1/setup', setupRoutes(container));
   app.use('/api/v1/integrations', integrationsRoutes(container));

@@ -9,13 +9,13 @@ after(async () => { await server.stop(); });
 const O = '/objects'; const S = '/setup';
 const find = (c, q, type = 'all') => c.get(`/search?q=${encodeURIComponent(q)}&type=${type}`).then((r) => { assert.equal(r.status, 200, JSON.stringify(r.body)); return r.body; });
 async function join(boss, role) {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   return { person, email, ws };
 }
 
@@ -105,7 +105,7 @@ describe('global search', () => {
     assert.deepEqual(Object.keys((await find(boss, 'Meera', 'records')).groups).sort(), ['people', 'records'], 'the Records scope includes people');
   });
 
-  it('is isolated per workspace and exposes the matching record by id', async () => {
+  it('is isolated per tenant and exposes the matching record by id', async () => {
     const { client } = await registerUser(server);
     const other = (await registerUser(server)).client;
     const made = await client.post(`${O}/Lead/records`, { name: 'Zebra Exclusive' });

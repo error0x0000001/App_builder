@@ -35,7 +35,7 @@ function Card({ def, state, onOpen }) {
   );
 }
 
-/** Integrations: the outside services this workspace connects with its own credentials. Cards come from the shared registry; state from the API. */
+/** Integrations: the outside services this tenant connects with its own credentials. Cards come from the shared registry; state from the API. */
 export default function IntegrationsPage() {
   const query = useQuery({ queryKey: ['integrations'], queryFn: integrationsApi.list });
   const [tab, setTab] = useState('all');

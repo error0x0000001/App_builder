@@ -15,8 +15,8 @@ export function NavMain() {
 
 /** NAV.bottom (Setup) pinned above the user menu. */
 export function NavBottom() {
-  const { activeWorkspace } = useAuth();
-  const items = NAV.bottom.filter((item) => isVisibleTo(item, activeWorkspace));
+  const { activeTenant } = useAuth();
+  const items = NAV.bottom.filter((item) => isVisibleTo(item, activeTenant));
   if (!items.length) return null;
   return <nav aria-label="Secondary"><ul className="flex flex-col gap-0.5"><NavRows items={items} /></ul></nav>;
 }

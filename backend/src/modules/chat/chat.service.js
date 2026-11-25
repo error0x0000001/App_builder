@@ -18,7 +18,7 @@ const personOf = (r) => ({ id: r.id, name: `${r.first_name} ${r.last_name}`.trim
 export const SYSTEM_BODIES = Object.freeze(['created', 'added', 'removed', 'left', 'renamed', 'call']);
 
 /**
- * Conversations and messages. Design rules (see docs/workspace-suite-plan.md):
+ * Conversations and messages. Design rules (see docs/tenant-suite-plan.md):
  *  - every message read is a keyset scan on (conversation_id, id) inside ONE hash partition;
  *  - read state is a per-member cursor, never per-message rows; unread counts are capped range scans from that cursor;
  *  - the message is written once and announced on the bus — nothing is written per recipient;
@@ -40,11 +40,11 @@ export class ChatService {
     return Object.fromEntries(rows.map((r) => [r.id, personOf(r)]));
   }
 
-  async #assertWorkspaceMembers(ctx, ids) {
+  async #assertTenantMembers(ctx, ids) {
     const unique = [...new Set(ids)];
     if (!unique.length) return unique;
-    const rows = await this.#rows(sql`select user_id from memberships where workspace_id = ${ctx.workspaceId} and user_id = any(${pgArray(unique, 'uuid')})`);
-    if (rows.length !== unique.length) throw new ValidationError({ userIds: 'Everyone must be a member of this workspace' });
+    const rows = await this.#rows(sql`select user_id from memberships where tenant_id = ${ctx.tenantId} and user_id = any(${pgArray(unique, 'uuid')})`);
+    if (rows.length !== unique.length) throw new ValidationError({ userIds: 'Everyone must be a member of this tenant' });
     return unique;
   }
 
@@ -52,14 +52,14 @@ export class ChatService {
   async member(ctx, conversationId) {
     const [row] = await this.#rows(sql`select m.role, m.last_read_id, c.id, c.kind, c.title, c.legal_hold, c.created_by, c.meeting_at, c.disappear_after
       from chat_members m join chat_conversations c on c.id = m.conversation_id
-      where c.workspace_id = ${ctx.workspaceId} and m.conversation_id = ${conversationId} and m.user_id = ${ctx.userId} and m.left_at is null`);
+      where c.tenant_id = ${ctx.tenantId} and m.conversation_id = ${conversationId} and m.user_id = ${ctx.userId} and m.left_at is null`);
     if (!row) throw new NotFoundError('Conversation not found');
     return row;
   }
 
   /** Ids of the conversations a person is in (the realtime tier subscribes to exactly these). */
-  async conversationIdsOf(workspaceId, userId) {
-    const rows = await this.#rows(sql`select conversation_id from chat_members where workspace_id = ${workspaceId} and user_id = ${userId} and left_at is null`);
+  async conversationIdsOf(tenantId, userId) {
+    const rows = await this.#rows(sql`select conversation_id from chat_members where tenant_id = ${tenantId} and user_id = ${userId} and left_at is null`);
     return rows.map((r) => r.conversation_id);
   }
 
@@ -97,7 +97,7 @@ export class ChatService {
       join chat_conversations c on c.id = m.conversation_id
       left join chat_messages lm on lm.conversation_id = c.id and lm.id = c.last_message_id
       left join lateral (select p.user_id from chat_members p where p.conversation_id = c.id and p.user_id <> ${ctx.userId} and c.kind = 'dm' limit 1) peer on true
-      where m.workspace_id = ${ctx.workspaceId} and m.user_id = ${ctx.userId} and m.left_at is null and m.archived = ${archived}
+      where m.tenant_id = ${ctx.tenantId} and m.user_id = ${ctx.userId} and m.left_at is null and m.archived = ${archived}
       order by m.pinned desc, c.last_message_at desc nulls last, c.id desc limit ${limit}`);
     const people = await this.#people(rows.flatMap((r) => [r.peer_id, r.last_sender]));
     return {
@@ -115,7 +115,7 @@ export class ChatService {
     const [row] = await this.#rows(sql`select coalesce(sum(u), 0)::int as total from (
       select (select count(*) from (select 1 from chat_messages x where x.conversation_id = m.conversation_id and x.id > coalesce(m.last_read_id, ${NIL}::uuid)
         and x.sender_id is distinct from ${ctx.userId} and x.deleted_at is null and x.kind in ('text', 'poll') limit 100) q) as u
-      from chat_members m where m.workspace_id = ${ctx.workspaceId} and m.user_id = ${ctx.userId} and m.left_at is null and m.archived = false
+      from chat_members m where m.tenant_id = ${ctx.tenantId} and m.user_id = ${ctx.userId} and m.left_at is null and m.archived = false
         and (m.muted_until is null or m.muted_until < now())) t`);
     return { unread: row?.total ?? 0 };
   }
@@ -143,13 +143,13 @@ export class ChatService {
 
   async createDm(ctx, { userId }) {
     if (userId === ctx.userId) throw new ValidationError({ userId: 'Choose someone else' });
-    await this.#assertWorkspaceMembers(ctx, [userId]);
+    await this.#assertTenantMembers(ctx, [userId]);
     const key = dmKeyOf(ctx.userId, userId);
     const id = await this.db.transaction(async (tx) => {
-      const [made] = await this.#rows(sql`insert into chat_conversations (id, workspace_id, kind, dm_key, created_by) values (${uuidv7()}, ${ctx.workspaceId}, 'dm', ${key}, ${ctx.userId})
-        on conflict (workspace_id, dm_key) where dm_key is not null do nothing returning id`, tx);
-      const conversationId = made?.id ?? (await this.#rows(sql`select id from chat_conversations where workspace_id = ${ctx.workspaceId} and dm_key = ${key}`, tx))[0].id;
-      await this.#rows(sql`insert into chat_members (conversation_id, user_id, workspace_id) values (${conversationId}, ${ctx.userId}, ${ctx.workspaceId}), (${conversationId}, ${userId}, ${ctx.workspaceId})
+      const [made] = await this.#rows(sql`insert into chat_conversations (id, tenant_id, kind, dm_key, created_by) values (${uuidv7()}, ${ctx.tenantId}, 'dm', ${key}, ${ctx.userId})
+        on conflict (tenant_id, dm_key) where dm_key is not null do nothing returning id`, tx);
+      const conversationId = made?.id ?? (await this.#rows(sql`select id from chat_conversations where tenant_id = ${ctx.tenantId} and dm_key = ${key}`, tx))[0].id;
+      await this.#rows(sql`insert into chat_members (conversation_id, user_id, tenant_id) values (${conversationId}, ${ctx.userId}, ${ctx.tenantId}), (${conversationId}, ${userId}, ${ctx.tenantId})
         on conflict (conversation_id, user_id) do update set left_at = null`, tx);
       return conversationId;
     });
@@ -158,13 +158,13 @@ export class ChatService {
   }
 
   async createGroup(ctx, { title, description = null, memberIds, meetingAt = null }) {
-    const others = (await this.#assertWorkspaceMembers(ctx, memberIds)).filter((id) => id !== ctx.userId);
+    const others = (await this.#assertTenantMembers(ctx, memberIds)).filter((id) => id !== ctx.userId);
     if (others.length + 1 > CHAT_MAX_GROUP_MEMBERS) throw new ValidationError({ memberIds: `A group holds at most ${CHAT_MAX_GROUP_MEMBERS} people` });
     const id = uuidv7();
     await this.db.transaction(async (tx) => {
-      await this.#rows(sql`insert into chat_conversations (id, workspace_id, kind, title, description, created_by, meeting_at) values (${id}, ${ctx.workspaceId}, 'group', ${title}, ${description}, ${ctx.userId}, ${meetingAt})`, tx);
-      await this.#rows(sql`insert into chat_members (conversation_id, user_id, workspace_id, role) values (${id}, ${ctx.userId}, ${ctx.workspaceId}, 'admin')`, tx);
-      if (others.length) await this.#rows(sql`insert into chat_members (conversation_id, user_id, workspace_id) select ${id}, u, ${ctx.workspaceId} from unnest(${pgArray(others, 'uuid')}) as u`, tx);
+      await this.#rows(sql`insert into chat_conversations (id, tenant_id, kind, title, description, created_by, meeting_at) values (${id}, ${ctx.tenantId}, 'group', ${title}, ${description}, ${ctx.userId}, ${meetingAt})`, tx);
+      await this.#rows(sql`insert into chat_members (conversation_id, user_id, tenant_id, role) values (${id}, ${ctx.userId}, ${ctx.tenantId}, 'admin')`, tx);
+      if (others.length) await this.#rows(sql`insert into chat_members (conversation_id, user_id, tenant_id) select ${id}, u, ${ctx.tenantId} from unnest(${pgArray(others, 'uuid')}) as u`, tx);
     });
     await this.#system(ctx, id, 'created', []);
     await this.#tell([ctx.userId, ...others], { type: 'conversation.joined', conversationId: id });
@@ -188,7 +188,7 @@ export class ChatService {
   /** An event line in the conversation (group changes, calls). Never counts as unread. */
   async event(ctx, conversationId, kind, body, targets = []) {
     const id = uuidv7();
-    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, mentions) values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, ${kind}, ${body}, ${JSON.stringify(targets)}::jsonb) returning *`);
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, tenant_id, sender_id, kind, body, mentions) values (${conversationId}, ${id}, ${ctx.tenantId}, ${ctx.userId}, ${kind}, ${body}, ${JSON.stringify(targets)}::jsonb) returning *`);
     await this.#rows(sql`update chat_conversations set last_message_id = ${id}, last_message_at = ${row.created_at} where id = ${conversationId}`);
     await this.#announce(conversationId, { type: 'message.new', message: this.#message(row) });
   }
@@ -216,10 +216,10 @@ export class ChatService {
 
   async addMembers(ctx, conversationId, { userIds }) {
     await this.#group(ctx, conversationId);
-    const ids = await this.#assertWorkspaceMembers(ctx, userIds);
+    const ids = await this.#assertTenantMembers(ctx, userIds);
     const [{ n }] = await this.#rows(sql`select count(*)::int as n from chat_members where conversation_id = ${conversationId} and left_at is null`);
     if (n + ids.length > CHAT_MAX_GROUP_MEMBERS) throw new ValidationError({ userIds: `A group holds at most ${CHAT_MAX_GROUP_MEMBERS} people` });
-    const added = await this.#rows(sql`insert into chat_members (conversation_id, user_id, workspace_id) select ${conversationId}, u, ${ctx.workspaceId} from unnest(${pgArray(ids, 'uuid')}) as u
+    const added = await this.#rows(sql`insert into chat_members (conversation_id, user_id, tenant_id) select ${conversationId}, u, ${ctx.tenantId} from unnest(${pgArray(ids, 'uuid')}) as u
       on conflict (conversation_id, user_id) do update set left_at = null, joined_at = now() where chat_members.left_at is not null returning user_id`);
     if (added.length) {
       const targets = added.map((r) => r.user_id);
@@ -267,11 +267,11 @@ export class ChatService {
   }
 
   async joinByInvite(ctx, code) {
-    const [c] = await this.#rows(sql`select id from chat_conversations where workspace_id = ${ctx.workspaceId} and invite_code = ${code} and kind = 'group'`);
+    const [c] = await this.#rows(sql`select id from chat_conversations where tenant_id = ${ctx.tenantId} and invite_code = ${code} and kind = 'group'`);
     if (!c) throw new NotFoundError('That invite link is no longer valid');
     const [{ n }] = await this.#rows(sql`select count(*)::int as n from chat_members where conversation_id = ${c.id} and left_at is null`);
     if (n >= CHAT_MAX_GROUP_MEMBERS) throw new ConflictError('This group is full');
-    const [row] = await this.#rows(sql`insert into chat_members (conversation_id, user_id, workspace_id) values (${c.id}, ${ctx.userId}, ${ctx.workspaceId})
+    const [row] = await this.#rows(sql`insert into chat_members (conversation_id, user_id, tenant_id) values (${c.id}, ${ctx.userId}, ${ctx.tenantId})
       on conflict (conversation_id, user_id) do update set left_at = null, joined_at = now() where chat_members.left_at is not null returning user_id`);
     if (row) { await this.#system(ctx, c.id, 'added', [ctx.userId]); await this.#tell([ctx.userId], { type: 'conversation.joined', conversationId: c.id }); }
     return this.get(ctx, c.id);
@@ -288,10 +288,10 @@ export class ChatService {
     return { ok: true };
   }
 
-  /** Compliance: only workspace owners/admins can freeze a conversation. While held, nothing in it can be deleted or edited-for-everyone. */
+  /** Compliance: only tenant owners/admins can freeze a conversation. While held, nothing in it can be deleted or edited-for-everyone. */
   async setLegalHold(ctx, conversationId, on) {
-    if (!this.#isAdmin(ctx)) throw new ForbiddenError('Only workspace admins can place a legal hold');
-    const [row] = await this.#rows(sql`update chat_conversations set legal_hold = ${on} where id = ${conversationId} and workspace_id = ${ctx.workspaceId} returning id`);
+    if (!this.#isAdmin(ctx)) throw new ForbiddenError('Only tenant admins can place a legal hold');
+    const [row] = await this.#rows(sql`update chat_conversations set legal_hold = ${on} where id = ${conversationId} and tenant_id = ${ctx.tenantId} returning id`);
     if (!row) throw new NotFoundError('Conversation not found');
     await this.#announce(conversationId, { type: 'conversation.updated' });
     return { legalHold: on };
@@ -350,7 +350,7 @@ export class ChatService {
 
   async send(ctx, conversationId, input) {
     const m = await this.member(ctx, conversationId);
-    if (!this.cache.allow(`chat:${ctx.workspaceId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.workspaceId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
+    if (!this.cache.allow(`chat:${ctx.tenantId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.tenantId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
     let id = input.id;
     if (id) {
       if (uuidVersion(id) !== 7 || Math.abs(msTimeOfUuidV7(id) - Date.now()) > CLOCK_SKEW_MS) throw new ValidationError({ id: 'Use a UUIDv7 generated now' });
@@ -377,8 +377,8 @@ export class ChatService {
       : [];
     if (input.attachments?.length) attachments = await this.drive.chatFileMeta(ctx, conversationId, input.attachments);
 
-    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, reply_to, forwarded, attachments, mentions, expires_at)
-      values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'text', ${body}, ${input.replyTo ?? null}, ${forwarded}, ${JSON.stringify(attachments)}::jsonb, ${JSON.stringify(mentions)}::jsonb, ${this.#expiry(m)})
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, tenant_id, sender_id, kind, body, reply_to, forwarded, attachments, mentions, expires_at)
+      values (${conversationId}, ${id}, ${ctx.tenantId}, ${ctx.userId}, 'text', ${body}, ${input.replyTo ?? null}, ${forwarded}, ${JSON.stringify(attachments)}::jsonb, ${JSON.stringify(mentions)}::jsonb, ${this.#expiry(m)})
       on conflict (conversation_id, id) do nothing returning id`);
     const message = await this.#loadMessage(conversationId, id, ctx.userId);
     if (!row) return { message, duplicate: true }; // a retry of something already stored: no second broadcast
@@ -495,10 +495,10 @@ export class ChatService {
 
   async createPoll(ctx, conversationId, { id: clientId, question, options, multi }) {
     const m = await this.member(ctx, conversationId);
-    if (!this.cache.allow(`chat:${ctx.workspaceId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.workspaceId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
+    if (!this.cache.allow(`chat:${ctx.tenantId}`, 60, 20_000) || (await this.cache.hit(`chat-w:${ctx.tenantId}:${ctx.userId}`, 60)) > SEND_LIMIT_PER_MINUTE) throw new TooManyRequestsError(60);
     const id = clientId ?? uuidv7();
-    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, workspace_id, sender_id, kind, body, poll, expires_at)
-      values (${conversationId}, ${id}, ${ctx.workspaceId}, ${ctx.userId}, 'poll', ${question}, ${JSON.stringify({ options, multi })}::jsonb, ${this.#expiry(m)}) on conflict (conversation_id, id) do nothing returning id`);
+    const [row] = await this.#rows(sql`insert into chat_messages (conversation_id, id, tenant_id, sender_id, kind, body, poll, expires_at)
+      values (${conversationId}, ${id}, ${ctx.tenantId}, ${ctx.userId}, 'poll', ${question}, ${JSON.stringify({ options, multi })}::jsonb, ${this.#expiry(m)}) on conflict (conversation_id, id) do nothing returning id`);
     const message = await this.#loadMessage(conversationId, id, ctx.userId);
     if (!row) return { message, duplicate: true };
     await this.#rows(sql`update chat_conversations set last_message_id = ${id}, last_message_at = ${message.createdAt} where id = ${conversationId} and (last_message_id is null or last_message_id < ${id})`);
@@ -568,7 +568,7 @@ export class ChatService {
       from chat_conversations c
       join chat_members a on a.conversation_id = c.id and a.user_id = ${ctx.userId} and a.left_at is null
       join chat_members b on b.conversation_id = c.id and b.user_id = ${userId} and b.left_at is null
-      where c.workspace_id = ${ctx.workspaceId} and c.kind = 'group' order by c.last_message_at desc nulls last limit 50`);
+      where c.tenant_id = ${ctx.tenantId} and c.kind = 'group' order by c.last_message_at desc nulls last limit 50`);
     return { groups: rows.map((r) => ({ id: r.id, title: r.title, members: r.members })) };
   }
 
@@ -582,8 +582,8 @@ export class ChatService {
     const scope = conversationId ? sql`and conversation_id = ${conversationId}` : sql``;
     const rows = await this.#rows(sql`select m.conversation_id, m.id, m.sender_id, m.body, m.created_at, c.kind, c.title
       from chat_messages m join chat_conversations c on c.id = m.conversation_id
-      where m.workspace_id = ${ctx.workspaceId} and m.tsv @@ to_tsquery('simple', ${tsquery}) and m.deleted_at is null and m.kind = 'text'
-        and m.conversation_id in (select conversation_id from chat_members where workspace_id = ${ctx.workspaceId} and user_id = ${ctx.userId} and left_at is null ${scope})
+      where m.tenant_id = ${ctx.tenantId} and m.tsv @@ to_tsquery('simple', ${tsquery}) and m.deleted_at is null and m.kind = 'text'
+        and m.conversation_id in (select conversation_id from chat_members where tenant_id = ${ctx.tenantId} and user_id = ${ctx.userId} and left_at is null ${scope})
       order by m.id desc limit ${limit}`);
     const dmPeers = new Map();
     const dms = [...new Set(rows.filter((r) => r.kind === 'dm').map((r) => r.conversation_id))];

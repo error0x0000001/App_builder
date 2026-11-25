@@ -7,7 +7,7 @@ before(async () => { server = await startServer(); });
 after(async () => { await server.stop(); });
 
 describe('signup & email verification', () => {
-  it('creates an account, requires the emailed code, then signs in with a workspace', async () => {
+  it('creates an account, requires the emailed code, then signs in with a tenant', async () => {
     const client = new Client(server.base);
     const email = uniqueEmail();
     const signup = await client.post('/auth/signup', signupBody(email));
@@ -24,9 +24,9 @@ describe('signup & email verification', () => {
 
     const me = await client.get('/me');
     assert.equal(me.body.user.email, email);
-    assert.equal(me.body.workspaces.length, 1);
-    assert.equal(me.body.workspaces[0].role, 'owner');
-    assert.equal(me.body.activeWorkspaceId, me.body.workspaces[0].id);
+    assert.equal(me.body.tenants.length, 1);
+    assert.equal(me.body.tenants[0].role, 'owner');
+    assert.equal(me.body.activeTenantId, me.body.tenants[0].id);
   });
 
   it('the code is single-use and locked after 5 wrong attempts', async () => {
@@ -78,7 +78,7 @@ describe('login, lockout & sessions', () => {
 
   it('locks the account after repeated failures, even for the correct password, and emails the owner', async () => {
     const { client, email } = await registerUser(server);
-    // The threshold is the workspace's Password Policies setting (Setup), not a constant.
+    // The threshold is the tenant's Password Policies setting (Setup), not a constant.
     const saved = await client.patch('/setup/pages/password-policies/settings', { version: 0, values: { maximum_invalid_login_attempts: '3' } });
     assert.equal(saved.status, 200);
     for (let i = 0; i < 2; i++) await new Client(server.base).post('/auth/login', { email, password: 'Wrong-password1' });
@@ -193,13 +193,13 @@ describe('two-factor authentication', () => {
   });
 });
 
-describe('workspaces, roles & invitations', () => {
+describe('tenants, roles & invitations', () => {
   it('invites a new person who creates their account from the link and joins with the invited role', async () => {
     const { client: owner } = await registerUser(server);
-    const ws = (await owner.get('/me')).body.activeWorkspaceId;
+    const ws = (await owner.get('/me')).body.activeTenantId;
     const inviteeEmail = uniqueEmail();
 
-    const sent = await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email: inviteeEmail, role: 'member' }] });
+    const sent = await owner.post(`/tenants/${ws}/invitations`, { invitations: [{ email: inviteeEmail, role: 'member' }] });
     assert.equal(sent.body.results[0].status, 'sent');
     const token = new URL(server.mailTo(inviteeEmail, 'invitation').data.url).searchParams.get('token');
 
@@ -211,68 +211,68 @@ describe('workspaces, roles & invitations', () => {
     const accepted = await invitee.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
     assert.equal(accepted.status, 201);
     const me = await invitee.get('/me');
-    assert.equal(me.body.activeWorkspaceId, ws);
-    assert.equal(me.body.workspaces.find((w) => w.id === ws).role, 'member');
+    assert.equal(me.body.activeTenantId, ws);
+    assert.equal(me.body.tenants.find((w) => w.id === ws).role, 'member');
 
     const reuse = await new Client(server.base).post('/invitations/accept', { token, firstName: 'X', lastName: 'Y', password: PASSWORD, acceptTerms: true });
     assert.equal(reuse.status, 401, 'invitation is single use');
 
     // members cannot invite or manage; owner can list members
-    assert.equal((await invitee.post(`/workspaces/${ws}/invitations`, { invitations: [{ email: uniqueEmail() }] })).status, 403);
-    const members = await owner.get(`/workspaces/${ws}/members?limit=1`);
+    assert.equal((await invitee.post(`/tenants/${ws}/invitations`, { invitations: [{ email: uniqueEmail() }] })).status, 403);
+    const members = await owner.get(`/tenants/${ws}/members?limit=1`);
     assert.equal(members.body.items.length, 1);
     assert.ok(members.body.nextCursor);
-    const page2 = await owner.get(`/workspaces/${ws}/members?limit=1&after=${members.body.nextCursor}`);
+    const page2 = await owner.get(`/tenants/${ws}/members?limit=1&after=${members.body.nextCursor}`);
     assert.equal(page2.body.items[0].email, inviteeEmail);
   });
 
-  it('existing users must sign in to accept, can switch workspaces, and tenants are isolated', async () => {
+  it('existing users must sign in to accept, can switch tenants, and tenants are isolated', async () => {
     const { client: ownerA } = await registerUser(server);
     const { client: ownerB, email: emailB } = await registerUser(server);
-    const wsA = (await ownerA.get('/me')).body.activeWorkspaceId;
-    const wsB = (await ownerB.get('/me')).body.activeWorkspaceId;
+    const wsA = (await ownerA.get('/me')).body.activeTenantId;
+    const wsB = (await ownerB.get('/me')).body.activeTenantId;
 
     // Outsider cannot see another tenant's members or invite into it.
-    assert.equal((await ownerB.get(`/workspaces/${wsA}/members`)).status, 404);
-    assert.equal((await ownerB.post(`/workspaces/${wsA}/invitations`, { invitations: [{ email: uniqueEmail() }] })).status, 404);
-    assert.equal((await ownerB.post(`/workspaces/${wsA}/switch`)).status, 404);
+    assert.equal((await ownerB.get(`/tenants/${wsA}/members`)).status, 404);
+    assert.equal((await ownerB.post(`/tenants/${wsA}/invitations`, { invitations: [{ email: uniqueEmail() }] })).status, 404);
+    assert.equal((await ownerB.post(`/tenants/${wsA}/switch`)).status, 404);
 
-    await ownerA.post(`/workspaces/${wsA}/invitations`, { invitations: [{ email: emailB, role: 'admin' }] });
+    await ownerA.post(`/tenants/${wsA}/invitations`, { invitations: [{ email: emailB, role: 'admin' }] });
     const token = new URL(server.mailTo(emailB, 'invitation').data.url).searchParams.get('token');
     assert.equal((await new Client(server.base).post('/invitations/accept', { token })).status, 401);
     assert.equal((await ownerB.post('/invitations/accept', { token })).status, 200);
 
-    const switched = await ownerB.post(`/workspaces/${wsA}/switch`);
+    const switched = await ownerB.post(`/tenants/${wsA}/switch`);
     assert.equal(switched.status, 200);
     ownerB.token = switched.body.accessToken;
-    assert.equal((await ownerB.get('/me')).body.activeWorkspaceId, wsA);
-    assert.equal((await ownerB.get(`/workspaces/${wsB}/members`)).status, 200);
+    assert.equal((await ownerB.get('/me')).body.activeTenantId, wsA);
+    assert.equal((await ownerB.get(`/tenants/${wsB}/members`)).status, 200);
   });
 
   it('protects the last owner and enforces role hierarchy', async () => {
     const { client: owner } = await registerUser(server);
     const me = (await owner.get('/me')).body;
-    const ws = me.activeWorkspaceId;
-    assert.equal((await owner.patch(`/workspaces/${ws}/members/${me.user.id}`, { role: 'member' })).status, 409);
-    assert.equal((await owner.post(`/workspaces/${ws}/leave`)).status, 409);
+    const ws = me.activeTenantId;
+    assert.equal((await owner.patch(`/tenants/${ws}/members/${me.user.id}`, { role: 'member' })).status, 409);
+    assert.equal((await owner.post(`/tenants/${ws}/leave`)).status, 409);
   });
 
-  it('completes workspace onboarding and supports workspace lookup by URL', async () => {
+  it('completes tenant onboarding and supports tenant lookup by URL', async () => {
     const { client: owner } = await registerUser(server, { company: 'Globex Industries' });
     const me = (await owner.get('/me')).body;
-    assert.equal(me.workspaces[0].onboarded, false);
-    const done = await owner.patch(`/workspaces/${me.activeWorkspaceId}/onboarding`, { name: 'Globex Industries', industry: 'Technology', teamSize: '16 - 50', timezone: 'Asia/Kolkata' });
+    assert.equal(me.tenants[0].onboarded, false);
+    const done = await owner.patch(`/tenants/${me.activeTenantId}/onboarding`, { name: 'Globex Industries', industry: 'Technology', teamSize: '16 - 50', timezone: 'Asia/Kolkata' });
     assert.equal(done.status, 200);
-    assert.equal((await owner.get('/me')).body.workspaces[0].onboarded, true);
+    assert.equal((await owner.get('/me')).body.tenants[0].onboarded, true);
 
-    const slug = me.workspaces[0].slug;
-    const found = await new Client(server.base).get(`/workspaces/lookup?workspace=${slug}`);
+    const slug = me.tenants[0].slug;
+    const found = await new Client(server.base).get(`/tenants/lookup?tenant=${slug}`);
     assert.equal(found.body.name, 'Globex Industries');
-    assert.equal((await new Client(server.base).get('/workspaces/lookup?workspace=does-not-exist-xyz')).status, 404);
+    assert.equal((await new Client(server.base).get('/tenants/lookup?tenant=does-not-exist-xyz')).status, 404);
 
     const scoped = new Client(server.base);
     const email = uniqueEmail();
-    assert.equal((await scoped.post('/auth/login', { email, password: PASSWORD, workspace: slug })).status, 401);
+    assert.equal((await scoped.post('/auth/login', { email, password: PASSWORD, tenant: slug })).status, 401);
   });
 });
 
@@ -286,23 +286,23 @@ describe('audit trail', () => {
 });
 
 describe('tenant theme', () => {
-  it('lets admins pick a workspace theme that every member sees; members and bad values are rejected', async () => {
+  it('lets admins pick a tenant theme that every member sees; members and bad values are rejected', async () => {
     const { client: owner } = await registerUser(server);
-    const ws = (await owner.get('/me')).body.activeWorkspaceId;
-    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'untitled');
+    const ws = (await owner.get('/me')).body.activeTenantId;
+    assert.equal((await owner.get('/me')).body.tenants[0].theme, 'untitled');
 
-    const bad = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'neon' });
+    const bad = await owner.patch(`/tenants/${ws}/theme`, { theme: 'neon' });
     assert.equal(bad.status, 400);
-    const ok = await owner.patch(`/workspaces/${ws}/theme`, { theme: 'midnight' });
+    const ok = await owner.patch(`/tenants/${ws}/theme`, { theme: 'midnight' });
     assert.equal(ok.status, 200);
-    assert.equal((await owner.get('/me')).body.workspaces[0].theme, 'midnight');
+    assert.equal((await owner.get('/me')).body.tenants[0].theme, 'midnight');
 
     const memberEmail = uniqueEmail();
-    await owner.post(`/workspaces/${ws}/invitations`, { invitations: [{ email: memberEmail, role: 'member' }] });
+    await owner.post(`/tenants/${ws}/invitations`, { invitations: [{ email: memberEmail, role: 'member' }] });
     const token = new URL(server.mailTo(memberEmail, 'invitation').data.url).searchParams.get('token');
     const member = new Client(server.base);
     await member.post('/invitations/accept', { token, firstName: 'Mem', lastName: 'Ber', password: PASSWORD, acceptTerms: true });
-    assert.equal((await member.get('/me')).body.workspaces[0].theme, 'midnight');
-    assert.equal((await member.patch(`/workspaces/${ws}/theme`, { theme: 'rose' })).status, 403);
+    assert.equal((await member.get('/me')).body.tenants[0].theme, 'midnight');
+    assert.equal((await member.patch(`/tenants/${ws}/theme`, { theme: 'rose' })).status, 403);
   });
 });

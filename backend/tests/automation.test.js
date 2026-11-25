@@ -36,7 +36,7 @@ describe('objects', () => {
     assert.equal((await client.get(`${O}/Lead/records?q=Ada`)).body.items.length, 1);
 
     const other = (await registerUser(server)).client;
-    assert.equal((await other.get(`${O}/Lead/records`)).body.items.length, 0, 'another workspace sees nothing');
+    assert.equal((await other.get(`${O}/Lead/records`)).body.items.length, 0, 'another tenant sees nothing');
     assert.equal((await other.patch(`${O}/Lead/records/${id}`, { status: 'x' })).status, 404);
 
     assert.equal((await client.post(`${O}/Lead/records/delete`, { ids: [id] })).body.removed, 1);
@@ -118,11 +118,11 @@ describe('automation rules run on records', () => {
 
   it('escalation rules reassign stale cases and log them', async () => {
     const { client } = await registerUser(server);
-    const ws = (await client.get('/me')).body.activeWorkspaceId;
+    const ws = (await client.get('/me')).body.activeTenantId;
     await rule(client, 'escalation-rules', { rule_name: 'Tier 2', active: 'Active', escalate_after_hours: '1', assign_to: 'tier2@example.com' });
     const made = await client.post(`${O}/Case/records`, { subject: 'Printer on fire', status: 'New' });
     assert.equal(made.status, 201);
-    await pool.query("update setup_records set created_at = now() - interval '3 hours' where workspace_id = $1 and id = $2", [ws, made.body.record.id]);
+    await pool.query("update setup_records set created_at = now() - interval '3 hours' where tenant_id = $1 and id = $2", [ws, made.body.record.id]);
     const job = new EscalationService({ repos: server.container.repos, automation: server.container.automation, cache: server.container.cache, logger: { info() {} } });
     assert.ok((await job.run()) >= 1);
     const after = await client.get(`${O}/Case/records`);
@@ -135,7 +135,7 @@ describe('automation rules run on records', () => {
 describe('public intake', () => {
   it('web-to-lead and web-to-case create records only when enabled; email-to-case needs its secret address', async () => {
     const { client } = await registerUser(server);
-    const ws = (await client.get('/me')).body.activeWorkspaceId;
+    const ws = (await client.get('/me')).body.activeTenantId;
     const anon = new Client(server.base);
 
     const form = await anon.post(`/public/web-to-lead/${ws}`, { name: 'Web Visitor', email: 'visitor@example.com', message: 'Hello' });
@@ -161,7 +161,7 @@ describe('public intake', () => {
 
   it('the generated Web-to-Case HTML points at the real endpoint', async () => {
     const { client } = await registerUser(server);
-    const ws = (await client.get('/me')).body.activeWorkspaceId;
+    const ws = (await client.get('/me')).body.activeTenantId;
     const res = await client.post(`${S}/pages/web-to-case-html-generator/run`, {});
     assert.match(res.body.output, new RegExp(`/api/v1/public/web-to-case/${ws}`));
   });
@@ -178,23 +178,23 @@ describe('platform pages', () => {
   });
 });
 
-/** Adds a new person to the boss's workspace with the given role; returns their signed-in client and email. */
-async function joinWorkspace(boss, role) {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+/** Adds a new person to the boss's tenant with the given role; returns their signed-in client and email. */
+async function joinTenant(boss, role) {
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   const accepted = await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
   assert.equal(accepted.status, 201);
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   return { person, email, ws };
 }
 
 describe('profiles, permission sets and sharing decide access', () => {
   it('role defaults apply until a profile or permission set says otherwise', async () => {
     const { client: boss } = await registerUser(server);
-    const { person: viewer } = await joinWorkspace(boss, 'viewer');
+    const { person: viewer } = await joinTenant(boss, 'viewer');
     assert.equal((await viewer.get(`${O}/Lead/records`)).status, 200);
     assert.equal((await lead(viewer, {})).status, 403, 'viewers cannot create');
     const def = await viewer.get(`${O}/Lead`);
@@ -203,8 +203,8 @@ describe('profiles, permission sets and sharing decide access', () => {
 
   it('a profile restricts a member; a permission set grants more to a viewer', async () => {
     const { client: boss } = await registerUser(server);
-    const { person: member, email: memberEmail } = await joinWorkspace(boss, 'member');
-    const { person: viewer, email: viewerEmail } = await joinWorkspace(boss, 'viewer');
+    const { person: member, email: memberEmail } = await joinTenant(boss, 'member');
+    const { person: viewer, email: viewerEmail } = await joinTenant(boss, 'viewer');
     assert.equal((await lead(member, {})).status, 201, 'member default: can create');
 
     // Assign the seeded "Read Only" profile (All objects: read only) to the member.
@@ -225,8 +225,8 @@ describe('profiles, permission sets and sharing decide access', () => {
 
   it('organization-wide defaults: Private shows people only their own records', async () => {
     const { client: boss } = await registerUser(server);
-    const { person: a } = await joinWorkspace(boss, 'member');
-    const { person: b } = await joinWorkspace(boss, 'member');
+    const { person: a } = await joinTenant(boss, 'member');
+    const { person: b } = await joinTenant(boss, 'member');
     const mine = await lead(a, { name: 'A-owned' });
     await lead(b, { name: 'B-owned' });
     assert.equal((await a.get(`${O}/Lead/records`)).body.items.length, 2, 'open by default');
@@ -251,12 +251,12 @@ describe('settings that now change behaviour', () => {
 
   it('email settings: deliverability blocks, BCC and footer apply, every send is logged and downloadable', async () => {
     const { client } = await registerUser(server);
-    const ws = (await client.get('/me')).body.activeWorkspaceId;
+    const ws = (await client.get('/me')).body.activeTenantId;
     const sent = []; const mailer = { send: async (m) => sent.push(m) };
     const { createSendEmailJob } = await import('../src/services/worker/jobs/sendEmail.js');
     const job = createSendEmailJob(mailer, { repos: server.container.repos, emailPolicy: server.container.emailPolicy });
-    const user = (to) => job({ data: { template: 'notification', to, workspaceId: ws, kind: 'user', data: { subject: 'Hi', body: 'Body' } } });
-    const system = (to) => job({ data: { template: 'password_changed', to, workspaceId: ws, kind: 'system', data: {} } });
+    const user = (to) => job({ data: { template: 'notification', to, tenantId: ws, kind: 'user', data: { subject: 'Hi', body: 'Body' } } });
+    const system = (to) => job({ data: { template: 'password_changed', to, tenantId: ws, kind: 'system', data: {} } });
 
     await save(client, 'compliance-bcc-email', { enable_compliance_bcc_email: true, bcc_email_address: 'audit@example.com' });
     await save(client, 'email-footers', { footer_text: 'Confidential — Acme' });
@@ -310,12 +310,12 @@ describe('settings that now change behaviour', () => {
 
   it('business hours decide when a case counts as stale', async () => {
     const { client } = await registerUser(server);
-    const ws = (await client.get('/me')).body.activeWorkspaceId;
+    const ws = (await client.get('/me')).body.activeTenantId;
     await rule(client, 'escalation-rules', { rule_name: 'BH', active: 'Active', escalate_after_hours: '1', assign_to: 'tier2@example.com' });
     // Open for one minute a day => ~0 business hours elapsed, however old the case is.
     await rule(client, 'business-hours', { business_hours_name: 'Tiny', active: 'Active', default: 'Yes', time_zone: 'UTC', start_time: '00:00', end_time: '00:01', working_days: 'Mon,Tue,Wed,Thu,Fri,Sat,Sun' });
     const made = await client.post(`${O}/Case/records`, { subject: 'Stale?', status: 'New' });
-    await pool.query("update setup_records set created_at = now() - interval '30 hours' where workspace_id = $1 and id = $2", [ws, made.body.record.id]);
+    await pool.query("update setup_records set created_at = now() - interval '30 hours' where tenant_id = $1 and id = $2", [ws, made.body.record.id]);
     const job = new EscalationService({ repos: server.container.repos, automation: server.container.automation, cache: server.container.cache, logger: { info() {} } });
     assert.equal(await job.run(), 0, 'outside business hours the case is not stale');
     const preview = await client.post(`${S}/pages/time-based-workflow/run`, {});
@@ -331,8 +331,8 @@ describe('settings that now change behaviour', () => {
 
   it('mass tools: transfer approvals and replace a field value', async () => {
     const { client: boss } = await registerUser(server);
-    const { email: first } = await joinWorkspace(boss, 'admin');
-    const { email: second } = await joinWorkspace(boss, 'admin');
+    const { email: first } = await joinTenant(boss, 'admin');
+    const { email: second } = await joinTenant(boss, 'admin');
     await rule(boss, 'approval-processes', { process_name: 'All leads', object: 'Lead', status: 'Active', approver: first });
     const made = await lead(boss, { industry: 'Tech' });
     await lead(boss, { name: 'B', industry: 'Tech' });
@@ -352,10 +352,10 @@ describe('log in as another user', () => {
   it('is allowed for admins by default, limited to 30 minutes, audited, and blocks account changes', async () => {
     const { client: boss } = await registerUser(server);
     const bossId = (await boss.get('/me')).body.user.id;
-    const { person, ws } = await joinWorkspace(boss, 'member');
+    const { person, ws } = await joinTenant(boss, 'member');
     const memberId = (await person.get('/me')).body.user.id;
 
-    const res = await boss.post(`/workspaces/${ws}/members/${memberId}/login-as`);
+    const res = await boss.post(`/tenants/${ws}/members/${memberId}/login-as`);
     assert.equal(res.status, 200);
     assert.equal(res.body.expiresIn, 1800);
     const acting = new Client(server.base);
@@ -367,10 +367,10 @@ describe('log in as another user', () => {
     assert.equal((await acting.post('/auth/logout-all')).status, 403);
     assert.ok((await person.get('/me/activity')).body.items.some((e) => e.type === 'impersonation'), 'the member can see it');
 
-    assert.equal((await person.post(`/workspaces/${ws}/members/${bossId}/login-as`)).status, 403, 'members cannot');
+    assert.equal((await person.post(`/tenants/${ws}/members/${bossId}/login-as`)).status, 403, 'members cannot');
     const cur = await boss.get(`${S}/pages/login-access-policies/settings`);
     await boss.patch(`${S}/pages/login-access-policies/settings`, { version: cur.body.version, values: { administrators_can_log_in_as_any_user: false } });
-    assert.equal((await boss.post(`/workspaces/${ws}/members/${memberId}/login-as`)).status, 403, 'the setting is respected');
+    assert.equal((await boss.post(`/tenants/${ws}/members/${memberId}/login-as`)).status, 403, 'the setting is respected');
   });
 });
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { loginSchema } from '@app/shared';
-import { authApi, workspacesApi } from '../../api/endpoints.js';
+import { authApi, tenantsApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { SocialLogin } from '../../components/auth/GoogleButton.jsx';
 import { Form } from '../../components/forms/Form.jsx';
@@ -17,14 +17,14 @@ export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signedIn } = useAuth();
-  const slug = params.get('workspace') ?? '';
+  const slug = params.get('tenant') ?? '';
   const from = location.state?.from;
 
-  const workspace = useQuery({ queryKey: ['workspace-lookup', slug], queryFn: () => workspacesApi.lookup(slug), enabled: Boolean(slug), retry: false });
+  const tenant = useQuery({ queryKey: ['tenant-lookup', slug], queryFn: () => tenantsApi.lookup(slug), enabled: Boolean(slug), retry: false });
 
   const { form, submit, formError } = useAppForm({
     schema: loginSchema,
-    defaultValues: { email: '', password: '', workspace: slug, rememberMe: true },
+    defaultValues: { email: '', password: '', tenant: slug, rememberMe: true },
     onSubmit: async (values) => {
       const result = await authApi.login(values);
       if (result.mfaRequired) navigate('/login/mfa', { state: { mfaToken: result.mfaToken, from } });
@@ -39,13 +39,13 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      title={workspace.data ? `Sign in to ${workspace.data.name}` : 'Welcome back'}
-      description="Sign in to access your Quelli workspace"
-      footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/workspace">Use workspace URL</TextLink></>}
+      title={tenant.data ? `Sign in to ${tenant.data.name}` : 'Welcome back'}
+      description="Sign in to access your Quelli tenant"
+      footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/tenant">Use tenant URL</TextLink></>}
     >
       {params.get('error') === 'oauth' && <Alert tone="error">Google sign-in failed. Please try again.</Alert>}
       {location.state?.notice && <Alert tone="success">{location.state.notice}</Alert>}
-      {slug && workspace.isError && <Alert tone="warning">We couldn’t find that workspace, so you’ll sign in to your default one.</Alert>}
+      {slug && tenant.isError && <Alert tone="warning">We couldn’t find that tenant, so you’ll sign in to your default one.</Alert>}
       <Form form={form} onSubmit={submit} error={formError}>
         <TextField name="email" label="Email" type="email" placeholder="you@example.com" autoComplete="username" inputMode="email" prefix={<Icon name="mail" />} />
         <PasswordField name="password" label="Password" placeholder="••••••••" autoComplete="current-password" prefix={<Icon name="lock" />} />

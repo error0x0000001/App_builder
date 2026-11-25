@@ -35,7 +35,7 @@ const passwordExpiry = new PasswordExpiryService({ repos, oneTime: new OneTimeTo
 
 // Register new jobs here: queue name -> handler (one job per call, parallelism via batchSize).
 const handlers = {
-  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, workspaceMailer: integrations.mailerFor(), emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
+  [QUEUES.SEND_EMAIL]: createSendEmailJob(createMailer(), { repos, tenantMailer: integrations.mailerFor(), emailPolicy: new EmailPolicyService({ settings: new SettingsReader({ repos, cache }) }) }),
   [QUEUES.NOTIFY_CHANNELS]: createNotifyJob(integrations, { allowPrivate: config.INTEGRATIONS_ALLOW_PRIVATE_HOSTS }),
   ...(deployments ? {
     [QUEUES.DEPLOY]: (job) => (job.data.jobId ? deployments.runJobDeployment(job.data) : deployments.run(job.data)),

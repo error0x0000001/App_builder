@@ -44,13 +44,13 @@ export class HealthService {
 
   /** "Fix risks": applies the baseline value to every failing setting through the normal settings path (versioned + audited). */
   async fix(ctx) {
-    const { risks } = await this.evaluate(ctx.workspaceId);
+    const { risks } = await this.evaluate(ctx.tenantId);
     const byPage = Map.groupBy(risks, (r) => r.page);
     for (const [pageKey, items] of byPage) {
       const page = getSetupPage(pageKey);
-      const current = await this.settings.get(ctx.workspaceId, page);
-      await this.settings.update(ctx.workspaceId, page, Object.fromEntries(items.map((r) => [r.key, r.standard])), { userId: ctx.userId, expectedVersion: current.value.version });
+      const current = await this.settings.get(ctx.tenantId, page);
+      await this.settings.update(ctx.tenantId, page, Object.fromEntries(items.map((r) => [r.key, r.standard])), { userId: ctx.userId, expectedVersion: current.value.version });
     }
-    return { fixed: risks.length, ...(await this.evaluate(ctx.workspaceId)) };
+    return { fixed: risks.length, ...(await this.evaluate(ctx.tenantId)) };
   }
 }

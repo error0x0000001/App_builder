@@ -7,53 +7,53 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Icon } from '../ui/Icon.jsx';
 import { Logo } from '../ui/Logo.jsx';
 
-/** The workspace list + "Add workspace" — shared by the sidebar header and the top bar. */
-function WorkspaceMenuContent({ side, align, className }) {
-  const { workspaces, activeWorkspace, switchWorkspace } = useAuth();
+/** The tenant list + "Add tenant" — shared by the sidebar header and the top bar. */
+function TenantMenuContent({ side, align, className }) {
+  const { tenants, activeTenant, switchTenant } = useAuth();
   const navigate = useNavigate();
-  const select = async (id) => { await switchWorkspace(id); navigate('/app'); };
+  const select = async (id) => { await switchTenant(id); navigate('/app'); };
   return (
     <DropdownMenuContent side={side} align={align} className={className}>
-      <DropdownMenuLabel>Workspaces — {activeWorkspace?.name ?? 'none selected'}</DropdownMenuLabel>
-      {workspaces.map((w) => (
+      <DropdownMenuLabel>Tenants — {activeTenant?.name ?? 'none selected'}</DropdownMenuLabel>
+      {tenants.map((w) => (
         <DropdownMenuItem key={w.id} onSelect={() => select(w.id)} className="gap-2 p-2">
           <Avatar name={w.name} size="size-6" shape="square" className="text-[10px]" />
           <span className="flex-1 truncate">{w.name}</span>
-          {w.id === activeWorkspace?.id && <Icon name="check" className="size-4 text-muted" />}
+          {w.id === activeTenant?.id && <Icon name="check" className="size-4 text-muted" />}
         </DropdownMenuItem>
       ))}
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => navigate('/app/workspaces/new')} className="gap-2 p-2">
+      <DropdownMenuItem onSelect={() => navigate('/app/tenants/new')} className="gap-2 p-2">
         <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>
-        <span className="font-medium text-muted">Add workspace</span>
+        <span className="font-medium text-muted">Add tenant</span>
       </DropdownMenuItem>
     </DropdownMenuContent>
   );
 }
 
-/** The quelli mark IS the workspace switcher — click it to see, switch or add a workspace. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
-export function WorkspaceSwitcherLogo({ compact = false }) {
-  const { activeWorkspace } = useAuth();
-  const name = activeWorkspace?.name ?? 'No workspace';
+/** The quelli mark IS the tenant switcher — click it to see, switch or add a tenant. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
+export function TenantSwitcherLogo({ compact = false }) {
+  const { activeTenant } = useAuth();
+  const name = activeTenant?.name ?? 'No tenant';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger>
         {(props) => (
-          <button type="button" aria-label={`Workspace: ${name}. Switch workspace`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
+          <button type="button" aria-label={`Tenant: ${name}. Switch tenant`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
             <Logo size={compact ? 'md' : 'sm'} tone="sidebar" markOnly={compact} />
             {!compact && <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />}
           </button>
         )}
       </DropdownMenuTrigger>
-      <WorkspaceMenuContent side={compact ? 'right' : 'bottom'} align="start" className="w-64" />
+      <TenantMenuContent side={compact ? 'right' : 'bottom'} align="start" className="w-64" />
     </DropdownMenu>
   );
 }
 
-/** Sidebar header: the active workspace (tile, name, role) — opens a menu to switch or add one. */
-export function WorkspaceSwitcher() {
-  const { activeWorkspace } = useAuth();
-  const name = activeWorkspace?.name ?? 'No workspace';
+/** Sidebar header: the active tenant (tile, name, role) — opens a menu to switch or add one. */
+export function TenantSwitcher() {
+  const { activeTenant } = useAuth();
+  const name = activeTenant?.name ?? 'No tenant';
 
   return (
     <SidebarMenu>
@@ -61,7 +61,7 @@ export function WorkspaceSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger>
             {(props) => (
-              <SidebarMenuButton size="lg" aria-label={`Workspace: ${name}`} {...props}>
+              <SidebarMenuButton size="lg" aria-label={`Tenant: ${name}`} {...props}>
                 <Avatar name={name} size="size-8" shape="square" className="bg-sidebar-primary! text-sidebar-primary-ink!" />
                 <span className="grid min-w-0 flex-1 text-left leading-tight">
                   <span className="flex items-center gap-1 text-sm font-semibold">
@@ -70,13 +70,13 @@ export function WorkspaceSwitcher() {
                   </span>
                   <span className="flex items-center gap-1 text-xs opacity-70">
                     <Icon name="user" className="size-3 shrink-0" />
-                    <span className="truncate">{activeWorkspace ? ROLE_LABELS[activeWorkspace.role] : 'Create a workspace'}</span>
+                    <span className="truncate">{activeTenant ? ROLE_LABELS[activeTenant.role] : 'Create a tenant'}</span>
                   </span>
                 </span>
               </SidebarMenuButton>
             )}
           </DropdownMenuTrigger>
-          <WorkspaceMenuContent side="bottom" className="w-full" />
+          <TenantMenuContent side="bottom" className="w-full" />
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>

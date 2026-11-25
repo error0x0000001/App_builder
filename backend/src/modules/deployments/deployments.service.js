@@ -24,52 +24,52 @@ export class DeploymentsService {
   #q(rows) { return rows.rows ?? rows; }
   #enc(obj) { return this.secretBox.encrypt(JSON.stringify(obj ?? {})); }
   #dec(text) { return text ? JSON.parse(this.secretBox.decrypt(text)) : {}; }
-  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.workspaceId, ctx.userId, 'deployments', 'update', text); }
+  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.tenantId, ctx.userId, 'deployments', 'update', text); }
 
   // ---------- servers ----------
   #serverView(r) { return { id: r.id, name: r.name, kind: r.kind, host: r.host, port: r.port, username: r.username, status: r.status, statusMessage: r.status_message, dockerVersion: r.docker_version, readyAt: r.ready_at, hasKey: Boolean(r.ssh_key_enc), createdAt: r.created_at }; }
   async #server(ws, id) {
-    const { rows } = await this.db.execute(sql`select * from dp_servers where workspace_id = ${ws} and id = ${id}::uuid`);
+    const { rows } = await this.db.execute(sql`select * from dp_servers where tenant_id = ${ws} and id = ${id}::uuid`);
     if (!rows[0]) throw new NotFoundError('Server not found');
     return rows[0];
   }
 
   async listServers(ws) {
-    const { rows } = await this.db.execute(sql`select s.*, (select count(*)::int from dp_services v where v.server_id = s.id) as services from dp_servers s where s.workspace_id = ${ws} order by s.created_at`);
+    const { rows } = await this.db.execute(sql`select s.*, (select count(*)::int from dp_services v where v.server_id = s.id) as services from dp_servers s where s.tenant_id = ${ws} order by s.created_at`);
     return rows.map((r) => ({ ...this.#serverView(r), services: r.services }));
   }
 
   async createServer(ctx, body) {
     const id = uuidv7();
     if (body.sshKeyId) {
-      const { rows: [k] } = await this.db.execute(sql`select secret_enc from dp_credentials where id = ${body.sshKeyId}::uuid and workspace_id = ${ctx.workspaceId} and kind = 'ssh'`);
+      const { rows: [k] } = await this.db.execute(sql`select secret_enc from dp_credentials where id = ${body.sshKeyId}::uuid and tenant_id = ${ctx.tenantId} and kind = 'ssh'`);
       if (!k) throw new ValidationError([{ field: 'sshKeyId', message: 'Choose one of your saved SSH keys' }], 'Unknown SSH key');
       body = { ...body, sshKey: this.#dec(k.secret_enc).secret };
     }
-    await this.db.execute(sql`insert into dp_servers (id, workspace_id, name, kind, host, port, username, ssh_key_enc) values (${id}::uuid, ${ctx.workspaceId}, ${body.name}, 'ssh', ${body.host}, ${body.port}, ${body.username}, ${body.sshKey ? this.#enc({ key: body.sshKey }) : null})`);
+    await this.db.execute(sql`insert into dp_servers (id, tenant_id, name, kind, host, port, username, ssh_key_enc) values (${id}::uuid, ${ctx.tenantId}, ${body.name}, 'ssh', ${body.host}, ${body.port}, ${body.username}, ${body.sshKey ? this.#enc({ key: body.sshKey }) : null})`);
     await this.#audit(ctx, `Added server “${body.name}”`);
-    return this.#serverView(await this.#server(ctx.workspaceId, id));
+    return this.#serverView(await this.#server(ctx.tenantId, id));
   }
 
   /** The machine the API runs on, as a server. Only offered when the install allows it (DEPLOYMENTS_ALLOW_LOCAL). */
   async createLocalServer(ctx, name = 'This machine') {
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_servers (id, workspace_id, name, kind) values (${id}::uuid, ${ctx.workspaceId}, ${name}, 'local')`);
-    return this.#serverView(await this.#server(ctx.workspaceId, id));
+    await this.db.execute(sql`insert into dp_servers (id, tenant_id, name, kind) values (${id}::uuid, ${ctx.tenantId}, ${name}, 'local')`);
+    return this.#serverView(await this.#server(ctx.tenantId, id));
   }
 
   async updateServer(ctx, id, patch) {
-    const cur = await this.#server(ctx.workspaceId, id);
+    const cur = await this.#server(ctx.tenantId, id);
     const next = { name: patch.name ?? cur.name, host: patch.host ?? cur.host, port: patch.port ?? cur.port, username: patch.username ?? cur.username };
     const changedTarget = next.host !== cur.host || next.port !== cur.port || next.username !== cur.username || patch.sshKey;
     await this.db.execute(sql`update dp_servers set name = ${next.name}, host = ${next.host}, port = ${next.port}, username = ${next.username}, ssh_key_enc = ${patch.sshKey ? this.#enc({ key: patch.sshKey }) : cur.ssh_key_enc},
       status = ${changedTarget ? 'untested' : cur.status}, host_key = ${changedTarget ? null : cur.host_key}, updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Updated server “${next.name}”`);
-    return this.#serverView(await this.#server(ctx.workspaceId, id));
+    return this.#serverView(await this.#server(ctx.tenantId, id));
   }
 
   async deleteServer(ctx, id) {
-    const cur = await this.#server(ctx.workspaceId, id);
+    const cur = await this.#server(ctx.tenantId, id);
     const used = this.#q(await this.db.execute(sql`select count(*)::int as n from dp_services where server_id = ${id}::uuid`))[0].n;
     if (used) throw new ConflictError(`${used} service${used === 1 ? '' : 's'} still run on this server. Move or delete them first.`);
     await this.db.execute(sql`delete from dp_servers where id = ${id}::uuid`);
@@ -85,7 +85,7 @@ export class DeploymentsService {
 
   /** Connects and asks Docker for its version. Records the outcome. */
   async testServer(ctx, id) {
-    const server = await this.#server(ctx.workspaceId, id);
+    const server = await this.#server(ctx.tenantId, id);
     let status = 'error'; let message; let version = null;
     try {
       const { code, output } = await this.#runnerFor(server).run(cmd.probeCommand, { timeoutMs: 40_000 });
@@ -93,12 +93,12 @@ export class DeploymentsService {
       else message = /command not found|not found/i.test(output) ? 'Connected, but Docker is not installed. Use “Set up server”.' : `Connected, but Docker did not answer: ${output.trim().slice(0, 160) || `exit ${code}`}`;
     } catch (e) { message = e.message.slice(0, 240); }
     await this.db.execute(sql`update dp_servers set status = ${status}, status_message = ${message}, docker_version = ${version}, ready_at = ${status === 'ready' ? sql`now()` : null}, updated_at = now() where id = ${id}::uuid`);
-    return this.#serverView(await this.#server(ctx.workspaceId, id));
+    return this.#serverView(await this.#server(ctx.tenantId, id));
   }
 
   /** Queues the setup script (Docker, Swarm, network, Traefik) as a deployment with a log. */
   async setupServer(ctx, id, { acmeEmail }) {
-    const server = await this.#server(ctx.workspaceId, id);
+    const server = await this.#server(ctx.tenantId, id);
     const dep = await this.#createDeployment({ ctx, serverId: id, kind: 'setup', title: `Set up ${server.name}` });
     await this.boss.send(this.queues.DEPLOY, { deploymentId: dep.id, acmeEmail });
     await this.#audit(ctx, `Started setup of server “${server.name}”`);
@@ -113,7 +113,7 @@ export class DeploymentsService {
     return { cpuPercent: Math.round(cpu ?? 0), memUsedMb: memUsed ?? 0, memTotalMb: memTotal ?? 0, diskUsedKb: diskUsed ?? 0, diskTotalKb: diskTotal ?? 0, uptime: output.split('\n').find((l) => l.startsWith('up ')) ?? '' };
   }
 
-  async serverStats(ctx, id) { return this.#readStats(await this.#server(ctx.workspaceId, id)); }
+  async serverStats(ctx, id) { return this.#readStats(await this.#server(ctx.tenantId, id)); }
 
   /** Samples every ready server (called each 5th minute by the tick) and keeps a week of history. */
   async sampleServers(at = new Date()) {
@@ -144,7 +144,7 @@ export class DeploymentsService {
   }
 
   async clusterNodes(ctx, serverId) {
-    const server = await this.#server(ctx.workspaceId, serverId);
+    const server = await this.#server(ctx.tenantId, serverId);
     const { code, output } = await this.#runnerFor(server).run(cmd.nodesCommand, { timeoutMs: 30_000 });
     if (code !== 0) throw new ValidationError(undefined, 'This server is not a Swarm manager. Run “Set up server” on it first.');
     return this.#parseNodes(output);
@@ -153,7 +153,7 @@ export class DeploymentsService {
   /** Makes `serverId` a node of the swarm run by `managerId`. */
   async joinCluster(ctx, serverId, { managerId, role = 'worker' }) {
     if (serverId === managerId) throw new ValidationError(undefined, 'Choose a different server as the manager.');
-    const worker = await this.#server(ctx.workspaceId, serverId); const manager = await this.#server(ctx.workspaceId, managerId);
+    const worker = await this.#server(ctx.tenantId, serverId); const manager = await this.#server(ctx.tenantId, managerId);
     if (!manager.host) throw new ValidationError(undefined, 'The manager needs a public address.');
     const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where server_id = ${serverId}::uuid`);
     if (used.n > 0) throw new ConflictError('Services still run on this server’s own swarm. Move or delete them before joining it to another cluster.');
@@ -167,7 +167,7 @@ export class DeploymentsService {
   }
 
   async nodeAction(ctx, serverId, nodeId, action) {
-    const server = await this.#server(ctx.workspaceId, serverId);
+    const server = await this.#server(ctx.tenantId, serverId);
     let command; try { command = cmd.nodeActionCommand(nodeId, action); } catch (e) { throw new ValidationError(undefined, e.message); }
     const { code, output } = await this.#runnerFor(server).run(command, { timeoutMs: 60_000 });
     if (code !== 0) throw new ValidationError(undefined, output.trim().slice(-200) || 'The cluster refused that.');
@@ -183,21 +183,21 @@ export class DeploymentsService {
         coalesce(jsonb_object_agg(s.status, s.n) filter (where s.status is not null), '{}'::jsonb) as statuses,
         coalesce(sum(s.n), 0)::int as services
       from dp_projects p
-      left join (select e.project_id, v.status, count(*)::int as n from dp_services v join dp_environments e on e.id = v.environment_id where v.workspace_id = ${ws} group by e.project_id, v.status) s on s.project_id = p.id
-      where p.workspace_id = ${ws} group by p.id order by p.created_at`);
+      left join (select e.project_id, v.status, count(*)::int as n from dp_services v join dp_environments e on e.id = v.environment_id where v.tenant_id = ${ws} group by e.project_id, v.status) s on s.project_id = p.id
+      where p.tenant_id = ${ws} group by p.id order by p.created_at`);
     return rows.map((r) => ({ id: r.id, name: r.name, description: r.description, environments: r.environments, services: r.services, statuses: r.statuses, createdAt: r.created_at }));
   }
 
   async createProject(ctx, { name, description }) {
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_projects (id, workspace_id, name, description) values (${id}::uuid, ${ctx.workspaceId}, ${name}, ${description ?? null})`);
-    await this.db.execute(sql`insert into dp_environments (id, workspace_id, project_id, name) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${id}::uuid, 'production')`);
+    await this.db.execute(sql`insert into dp_projects (id, tenant_id, name, description) values (${id}::uuid, ${ctx.tenantId}, ${name}, ${description ?? null})`);
+    await this.db.execute(sql`insert into dp_environments (id, tenant_id, project_id, name) values (${uuidv7()}::uuid, ${ctx.tenantId}, ${id}::uuid, 'production')`);
     await this.#audit(ctx, `Created project “${name}”`);
-    return this.getProject(ctx.workspaceId, id);
+    return this.getProject(ctx.tenantId, id);
   }
 
   async getProject(ws, id) {
-    const { rows: [project] } = await this.db.execute(sql`select * from dp_projects where workspace_id = ${ws} and id = ${id}::uuid`);
+    const { rows: [project] } = await this.db.execute(sql`select * from dp_projects where tenant_id = ${ws} and id = ${id}::uuid`);
     if (!project) throw new NotFoundError('Project not found');
     const envs = (await this.db.execute(sql`select id, name, (env_enc is not null) as has_env from dp_environments where project_id = ${id}::uuid order by created_at`)).rows;
     const services = (await this.db.execute(sql`
@@ -211,7 +211,7 @@ export class DeploymentsService {
   }
 
   async deleteProject(ctx, id) {
-    const p = await this.getProject(ctx.workspaceId, id);
+    const p = await this.getProject(ctx.tenantId, id);
     const running = p.environments.flatMap((e) => e.services);
     if (running.length) throw new ConflictError('Delete the project’s services first.');
     await this.db.execute(sql`delete from dp_projects where id = ${id}::uuid`);
@@ -219,20 +219,20 @@ export class DeploymentsService {
   }
 
   async createEnvironment(ctx, projectId, { name }) {
-    await this.getProject(ctx.workspaceId, projectId);
+    await this.getProject(ctx.tenantId, projectId);
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_environments (id, workspace_id, project_id, name) values (${id}::uuid, ${ctx.workspaceId}, ${projectId}::uuid, ${name})`);
+    await this.db.execute(sql`insert into dp_environments (id, tenant_id, project_id, name) values (${id}::uuid, ${ctx.tenantId}, ${projectId}::uuid, ${name})`);
     return { id, name };
   }
 
   async #environment(ws, id) {
-    const { rows: [e] } = await this.db.execute(sql`select * from dp_environments where workspace_id = ${ws} and id = ${id}::uuid`);
+    const { rows: [e] } = await this.db.execute(sql`select * from dp_environments where tenant_id = ${ws} and id = ${id}::uuid`);
     if (!e) throw new NotFoundError('Environment not found');
     return e;
   }
 
   async setEnvironmentEnv(ctx, id, env) {
-    await this.#environment(ctx.workspaceId, id);
+    await this.#environment(ctx.tenantId, id);
     await this.db.execute(sql`update dp_environments set env_enc = ${env.trim() ? this.#enc({ env }) : null} where id = ${id}::uuid`);
     await this.#audit(ctx, 'Changed shared environment variables');
   }
@@ -240,7 +240,7 @@ export class DeploymentsService {
   async getEnvironmentEnv(ws, id) { return { env: this.#dec((await this.#environment(ws, id)).env_enc).env ?? '' }; }
 
   async deleteEnvironment(ctx, id) {
-    const e = await this.#environment(ctx.workspaceId, id);
+    const e = await this.#environment(ctx.tenantId, id);
     const n = this.#q(await this.db.execute(sql`select count(*)::int as n from dp_services where environment_id = ${id}::uuid`))[0].n;
     if (n) throw new ConflictError('Delete the environment’s services first.');
     await this.db.execute(sql`delete from dp_environments where id = ${id}::uuid`);
@@ -249,7 +249,7 @@ export class DeploymentsService {
 
   // ---------- services ----------
   async #service(ws, id) {
-    const { rows: [s] } = await this.db.execute(sql`select * from dp_services where workspace_id = ${ws} and id = ${id}::uuid`);
+    const { rows: [s] } = await this.db.execute(sql`select * from dp_services where tenant_id = ${ws} and id = ${id}::uuid`);
     if (!s) throw new NotFoundError('Service not found');
     return s;
   }
@@ -275,7 +275,7 @@ export class DeploymentsService {
 
   async #checkCredential(ws, source) {
     if (!source?.credentialId) return;
-    const { rows: [c] } = await this.db.execute(sql`select kind from dp_credentials where id = ${source.credentialId}::uuid and workspace_id = ${ws}`);
+    const { rows: [c] } = await this.db.execute(sql`select kind from dp_credentials where id = ${source.credentialId}::uuid and tenant_id = ${ws}`);
     if (!c || c.kind !== (source.type === 'git' ? 'git' : 'registry')) throw new ValidationError(undefined, 'Choose one of your saved credentials of the right kind.');
   }
 
@@ -286,10 +286,10 @@ export class DeploymentsService {
   }
 
   async createService(ctx, environmentId, body) {
-    await this.#environment(ctx.workspaceId, environmentId);
-    if (body.serverId) await this.#server(ctx.workspaceId, body.serverId);
+    await this.#environment(ctx.tenantId, environmentId);
+    if (body.serverId) await this.#server(ctx.tenantId, body.serverId);
     const id = uuidv7(); const appName = appNameFor(body.name, rand(4));
-    await this.#checkCredential(ctx.workspaceId, body.source);
+    await this.#checkCredential(ctx.tenantId, body.source);
     const { clean, secrets } = this.#splitSecrets(body.source ?? {});
     const config = { replicas: 1, volumes: [], publishedPorts: [], ...(body.config ?? {}) };
     if (DATABASE_KINDS.includes(body.kind)) {
@@ -299,20 +299,20 @@ export class DeploymentsService {
       config.port = d.port; config.volumes = [{ name: 'data', path: d.dataDir }];
       clean.type = 'docker'; clean.image = d.image;
     }
-    await this.db.execute(sql`insert into dp_services (id, workspace_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, auto_deploy, webhook_secret, created_by)
-      values (${id}::uuid, ${ctx.workspaceId}, ${environmentId}::uuid, ${body.serverId ?? null}, ${body.kind}, ${body.name}, ${appName}, ${jsonOf(clean)}::jsonb, ${jsonOf(config)}::jsonb, ${this.#enc(secrets)}, ${body.autoDeploy ?? true}, ${crypto.randomBytes(24).toString('base64url')}, ${ctx.userId})`);
+    await this.db.execute(sql`insert into dp_services (id, tenant_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, auto_deploy, webhook_secret, created_by)
+      values (${id}::uuid, ${ctx.tenantId}, ${environmentId}::uuid, ${body.serverId ?? null}, ${body.kind}, ${body.name}, ${appName}, ${jsonOf(clean)}::jsonb, ${jsonOf(config)}::jsonb, ${this.#enc(secrets)}, ${body.autoDeploy ?? true}, ${crypto.randomBytes(24).toString('base64url')}, ${ctx.userId})`);
     await this.#audit(ctx, `Created ${body.kind} “${body.name}”`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   async updateService(ctx, id, patch) {
-    const cur = await this.#service(ctx.workspaceId, id);
-    if (patch.serverId) await this.#server(ctx.workspaceId, patch.serverId);
+    const cur = await this.#service(ctx.tenantId, id);
+    if (patch.serverId) await this.#server(ctx.tenantId, patch.serverId);
     const secrets = this.#dec(cur.secrets_enc);
     let source = cur.source;
     if (patch.source) {
       if (cur.kind !== 'application') throw new ValidationError(undefined, 'Only applications have a source');
-      await this.#checkCredential(ctx.workspaceId, patch.source);
+      await this.#checkCredential(ctx.tenantId, patch.source);
       const split = this.#splitSecrets(patch.source);
       source = split.clean; Object.assign(secrets, split.secrets);
       if (patch.source.type === 'git' && !patch.source.token && source.type === 'git') { /* keep the stored token */ }
@@ -327,18 +327,18 @@ export class DeploymentsService {
     await this.db.execute(sql`update dp_services set name = ${patch.name ?? cur.name}, server_id = ${patch.serverId === undefined ? cur.server_id : patch.serverId}, source = ${jsonOf(source)}::jsonb, config = ${jsonOf(config)}::jsonb,
       secrets_enc = ${this.#enc(secrets)}, auto_deploy = ${patch.autoDeploy ?? cur.auto_deploy}, updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Updated “${cur.name}”`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   async setServiceEnv(ctx, id, env) {
-    const cur = await this.#service(ctx.workspaceId, id);
+    const cur = await this.#service(ctx.tenantId, id);
     await this.db.execute(sql`update dp_services set env_enc = ${env.trim() ? this.#enc({ env }) : null}, updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Changed environment variables of “${cur.name}”`);
   }
 
   /** The only place a secret is read back: explicit, and audited. */
   async revealSecrets(ctx, id) {
-    const s = await this.#service(ctx.workspaceId, id);
+    const s = await this.#service(ctx.tenantId, id);
     const secrets = this.#dec(s.secrets_enc);
     await this.#audit(ctx, `Viewed secrets of “${s.name}”`);
     const out = { env: this.#dec(s.env_enc).env ?? '', webhookSecret: s.webhook_secret };
@@ -346,17 +346,17 @@ export class DeploymentsService {
       const spec = cmd.databaseSpec(s.kind, s.app_name, { ...s.config.database, password: secrets.dbPassword });
       out.databasePassword = secrets.dbPassword; out.connectionUrl = spec.internalUrl;
       const exposed = (s.config.publishedPorts ?? []).find((p) => Number(p.target) === spec.port);
-      const host = s.server_id ? (await this.#server(ctx.workspaceId, s.server_id)).host : null;
+      const host = s.server_id ? (await this.#server(ctx.tenantId, s.server_id)).host : null;
       if (exposed && host) out.externalUrl = spec.internalUrl.replace(`${s.app_name}_app:${spec.port}`, `${host}:${exposed.published}`);
     }
     return out;
   }
 
   async deleteService(ctx, id) {
-    const s = await this.#service(ctx.workspaceId, id);
+    const s = await this.#service(ctx.tenantId, id);
     const { rows: previews } = await this.db.execute(sql`select id from dp_services where preview_of = ${id}::uuid`);
     for (const p of previews) await this.deleteService(ctx, p.id);
-    const server = s.server_id ? await this.#server(ctx.workspaceId, s.server_id) : null;
+    const server = s.server_id ? await this.#server(ctx.tenantId, s.server_id) : null;
     let note = null;
     try {
       const runner = this.#runnerFor(server);
@@ -377,15 +377,15 @@ export class DeploymentsService {
 
   // ---------- saved credentials (registries, Git tokens) ----------
   async listCredentials(ws) {
-    const { rows } = await this.db.execute(sql`select id, kind, name, url, username, public_key, created_at from dp_credentials where workspace_id = ${ws} order by kind, name`);
+    const { rows } = await this.db.execute(sql`select id, kind, name, url, username, public_key, created_at from dp_credentials where tenant_id = ${ws} order by kind, name`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, url: r.url, username: r.username, publicKey: r.public_key, createdAt: r.created_at }));
   }
 
   async createCredential(ctx, body) {
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_credentials (id, workspace_id, kind, name, url, username, secret_enc) values (${id}::uuid, ${ctx.workspaceId}, ${body.kind}, ${body.name}, ${body.url || null}, ${body.username || null}, ${this.#enc({ secret: body.secret })})`);
+    await this.db.execute(sql`insert into dp_credentials (id, tenant_id, kind, name, url, username, secret_enc) values (${id}::uuid, ${ctx.tenantId}, ${body.kind}, ${body.name}, ${body.url || null}, ${body.username || null}, ${this.#enc({ secret: body.secret })})`);
     await this.#audit(ctx, `Saved ${body.kind === 'git' ? 'Git' : 'registry'} credential “${body.name}”`);
-    return (await this.listCredentials(ctx.workspaceId)).find((c) => c.id === id);
+    return (await this.listCredentials(ctx.tenantId)).find((c) => c.id === id);
   }
 
   /** A fresh ed25519 key pair: the private half is stored encrypted and never shown; the public half is for the server's authorized_keys. */
@@ -403,19 +403,19 @@ export class DeploymentsService {
     const pem = `-----BEGIN OPENSSH PRIVATE KEY-----\n${body.toString('base64').match(/.{1,70}/g).join('\n')}\n-----END OPENSSH PRIVATE KEY-----\n`;
     const line = `ssh-ed25519 ${blob.toString('base64')} quelli`;
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_credentials (id, workspace_id, kind, name, secret_enc, public_key) values (${id}::uuid, ${ctx.workspaceId}, 'ssh', ${name}, ${this.#enc({ secret: pem })}, ${line})`);
+    await this.db.execute(sql`insert into dp_credentials (id, tenant_id, kind, name, secret_enc, public_key) values (${id}::uuid, ${ctx.tenantId}, 'ssh', ${name}, ${this.#enc({ secret: pem })}, ${line})`);
     await this.#audit(ctx, `Generated SSH key “${name}”`);
-    return (await this.listCredentials(ctx.workspaceId)).find((c) => c.id === id);
+    return (await this.listCredentials(ctx.tenantId)).find((c) => c.id === id);
   }
 
   async deleteCredential(ctx, id) {
-    const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where workspace_id = ${ctx.workspaceId} and source->>'credentialId' = ${id}`);
+    const { rows: [used] } = await this.db.execute(sql`select count(*)::int as n from dp_services where tenant_id = ${ctx.tenantId} and source->>'credentialId' = ${id}`);
     // (servers copy an SSH key when they are created, so a key in use by a server can be deleted without breaking it)
     if (used.n > 0) throw new ConflictError(`${used.n} service${used.n === 1 ? ' uses' : 's use'} this credential. Switch them to another one first.`);
-    const { rowCount } = await this.db.execute(sql`delete from dp_credentials where id = ${id}::uuid and workspace_id = ${ctx.workspaceId}`);
+    const { rowCount } = await this.db.execute(sql`delete from dp_credentials where id = ${id}::uuid and tenant_id = ${ctx.tenantId}`);
     if (!rowCount) throw new NotFoundError('Credential not found');
     await this.#audit(ctx, 'Deleted a saved credential');
-    return this.listCredentials(ctx.workspaceId);
+    return this.listCredentials(ctx.tenantId);
   }
 
   // ---------- terminal ----------
@@ -423,11 +423,11 @@ export class DeploymentsService {
   async openTerminal(ctx, { serviceId, serverId, cols, rows, onData, onClose }) {
     let server; let command; let label;
     if (serviceId) {
-      const s = await this.#service(ctx.workspaceId, serviceId);
+      const s = await this.#service(ctx.tenantId, serviceId);
       if (!s.server_id) throw new ValidationError(undefined, 'This service has no server.');
-      server = await this.#server(ctx.workspaceId, s.server_id); command = cmd.terminalCommand(s.app_name, s.kind); label = `“${s.name}”`;
+      server = await this.#server(ctx.tenantId, s.server_id); command = cmd.terminalCommand(s.app_name, s.kind); label = `“${s.name}”`;
     } else {
-      server = await this.#server(ctx.workspaceId, serverId); command = 'bash -l'; label = `server “${server.name}”`;
+      server = await this.#server(ctx.tenantId, serverId); command = 'bash -l'; label = `server “${server.name}”`;
     }
     const session = await this.#runnerFor(server).interactive(`bash -lc ${cmd.q(command)}`, { cols, rows, onData, onClose });
     await this.#audit(ctx, `Opened a terminal in ${label}`);
@@ -452,8 +452,8 @@ export class DeploymentsService {
   async createFromTemplate(ctx, environmentId, { templateId, serverId, domain, name }) {
     const t = findTemplate(templateId);
     if (!t) throw new NotFoundError('Template not found');
-    await this.#environment(ctx.workspaceId, environmentId);
-    const server = serverId ? await this.#server(ctx.workspaceId, serverId) : null;
+    await this.#environment(ctx.tenantId, environmentId);
+    const server = serverId ? await this.#server(ctx.tenantId, serverId) : null;
     const base = (domain || this.#defaultDomain(t.id, server) || '').trim().toLowerCase();
     if (!base) throw new ValidationError([{ field: 'domain', message: 'Enter the domain this will be served on' }], 'Enter a domain');
     let rendered;
@@ -461,11 +461,11 @@ export class DeploymentsService {
     const https = !/\.traefik\.me$/.test(base);
     const id = uuidv7(); const label = (name || t.name).slice(0, 60); const appName = appNameFor(label, rand(4));
     const config = { replicas: 1, volumes: [], publishedPorts: [], composeFile: rendered.compose, composeMounts: rendered.mounts, templateId: t.id };
-    await this.db.execute(sql`insert into dp_services (id, workspace_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by)
-      values (${id}::uuid, ${ctx.workspaceId}, ${environmentId}::uuid, ${serverId ?? null}, 'compose', ${label}, ${appName}, '{}'::jsonb, ${jsonOf(config)}::jsonb, ${this.#enc({})}, ${this.#enc({ env: rendered.env })}, false, ${crypto.randomBytes(24).toString('base64url')}, ${ctx.userId})`);
+    await this.db.execute(sql`insert into dp_services (id, tenant_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by)
+      values (${id}::uuid, ${ctx.tenantId}, ${environmentId}::uuid, ${serverId ?? null}, 'compose', ${label}, ${appName}, '{}'::jsonb, ${jsonOf(config)}::jsonb, ${this.#enc({})}, ${this.#enc({ env: rendered.env })}, false, ${crypto.randomBytes(24).toString('base64url')}, ${ctx.userId})`);
     try {
       for (const d of rendered.domains) {
-        await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${id}::uuid, ${d.host}, ${d.path}, ${d.port}, ${https}, ${d.serviceName})`);
+        await this.db.execute(sql`insert into dp_domains (id, tenant_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.tenantId}, ${id}::uuid, ${d.host}, ${d.path}, ${d.port}, ${https}, ${d.serviceName})`);
       }
     } catch (e) {
       await this.db.execute(sql`delete from dp_services where id = ${id}::uuid`); // nothing half-made is left behind
@@ -473,37 +473,37 @@ export class DeploymentsService {
       throw e;
     }
     await this.#audit(ctx, `Created “${label}” from the ${t.name} template`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   // ---------- cross-service views (Dokploy's Overview / Deployments / Schedules / Audit pages) ----------
   async listAllServices(ws) {
     const { rows } = await this.db.execute(sql`select v.id, v.kind, v.name, v.status, v.last_deployed_at, v.preview_branch, p.id as project_id, p.name as project, e.name as environment, sv.name as server,
         (select count(*)::int from dp_domains d where d.service_id = v.id) as domains
-      from dp_services v join dp_environments e on e.id = v.environment_id join dp_projects p on p.id = e.project_id left join dp_servers sv on sv.id = v.server_id where v.workspace_id = ${ws} order by p.name, v.name`);
+      from dp_services v join dp_environments e on e.id = v.environment_id join dp_projects p on p.id = e.project_id left join dp_servers sv on sv.id = v.server_id where v.tenant_id = ${ws} order by p.name, v.name`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, status: r.status, lastDeployedAt: r.last_deployed_at, previewBranch: r.preview_branch, projectId: r.project_id, project: r.project, environment: r.environment, server: r.server, domains: r.domains }));
   }
 
   async listAllDeployments(ws, { limit = 100, status } = {}) {
     const { rows } = await this.db.execute(sql`select d.id, d.kind, d.title, d.status, d.started_at, d.finished_at, d.service_id, v.name as service_name, s.name as server_name
-      from dp_deployments d left join dp_services v on v.id = d.service_id left join dp_servers s on s.id = d.server_id where d.workspace_id = ${ws} ${status ? sql`and d.status = ${status}` : sql``} order by d.id desc limit ${limit}`);
+      from dp_deployments d left join dp_services v on v.id = d.service_id left join dp_servers s on s.id = d.server_id where d.tenant_id = ${ws} ${status ? sql`and d.status = ${status}` : sql``} order by d.id desc limit ${limit}`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, status: r.status, serviceId: r.service_id, serviceName: r.service_name ?? r.server_name, startedAt: r.started_at, finishedAt: r.finished_at }));
   }
 
   async listAllJobs(ws) {
-    const { rows } = await this.db.execute(sql`select j.id, j.kind, j.name, j.cron, j.command, j.enabled, j.last_run_at, v.id as service_id, v.name as service from dp_jobs j join dp_services v on v.id = j.service_id where j.workspace_id = ${ws} order by v.name, j.name`);
+    const { rows } = await this.db.execute(sql`select j.id, j.kind, j.name, j.cron, j.command, j.enabled, j.last_run_at, v.id as service_id, v.name as service from dp_jobs j join dp_services v on v.id = j.service_id where j.tenant_id = ${ws} order by v.name, j.name`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, cron: r.cron, command: r.command, enabled: r.enabled, lastRunAt: r.last_run_at, serviceId: r.service_id, service: r.service }));
   }
 
   async auditLog(ws, { limit = 100 } = {}) {
     const { rows } = await this.db.execute(sql`select a.id, a.summary, a.created_at, coalesce(nullif(trim(concat(u.first_name, ' ', u.last_name)), ''), u.email, 'Webhook') as who
-      from setup_audit a left join users u on u.id = a.user_id where a.workspace_id = ${ws} and a.page_key = 'deployments' order by a.id desc limit ${limit}`);
+      from setup_audit a left join users u on u.id = a.user_id where a.tenant_id = ${ws} and a.page_key = 'deployments' order by a.id desc limit ${limit}`);
     return rows.map((r) => ({ id: r.id, summary: r.summary, at: r.created_at, who: r.who }));
   }
 
   // ---------- Docker on a server (Dokploy's Docker page) ----------
   async dockerContainers(ctx, serverId) {
-    const server = await this.#server(ctx.workspaceId, serverId);
+    const server = await this.#server(ctx.tenantId, serverId);
     const { code, output } = await this.#runnerFor(server).run(cmd.dockerPsCommand, { timeoutMs: 30_000 });
     if (code !== 0) throw new ValidationError(undefined, 'Could not list containers. Is Docker running on this server?');
     return output.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
@@ -511,7 +511,7 @@ export class DeploymentsService {
   }
 
   async dockerAction(ctx, serverId, containerId, action) {
-    const server = await this.#server(ctx.workspaceId, serverId);
+    const server = await this.#server(ctx.tenantId, serverId);
     let command; try { command = cmd.dockerActionCommand(containerId, action); } catch (e) { throw new ValidationError(undefined, e.message); }
     const { code, output } = await this.#runnerFor(server).run(command, { timeoutMs: 60_000 });
     if (code !== 0) throw new ValidationError(undefined, output.trim().slice(-200) || 'Docker refused that.');
@@ -520,7 +520,7 @@ export class DeploymentsService {
   }
 
   async dockerLogs(ctx, serverId, containerId, tail = 300) {
-    const server = await this.#server(ctx.workspaceId, serverId);
+    const server = await this.#server(ctx.tenantId, serverId);
     let command; try { command = cmd.dockerLogsCommand(containerId, tail); } catch (e) { throw new ValidationError(undefined, e.message); }
     const { output } = await this.#runnerFor(server).run(command, { timeoutMs: 30_000 });
     return { log: output };
@@ -536,7 +536,7 @@ export class DeploymentsService {
   }
 
   async saveCompose(ctx, id, composeFile) {
-    const s = await this.#service(ctx.workspaceId, id);
+    const s = await this.#service(ctx.tenantId, id);
     if (s.kind !== 'compose') throw new ValidationError(undefined, 'Only Compose services have a Compose file.');
     const v = cmd.validateCompose(composeFile);
     if (!v.ok) throw new ValidationError([{ field: 'composeFile', message: v.error }], v.error);
@@ -549,9 +549,9 @@ export class DeploymentsService {
 
   /** One command in the service's container (no terminal needed). Output is capped; every use is audited. */
   async execInService(ctx, id, command) {
-    const s = await this.#service(ctx.workspaceId, id);
+    const s = await this.#service(ctx.tenantId, id);
     if (!s.server_id) throw new ValidationError(undefined, 'This service has no server.');
-    const server = await this.#server(ctx.workspaceId, s.server_id);
+    const server = await this.#server(ctx.tenantId, s.server_id);
     const { code, output } = await this.#runnerFor(server).run(cmd.execCommand(s.app_name, s.kind, command), { timeoutMs: 60_000 });
     await this.#audit(ctx, `Ran a command in “${s.name}”: ${command.slice(0, 120)}`);
     return { code, output: output.length > 65_536 ? `${output.slice(0, 65_536)}\n… output truncated` : output };
@@ -559,19 +559,19 @@ export class DeploymentsService {
 
   // ---------- domains ----------
   async addDomain(ctx, serviceId, body) {
-    const s = await this.#service(ctx.workspaceId, serviceId);
+    const s = await this.#service(ctx.tenantId, serviceId);
     if (s.kind === 'compose' && !body.serviceName) throw new ValidationError([{ field: 'serviceName', message: 'Choose which service of the Compose file serves this domain' }], 'Choose a service');
     if (s.kind !== 'compose' && body.serviceName) throw new ValidationError(undefined, 'Only Compose stacks route to a named service.');
     if (DATABASE_KINDS.includes(s.kind)) throw new ValidationError(undefined, 'Databases are not published on a domain.');
     try {
-      await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.workspaceId}, ${serviceId}::uuid, ${body.host}, ${body.path}, ${body.port}, ${body.https}, ${body.serviceName ?? null})`);
-    } catch (e) { if (e.code === '23505') throw new ConflictError('That domain and path is already used by a service in this workspace.'); throw e; }
+      await this.db.execute(sql`insert into dp_domains (id, tenant_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.tenantId}, ${serviceId}::uuid, ${body.host}, ${body.path}, ${body.port}, ${body.https}, ${body.serviceName ?? null})`);
+    } catch (e) { if (e.code === '23505') throw new ConflictError('That domain and path is already used by a service in this tenant.'); throw e; }
     await this.#audit(ctx, `Added domain ${body.host} to “${s.name}”`);
     return this.#reapply(ctx, s, `Domain ${body.host} added`);
   }
 
   async removeDomain(ctx, serviceId, domainId) {
-    const s = await this.#service(ctx.workspaceId, serviceId);
+    const s = await this.#service(ctx.tenantId, serviceId);
     const { rowCount } = await this.db.execute(sql`delete from dp_domains where id = ${domainId}::uuid and service_id = ${serviceId}::uuid`);
     if (!rowCount) throw new NotFoundError('Domain not found');
     await this.#audit(ctx, `Removed a domain from “${s.name}”`);
@@ -581,21 +581,21 @@ export class DeploymentsService {
   /** A routing change on a service that is live is applied right away, without rebuilding. */
   async #reapply(ctx, s, title) {
     const live = s.status !== SERVICE_STATUS.IDLE && s.last_deployed_at;
-    return { service: await this.getService(ctx.workspaceId, s.id), deployment: live ? await this.deploy(ctx, s.id, { mode: 'apply', title }) : null };
+    return { service: await this.getService(ctx.tenantId, s.id), deployment: live ? await this.deploy(ctx, s.id, { mode: 'apply', title }) : null };
   }
 
   // ---------- deployments ----------
   async #createDeployment({ ctx, service, serverId, kind = 'deploy', title }) {
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_deployments (id, workspace_id, service_id, server_id, kind, title, created_by) values (${id}::uuid, ${ctx.workspaceId}, ${service?.id ?? null}, ${serverId ?? service?.server_id ?? null}, ${kind}, ${title}, ${ctx.userId ?? null})`);
+    await this.db.execute(sql`insert into dp_deployments (id, tenant_id, service_id, server_id, kind, title, created_by) values (${id}::uuid, ${ctx.tenantId}, ${service?.id ?? null}, ${serverId ?? service?.server_id ?? null}, ${kind}, ${title}, ${ctx.userId ?? null})`);
     return { id, kind, title, status: DEPLOYMENT_STATUS.RUNNING };
   }
 
   /** mode: 'full' (pull or build, then apply), 'apply' (re-apply the last image: routing, env, resources), 'rollback' (older image). */
   async deploy(ctx, serviceId, { mode = 'full', title, image } = {}) {
-    const s = await this.#service(ctx.workspaceId, serviceId);
+    const s = await this.#service(ctx.tenantId, serviceId);
     if (s.kind === 'application' && !s.source?.type) throw new ValidationError(undefined, 'Choose a source for this application first.');
-    if (s.server_id) { const srv = await this.#server(ctx.workspaceId, s.server_id); if (srv.status !== 'ready') throw new ConflictError('Test the server successfully before deploying to it.'); }
+    if (s.server_id) { const srv = await this.#server(ctx.tenantId, s.server_id); if (srv.status !== 'ready') throw new ConflictError('Test the server successfully before deploying to it.'); }
     else if (!this.runnerFactory(null)) throw new ConflictError('Choose a server to deploy to.');
     const dep = await this.#createDeployment({ ctx, service: s, title: title ?? (mode === 'rollback' ? 'Rollback' : mode === 'apply' ? 'Apply changes' : 'Manual deployment') });
     await this.db.execute(sql`update dp_services set status = 'running', updated_at = now() where id = ${serviceId}::uuid`);
@@ -605,45 +605,45 @@ export class DeploymentsService {
   }
 
   async rollback(ctx, serviceId, deploymentId) {
-    const { rows: [d] } = await this.db.execute(sql`select image, status from dp_deployments where id = ${deploymentId}::uuid and service_id = ${serviceId}::uuid and workspace_id = ${ctx.workspaceId}`);
+    const { rows: [d] } = await this.db.execute(sql`select image, status from dp_deployments where id = ${deploymentId}::uuid and service_id = ${serviceId}::uuid and tenant_id = ${ctx.tenantId}`);
     if (!d) throw new NotFoundError('Deployment not found');
     if (d.status !== DEPLOYMENT_STATUS.DONE || !d.image) throw new ConflictError('Only a deployment that finished successfully can be rolled back to.');
     return this.deploy(ctx, serviceId, { mode: 'rollback', image: d.image, title: `Rollback to ${d.image.split(':').pop().slice(0, 8)}` });
   }
 
   async stop(ctx, id) {
-    const s = await this.#service(ctx.workspaceId, id);
-    const server = s.server_id ? await this.#server(ctx.workspaceId, s.server_id) : null;
+    const s = await this.#service(ctx.tenantId, id);
+    const server = s.server_id ? await this.#server(ctx.tenantId, s.server_id) : null;
     const { code, output } = await this.#runnerFor(server).run(s.kind === 'compose' ? `docker compose -p ${cmd.q(s.app_name)} stop` : cmd.scaleCommand(s.app_name, 0), { timeoutMs: 60_000 });
     if (code !== 0) throw new ValidationError(undefined, `Could not stop it: ${output.trim().slice(0, 200)}`);
     await this.db.execute(sql`update dp_services set status = 'stopped', updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Stopped “${s.name}”`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   async start(ctx, id) {
-    const s = await this.#service(ctx.workspaceId, id);
-    const server = s.server_id ? await this.#server(ctx.workspaceId, s.server_id) : null;
+    const s = await this.#service(ctx.tenantId, id);
+    const server = s.server_id ? await this.#server(ctx.tenantId, s.server_id) : null;
     const { code, output } = await this.#runnerFor(server).run(s.kind === 'compose' ? `docker compose -p ${cmd.q(s.app_name)} start` : cmd.scaleCommand(s.app_name, s.config.replicas ?? 1), { timeoutMs: 60_000 });
     if (code !== 0) throw new ValidationError(undefined, `Could not start it: ${output.trim().slice(0, 200)}`);
     await this.db.execute(sql`update dp_services set status = 'done', updated_at = now() where id = ${id}::uuid`);
     await this.#audit(ctx, `Started “${s.name}”`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   async listDeployments(ws, serviceId, { limit = 30 } = {}) {
-    const { rows } = await this.db.execute(sql`select id, kind, title, status, image, commit, started_at, finished_at, length(log) as log_bytes from dp_deployments where workspace_id = ${ws} and service_id = ${serviceId}::uuid order by id desc limit ${limit}`);
+    const { rows } = await this.db.execute(sql`select id, kind, title, status, image, commit, started_at, finished_at, length(log) as log_bytes from dp_deployments where tenant_id = ${ws} and service_id = ${serviceId}::uuid order by id desc limit ${limit}`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, status: r.status, image: r.image, commit: r.commit, startedAt: r.started_at, finishedAt: r.finished_at, logBytes: r.log_bytes }));
   }
 
   async listRecentDeployments(ws, { limit = 20 } = {}) {
-    const { rows } = await this.db.execute(sql`select d.id, d.kind, d.title, d.status, d.started_at, d.finished_at, d.service_id, v.name as service_name from dp_deployments d left join dp_services v on v.id = d.service_id where d.workspace_id = ${ws} order by d.id desc limit ${limit}`);
+    const { rows } = await this.db.execute(sql`select d.id, d.kind, d.title, d.status, d.started_at, d.finished_at, d.service_id, v.name as service_name from dp_deployments d left join dp_services v on v.id = d.service_id where d.tenant_id = ${ws} order by d.id desc limit ${limit}`);
     return rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, status: r.status, serviceId: r.service_id, serviceName: r.service_name, startedAt: r.started_at, finishedAt: r.finished_at }));
   }
 
   /** The log from byte `from` on, so a screen can poll cheaply while a deployment runs. */
   async getDeployment(ws, id, { from = 0 } = {}) {
-    const { rows: [d] } = await this.db.execute(sql`select id, kind, title, status, image, commit, service_id, started_at, finished_at, substr(log, ${Number(from) + 1}) as log, length(log) as log_bytes from dp_deployments where id = ${id}::uuid and workspace_id = ${ws}`);
+    const { rows: [d] } = await this.db.execute(sql`select id, kind, title, status, image, commit, service_id, started_at, finished_at, substr(log, ${Number(from) + 1}) as log, length(log) as log_bytes from dp_deployments where id = ${id}::uuid and tenant_id = ${ws}`);
     if (!d) throw new NotFoundError('Deployment not found');
     return { id: d.id, kind: d.kind, title: d.title, status: d.status, image: d.image, commit: d.commit, serviceId: d.service_id, startedAt: d.started_at, finishedAt: d.finished_at, log: d.log, logBytes: d.log_bytes };
   }
@@ -665,14 +665,14 @@ export class DeploymentsService {
 
   /** Reads what Swarm says and corrects the stored status (a crashed container turns an "ok" service to "error"). */
   async refreshStatus(ctx, id) {
-    const s = await this.#service(ctx.workspaceId, id);
-    if (s.status === SERVICE_STATUS.IDLE || s.status === SERVICE_STATUS.STOPPED) return this.getService(ctx.workspaceId, id);
-    const server = s.server_id ? await this.#server(ctx.workspaceId, s.server_id) : null;
+    const s = await this.#service(ctx.tenantId, id);
+    if (s.status === SERVICE_STATUS.IDLE || s.status === SERVICE_STATUS.STOPPED) return this.getService(ctx.tenantId, id);
+    const server = s.server_id ? await this.#server(ctx.tenantId, s.server_id) : null;
     const { output } = await this.#runnerFor(server).run(cmd.statusCommand(s.app_name), { timeoutMs: 20_000 });
     const first = output.split('\n')[0] ?? '';
     const next = first.startsWith('Running') ? SERVICE_STATUS.DONE : /Failed|Rejected|Shutdown/.test(first) ? SERVICE_STATUS.ERROR : s.status;
     if (next !== s.status) await this.db.execute(sql`update dp_services set status = ${next}, updated_at = now() where id = ${id}::uuid`);
-    return this.getService(ctx.workspaceId, id);
+    return this.getService(ctx.tenantId, id);
   }
 
   // ---------- running a deployment (worker) ----------
@@ -694,7 +694,7 @@ export class DeploymentsService {
     const server = serverId ? (await this.db.execute(sql`select * from dp_servers where id = ${serverId}::uuid`)).rows[0] : null;
     const secrets = svc ? this.#dec(svc.secrets_enc) : {};
     if (svc?.source?.credentialId) {
-      const { rows: [c] } = await this.db.execute(sql`select kind, url, username, secret_enc from dp_credentials where id = ${svc.source.credentialId}::uuid and workspace_id = ${svc.workspace_id}`);
+      const { rows: [c] } = await this.db.execute(sql`select kind, url, username, secret_enc from dp_credentials where id = ${svc.source.credentialId}::uuid and tenant_id = ${svc.tenant_id}`);
       if (c) { const secret = this.#dec(c.secret_enc).secret; if (c.kind === 'git') secrets.gitToken = secret; else Object.assign(secrets, { registryPassword: secret, registryUser: c.username, registryUrl: c.url }); }
     }
     const hidden = [secrets.gitToken, secrets.gitToken && Buffer.from(`x-access-token:${secrets.gitToken}`).toString('base64'), secrets.registryPassword, secrets.dbPassword, ...Object.values(svc ? cmd.parseEnv(this.#dec(svc.env_enc).env) : {})];
@@ -784,41 +784,41 @@ export class DeploymentsService {
 
   async #notify(svc, ok, title, error) {
     try {
-      await this.notifier?.post(svc.workspace_id, { kind: 'deploys', title: `${ok ? 'Deployed' : 'Deployment failed'}: ${svc.name}`, text: ok ? `${title} finished.` : `${title} failed: ${String(error).slice(0, 300)}`, link: `${this.appUrl}/app/deployments/s/${svc.id}` });
+      await this.notifier?.post(svc.tenant_id, { kind: 'deploys', title: `${ok ? 'Deployed' : 'Deployment failed'}: ${svc.name}`, text: ok ? `${title} finished.` : `${title} failed: ${String(error).slice(0, 300)}`, link: `${this.appUrl}/app/deployments/s/${svc.id}` });
     } catch (e) { this.logger?.warn({ err: e.message }, 'deployment notification failed'); }
   }
 
   // ---------- scheduled jobs ----------
   async addJob(ctx, serviceId, body) {
-    const s = await this.#service(ctx.workspaceId, serviceId);
+    const s = await this.#service(ctx.tenantId, serviceId);
     if (body.kind === 'backup' && !DATABASE_KINDS.includes(s.kind)) throw new ValidationError(undefined, 'Backups are for databases.');
     const id = uuidv7();
-    await this.db.execute(sql`insert into dp_jobs (id, workspace_id, service_id, kind, name, cron, command, keep, enabled) values (${id}::uuid, ${ctx.workspaceId}, ${serviceId}::uuid, ${body.kind}, ${body.name}, ${body.cron}, ${body.command ?? null}, ${body.keep}, ${body.enabled})`);
+    await this.db.execute(sql`insert into dp_jobs (id, tenant_id, service_id, kind, name, cron, command, keep, enabled) values (${id}::uuid, ${ctx.tenantId}, ${serviceId}::uuid, ${body.kind}, ${body.name}, ${body.cron}, ${body.command ?? null}, ${body.keep}, ${body.enabled})`);
     await this.#audit(ctx, `Scheduled “${body.name}” on “${s.name}”`);
-    return (await this.getService(ctx.workspaceId, serviceId)).jobs;
+    return (await this.getService(ctx.tenantId, serviceId)).jobs;
   }
 
   async updateJob(ctx, serviceId, jobId, patch) {
-    const { rows: [j] } = await this.db.execute(sql`select * from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and workspace_id = ${ctx.workspaceId}`);
+    const { rows: [j] } = await this.db.execute(sql`select * from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and tenant_id = ${ctx.tenantId}`);
     if (!j) throw new NotFoundError('Job not found');
     await this.db.execute(sql`update dp_jobs set name = ${patch.name ?? j.name}, cron = ${patch.cron ?? j.cron}, command = ${patch.command ?? j.command}, keep = ${patch.keep ?? j.keep}, enabled = ${patch.enabled ?? j.enabled} where id = ${jobId}::uuid`);
-    return (await this.getService(ctx.workspaceId, serviceId)).jobs;
+    return (await this.getService(ctx.tenantId, serviceId)).jobs;
   }
 
   async deleteJob(ctx, serviceId, jobId) {
-    const { rowCount } = await this.db.execute(sql`delete from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and workspace_id = ${ctx.workspaceId}`);
+    const { rowCount } = await this.db.execute(sql`delete from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and tenant_id = ${ctx.tenantId}`);
     if (!rowCount) throw new NotFoundError('Job not found');
-    return (await this.getService(ctx.workspaceId, serviceId)).jobs;
+    return (await this.getService(ctx.tenantId, serviceId)).jobs;
   }
 
   /** Queues one run of a job now (manual "Run now", or a schedule that is due). */
   async runJob(ctx, serviceId, jobId) {
-    const { rows: [j] } = await this.db.execute(sql`select * from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and workspace_id = ${ctx.workspaceId}`);
+    const { rows: [j] } = await this.db.execute(sql`select * from dp_jobs where id = ${jobId}::uuid and service_id = ${serviceId}::uuid and tenant_id = ${ctx.tenantId}`);
     if (!j) throw new NotFoundError('Job not found');
     return this.#queueJob(j, ctx);
   }
 
-  async #queueJob(job, ctx = { workspaceId: job.workspace_id, userId: null }) {
+  async #queueJob(job, ctx = { tenantId: job.tenant_id, userId: null }) {
     const dep = await this.#createDeployment({ ctx, service: { id: job.service_id }, kind: job.kind === 'backup' ? 'backup' : 'job', title: job.name });
     await this.db.execute(sql`update dp_jobs set last_run_at = now() where id = ${job.id}::uuid`);
     await this.boss.send(this.queues.DEPLOY, { deploymentId: dep.id, jobId: job.id });
@@ -846,7 +846,7 @@ export class DeploymentsService {
     let command; const hidden = [];
     try {
       if (job.kind === 'backup') {
-        const live = await this.integrations.resolve(job.workspace_id, 'storage');
+        const live = await this.integrations.resolve(job.tenant_id, 'storage');
         if (!live || !['s3', 'minio'].includes(live.key)) throw new Error('Connect and turn on an S3 or MinIO storage integration first (Integrations › Storage).');
         hidden.push(live.secrets.secret_access_key, this.#dec(svc.secrets_enc).dbPassword);
         command = cmd.backupCommand({
@@ -887,14 +887,14 @@ export class DeploymentsService {
       return { status: 200, body: { skipped: `Push to ${payload.ref} ignored (watching ${s.source.branch})` } };
     }
     if (s.source?.type !== 'git' && s.kind === 'application') return { status: 200, body: { skipped: 'Only Git applications deploy on push' } };
-    const ctx = { workspaceId: s.workspace_id, userId: null };
+    const ctx = { tenantId: s.tenant_id, userId: null };
     const dep = await this.deploy(ctx, s.id, { title: payload.head_commit?.message ? `Push: ${String(payload.head_commit.message).split('\n')[0].slice(0, 80)}` : 'Push to repository' }).catch((e) => ({ error: e.message }));
     return dep.error ? { status: 409, body: { error: dep.error } } : { status: 202, body: { deploymentId: dep.id } };
   }
 
   /** A push to another branch of a service with previews on: one throw-away copy per branch, removed when the branch is deleted. */
   async #handlePreview(parent, branch, payload) {
-    const ctx = { workspaceId: parent.workspace_id, userId: null };
+    const ctx = { tenantId: parent.tenant_id, userId: null };
     const { rows: [existing] } = await this.db.execute(sql`select id from dp_services where preview_of = ${parent.id}::uuid and preview_branch = ${branch}`);
     if (payload.deleted) {
       if (existing) await this.deleteService(ctx, existing.id);
@@ -905,9 +905,9 @@ export class DeploymentsService {
       const slug = branchSlug(branch); id = uuidv7();
       const base = parent.config?.previews?.domain;
       const config = { ...parent.config }; delete config.previews;
-      await this.db.execute(sql`insert into dp_services (id, workspace_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by, preview_of, preview_branch)
-        values (${id}::uuid, ${parent.workspace_id}, ${parent.environment_id}::uuid, ${parent.server_id}, ${parent.kind}, ${`${parent.name} · ${branch}`.slice(0, 60)}, ${appNameFor(`${parent.app_name}-${slug}`, rand(4))}, ${jsonOf({ ...parent.source, branch })}::jsonb, ${jsonOf(config)}::jsonb, ${parent.secrets_enc}, ${parent.env_enc}, false, ${crypto.randomBytes(24).toString('base64url')}, ${parent.created_by}, ${parent.id}::uuid, ${branch})`);
-      if (base && parent.config?.port) await this.db.execute(sql`insert into dp_domains (id, workspace_id, service_id, host, path, port, https) values (${uuidv7()}::uuid, ${parent.workspace_id}, ${id}::uuid, ${`${slug}-${parent.app_name}.${base}`.slice(0, 253)}, '/', ${parent.config.port}, true) on conflict do nothing`);
+      await this.db.execute(sql`insert into dp_services (id, tenant_id, environment_id, server_id, kind, name, app_name, source, config, secrets_enc, env_enc, auto_deploy, webhook_secret, created_by, preview_of, preview_branch)
+        values (${id}::uuid, ${parent.tenant_id}, ${parent.environment_id}::uuid, ${parent.server_id}, ${parent.kind}, ${`${parent.name} · ${branch}`.slice(0, 60)}, ${appNameFor(`${parent.app_name}-${slug}`, rand(4))}, ${jsonOf({ ...parent.source, branch })}::jsonb, ${jsonOf(config)}::jsonb, ${parent.secrets_enc}, ${parent.env_enc}, false, ${crypto.randomBytes(24).toString('base64url')}, ${parent.created_by}, ${parent.id}::uuid, ${branch})`);
+      if (base && parent.config?.port) await this.db.execute(sql`insert into dp_domains (id, tenant_id, service_id, host, path, port, https) values (${uuidv7()}::uuid, ${parent.tenant_id}, ${id}::uuid, ${`${slug}-${parent.app_name}.${base}`.slice(0, 253)}, '/', ${parent.config.port}, true) on conflict do nothing`);
     }
     const dep = await this.deploy(ctx, id, { title: `Preview: ${branch}` }).catch((e) => ({ error: e.message }));
     return dep.error ? { status: 409, body: { error: dep.error } } : { status: 202, body: { preview: id, deploymentId: dep.id } };

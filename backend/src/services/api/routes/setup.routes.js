@@ -7,7 +7,7 @@ import { config } from '../../../shared/config.js';
 import { ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
 import { supportedViews } from '../../../modules/setup/records.service.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
 const keyParam = z.object({ key: z.string().max(100) });
@@ -34,18 +34,18 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
     return staticBodies.get(id);
   };
 
-  router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'admin'));
+  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'admin'));
   router.use(async (req, res, next) => {
     try {
-      const ws = req.auth.workspaceId;
+      const ws = req.auth.tenantId;
       usage.hit(ws);
       if (!cache.allow(`setup:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`setup-w:${ws}:${req.auth.userId}`, 60)) > WRITES_PER_MINUTE) throw new TooManyRequestsError(60);
       // Session Settings: "Require secure connections" (production) and "Enable clickjack protection for Setup pages".
-      const policy = await securityPolicy.forWorkspace(ws);
+      const policy = await securityPolicy.forTenant(ws);
       if (policy.requireHttps && config.NODE_ENV === 'production' && !req.secure) throw new ForbiddenError('Setup requires a secure (HTTPS) connection', 'HTTPS_REQUIRED');
       if (policy.clickjack) res.set({ 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'" });
-      req.setupCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership, ip: req.ctx.ip };
+      req.setupCtx = { tenantId: ws, userId: req.auth.userId, actor: req.membership, ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
   });
@@ -65,13 +65,13 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
   const userParam = z.object({ userId: uuidField });
   // Permission-set add-ons. Registered only when ACCESS_ADDONS_ENABLED=true — otherwise these paths do not exist (404).
   if (addons) {
-    router.get('/access/permission-sets', async (req, res) => res.json({ permissionSets: await addons.catalogueWithCounts(req.setupCtx.workspaceId) }));
-    router.get('/users/count', validate({ query: userCountQuerySchema }), async (req, res) => res.json({ count: await addons.count(req.setupCtx.workspaceId, req.valid.query) }));
-    router.get('/users/:userId/permission-sets', validate({ params: userParam }), async (req, res) => res.json({ permissionSets: await addons.list(req.setupCtx.workspaceId, req.params.userId) }));
+    router.get('/access/permission-sets', async (req, res) => res.json({ permissionSets: await addons.catalogueWithCounts(req.setupCtx.tenantId) }));
+    router.get('/users/count', validate({ query: userCountQuerySchema }), async (req, res) => res.json({ count: await addons.count(req.setupCtx.tenantId, req.valid.query) }));
+    router.get('/users/:userId/permission-sets', validate({ params: userParam }), async (req, res) => res.json({ permissionSets: await addons.list(req.setupCtx.tenantId, req.params.userId) }));
     router.put('/users/:userId/permission-sets', validate({ params: userParam, body: permissionSetNameSchema }), async (req, res) => res.json({ permissionSets: await addons.assign(req.setupCtx, req.params.userId, req.valid.body.name) }));
     router.delete('/users/:userId/permission-sets/:name', validate({ params: userParam.extend({ name: z.string().max(100) }) }), async (req, res) => res.json({ permissionSets: await addons.unassign(req.setupCtx, req.params.userId, req.params.name) }));
   }
-  router.get('/users/:userId', validate({ params: userParam }), async (req, res) => res.json(await userDetails.get(req.setupCtx.workspaceId, req.params.userId)));
+  router.get('/users/:userId', validate({ params: userParam }), async (req, res) => res.json(await userDetails.get(req.setupCtx.tenantId, req.params.userId)));
   router.post('/users/:userId/sign-out', validate({ params: userParam, body: z.object({ ids: z.array(uuidField).max(50).optional() }).optional() }), async (req, res) => {
     res.json({ revoked: await userDetails.signOut(req.setupCtx, req.params.userId, req.body?.ids) });
   });
@@ -87,13 +87,13 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
   });
 
   router.get('/pages/:key/settings', params, resolve, need((r) => r.page?.kind === 'form', 'Not a settings page'), async (req, res) => {
-    sendEntry(req, res, await settings.get(req.setupCtx.workspaceId, req.page));
+    sendEntry(req, res, await settings.get(req.setupCtx.tenantId, req.page));
   });
 
   router.patch('/pages/:key/settings', params, resolve, need((r) => r.page?.kind === 'form', 'Not a settings page'), validate({ body: setupSettingsBodySchema }), async (req, res) => {
     const parsed = settingsPatchSchema(req.page).safeParse(req.valid.body.values);
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })));
-    sendEntry(req, res, await settings.update(req.setupCtx.workspaceId, req.page, parsed.data, { userId: req.auth.userId, expectedVersion: req.valid.body.version }));
+    sendEntry(req, res, await settings.update(req.setupCtx.tenantId, req.page, parsed.data, { userId: req.auth.userId, expectedVersion: req.valid.body.version }));
   });
 
   const collectionOnly = need((r) => r.collection, 'Not a list page');
@@ -115,7 +115,7 @@ export function setupRoutes({ tokens, membershipLookup, cache, usage, setup, sec
   });
 
   router.get('/pages/:key/metrics', params, resolve, async (req, res) => {
-    const { key } = req.params; const ws = req.setupCtx.workspaceId;
+    const { key } = req.params; const ws = req.setupCtx.tenantId;
     if (metrics.hasProvider(key)) return sendEntry(req, res, await metrics.dashboard(ws, key));
     if (req.page?.special === 'sysoverview') return sendEntry(req, res, await metrics.overview(ws));
     if (req.page?.special === 'health') return res.json(await health.evaluate(ws));

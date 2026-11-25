@@ -3,7 +3,7 @@ import { listTemplates } from '../../../modules/deployments/templates/engine.js'
 import { z } from 'zod';
 import { credentialBodySchema, sshKeyGenerateSchema, hasAccess, domainBodySchema, envBodySchema, environmentBodySchema, jobBodySchema, jobPatchSchema, projectBodySchema, serverBodySchema, serverPatchSchema, serviceCreateSchema, servicePatchSchema, uuidField } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
-import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { ForbiddenError } from '../../../shared/errors.js';
 import { validate } from '../middleware/validate.js';
 
@@ -16,9 +16,9 @@ const setupBody = z.object({ acmeEmail: z.string().trim().email().max(200) });
 /** Deployments API. Levels: viewer (read, logs, stats) < deployer (deploy, roll back, stop/start, run schedules) < manager (servers, secrets, config, terminal). The level comes from the person's Quelli role: owner/admin = manager, member = deployer, viewer = viewer. */
 export function deploymentsRoutes({ tokens, membershipLookup, deployments, rateLimit }) {
   const router = Router();
-  router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
-  const ctx = (req) => ({ workspaceId: req.auth.workspaceId, userId: req.auth.userId, role: req.membership?.role });
-  const ws = (req) => req.auth.workspaceId;
+  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));
+  const ctx = (req) => ({ tenantId: req.auth.tenantId, userId: req.auth.userId, role: req.membership?.role });
+  const ws = (req) => req.auth.tenantId;
   /** Checked on every route: the person's level must be at least `level`. */
   const need = (level) => async (req, res, next) => {
     try { req.dpLevel = await deployments.levelFor(ctx(req)); if (!hasAccess(req.dpLevel, level)) throw new ForbiddenError(); next(); } catch (e) { next(e); }

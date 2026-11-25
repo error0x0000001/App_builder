@@ -18,7 +18,7 @@ export const patchFileSchema = z.object({ name: driveNameSchema.optional(), fold
 export const copyFileSchema = z.object({ folderId: uuidField.optional(), name: driveNameSchema.optional() }).strict();
 export const accessSchema = z.object({
   inherit: z.boolean().optional(),
-  entries: z.array(z.object({ principalType: z.enum(['user', 'workspace']), principalId: uuidField, role: z.enum(DRIVE_ROLES) }).strict()).max(200),
+  entries: z.array(z.object({ principalType: z.enum(['user', 'tenant']), principalId: uuidField, role: z.enum(DRIVE_ROLES) }).strict()).max(200),
 }).strict();
 export const starSchema = z.object({ type: z.enum(['folder', 'file']), id: uuidField, starred: z.boolean() }).strict();
 export const driveListQuerySchema = z.object({

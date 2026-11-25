@@ -7,7 +7,7 @@ export const authEvents = pgTable(
   {
     id: pk(),
     userId: uuid('user_id'),
-    workspaceId: uuid('workspace_id'),
+    tenantId: uuid('tenant_id'),
     type: text('type').notNull(),
     ip: text('ip'),
     userAgent: text('user_agent'),
@@ -17,6 +17,6 @@ export const authEvents = pgTable(
   (t) => [
     index('auth_events_user_idx').on(t.userId, t.id.desc()), // UUIDv7 ids sort by time
     index('auth_events_created_idx').on(t.createdAt),
-    index('auth_events_workspace_idx').on(t.workspaceId, t.id.desc()), // workspace-wide login history
+    index('auth_events_tenant_idx').on(t.tenantId, t.id.desc()), // tenant-wide login history
   ],
 );

@@ -32,21 +32,21 @@ export const meApi = {
   mfaRecoveryCodes: (body) => post('/me/mfa/recovery-codes', body),
 };
 
-export const workspacesApi = {
-  lookup: (workspace) => get(`/workspaces/lookup${qs({ workspace })}`),
-  create: (body) => post('/workspaces', body),
-  switch: (id) => post(`/workspaces/${id}/switch`),
-  updateTheme: (id, theme) => patch(`/workspaces/${id}/theme`, { theme }),
-  updateUi: (id, body) => patch(`/workspaces/${id}/ui`, body),
-  completeOnboarding: (id, body) => patch(`/workspaces/${id}/onboarding`, body),
-  members: (id, { after } = {}) => get(`/workspaces/${id}/members${qs({ limit: 20, after })}`),
-  changeRole: (id, userId, role) => patch(`/workspaces/${id}/members/${userId}`, { role }),
-  removeMember: (id, userId) => del(`/workspaces/${id}/members/${userId}`),
-  loginAs: (id, userId) => post(`/workspaces/${id}/members/${userId}/login-as`),
-  invitations: (id) => get(`/workspaces/${id}/invitations`),
-  invite: (id, invitations) => post(`/workspaces/${id}/invitations`, { invitations }),
-  resendInvitation: (id, invitationId) => post(`/workspaces/${id}/invitations/${invitationId}/resend`),
-  revokeInvitation: (id, invitationId) => del(`/workspaces/${id}/invitations/${invitationId}`),
+export const tenantsApi = {
+  lookup: (tenant) => get(`/tenants/lookup${qs({ tenant })}`),
+  create: (body) => post('/tenants', body),
+  switch: (id) => post(`/tenants/${id}/switch`),
+  updateTheme: (id, theme) => patch(`/tenants/${id}/theme`, { theme }),
+  updateUi: (id, body) => patch(`/tenants/${id}/ui`, body),
+  completeOnboarding: (id, body) => patch(`/tenants/${id}/onboarding`, body),
+  members: (id, { after } = {}) => get(`/tenants/${id}/members${qs({ limit: 20, after })}`),
+  changeRole: (id, userId, role) => patch(`/tenants/${id}/members/${userId}`, { role }),
+  removeMember: (id, userId) => del(`/tenants/${id}/members/${userId}`),
+  loginAs: (id, userId) => post(`/tenants/${id}/members/${userId}/login-as`),
+  invitations: (id) => get(`/tenants/${id}/invitations`),
+  invite: (id, invitations) => post(`/tenants/${id}/invitations`, { invitations }),
+  resendInvitation: (id, invitationId) => post(`/tenants/${id}/invitations/${invitationId}/resend`),
+  revokeInvitation: (id, invitationId) => del(`/tenants/${id}/invitations/${invitationId}`),
 };
 
 export const invitationsApi = {

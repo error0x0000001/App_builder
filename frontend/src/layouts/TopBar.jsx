@@ -4,7 +4,7 @@ import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/DropdownMenu.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
 import { OverflowList } from '../components/ui/OverflowList.jsx';
-import { WorkspaceSwitcherLogo } from '../components/workspace/WorkspaceSwitcher.jsx';
+import { TenantSwitcherLogo } from '../components/tenant/TenantSwitcher.jsx';
 import { cn } from '../lib/cn.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { isVisibleTo, NAV } from './navigation.js';
@@ -17,8 +17,8 @@ const matches = (item, pathname) => (item.end ? pathname === item.to : pathname 
 
 /** navigation.js → top-level entries: single links, and each group as a dropdown. Role-hidden items are dropped. */
 function useEntries() {
-  const { activeWorkspace } = useAuth();
-  const show = (items) => items.filter((item) => isVisibleTo(item, activeWorkspace));
+  const { activeTenant } = useAuth();
+  const show = (items) => items.filter((item) => isVisibleTo(item, activeTenant));
   const link = (item) => ({ type: 'link', key: item.to, item });
   const groups = NAV.groups.map((g) => ({ type: 'group', key: `g:${g.label}`, label: g.label, items: show(g.items) })).filter((g) => g.items.length);
   return [...show(NAV.main).map(link), ...groups, ...show(NAV.bottom).map(link)];
@@ -77,7 +77,7 @@ function MoreEntry({ hidden }) {
 }
 
 /**
- * Top navigation (desktop): quelli mark (opens the workspace switcher) · text entries (groups are dropdowns, the rest
+ * Top navigation (desktop): quelli mark (opens the tenant switcher) · text entries (groups are dropdowns, the rest
  * collapse into "More") · account. Search stays on Ctrl/⌘ K. Flat is a full-width bar with a bottom border; inset sits flush on the navigation colour; floating is a bordered card
  * with a small gap above the content card. Entries come from navigation.js, like the sidebar. Navy = the Midnight theme.
  */
@@ -87,7 +87,7 @@ export function TopBar() {
   return (
     <header className={cn('shrink-0', variant === 'flat' ? 'border-b border-sidebar-line bg-sidebar px-2' : variant === 'floating' ? 'p-2' : 'p-2 pb-0')}>
       <div className={cn('flex h-12 items-center gap-2 px-2 text-sidebar-ink', variant !== 'flat' && 'rounded-xl', variant === 'floating' && 'border border-sidebar-line bg-sidebar')}>
-        <WorkspaceSwitcherLogo />
+        <TenantSwitcherLogo />
         <span aria-hidden="true" className="h-5 w-px shrink-0 bg-sidebar-line" />
         <nav aria-label="Main" className="flex min-w-0 flex-1">
           <OverflowList items={entries} getKey={(e) => e.key} gap={2} reserve={84} renderItem={(e) => (e.type === 'group' ? <GroupEntry entry={e} /> : <LinkEntry item={e.item} />)} renderOverflow={(hidden) => <MoreEntry hidden={hidden} />} />

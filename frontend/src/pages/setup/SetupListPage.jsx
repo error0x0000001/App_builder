@@ -37,7 +37,7 @@ const DESCRIPTION = /^(description|summary|api_name|name_api|label)$/i;
 
 /**
  * The Users table: who they are, what they can do, and how alive the account is — every cell is a tag, badge, avatar or chip.
- * The data comes from one batched lookup per page (see the users adapter), so this stays cheap for very large workspaces.
+ * The data comes from one batched lookup per page (see the users adapter), so this stays cheap for very large tenants.
  */
 function userColumns({ addons, navigate }) {
   const dayMs = 86_400_000;

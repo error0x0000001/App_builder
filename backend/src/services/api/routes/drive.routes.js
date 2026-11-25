@@ -5,7 +5,7 @@ import { config } from '../../../shared/config.js';
 import { TooManyRequestsError, ValidationError } from '../../../shared/errors.js';
 import { receiveUpload, tooLarge } from '../middleware/upload.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { requireActiveWorkspaceRole } from '../middleware/authorize.js';
+import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
 const idParam = z.object({ id: uuidField });
@@ -52,13 +52,13 @@ export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
     sendFile(req, res, drive, file, { inline: true });
   });
 
-  router.use(authenticate(tokens), requireActiveWorkspaceRole(membershipLookup, 'viewer'));
+  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));
   router.use(async (req, res, next) => {
     try {
-      const ws = req.auth.workspaceId;
+      const ws = req.auth.tenantId;
       if (!cache.allow(`drive:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`drive-w:${ws}:${req.auth.userId}`, 60)) > 600) throw new TooManyRequestsError(60);
-      req.driveCtx = { workspaceId: ws, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
+      req.driveCtx = { tenantId: ws, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
   });

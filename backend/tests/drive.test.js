@@ -13,13 +13,13 @@ const list = (c, query = '') => c.get(`${D}/list${query}`).then((r) => r);
 const names = (r) => [...r.body.folders.map((f) => f.name), ...r.body.files.map((f) => f.name)].sort();
 
 async function join(boss, role) {
-  const ws = (await boss.get('/me')).body.activeWorkspaceId;
+  const ws = (await boss.get('/me')).body.activeTenantId;
   const email = uniqueEmail();
-  await boss.post(`/workspaces/${ws}/invitations`, { invitations: [{ email, role }] });
+  await boss.post(`/tenants/${ws}/invitations`, { invitations: [{ email, role }] });
   const token = new URL(server.mailTo(email, 'invitation').data.url).searchParams.get('token');
   const person = new Client(server.base);
   await person.post('/invitations/accept', { token, firstName: 'Meera', lastName: 'Iyer', password: PASSWORD, acceptTerms: true });
-  await person.post(`/workspaces/${ws}/switch`);
+  await person.post(`/tenants/${ws}/switch`);
   const id = (await person.get('/me')).body.user.id;
   return { person, email, ws, id };
 }
@@ -102,7 +102,7 @@ describe('documents: folders, files and storage', () => {
     assert.equal((await client.download(`${D}/files/${f.id}/download`)).status, 200);
 
     // delete forever removes the stored bytes too
-    const key = (await server.container.drive.fileForDownload({ workspaceId: (await client.get('/me')).body.activeWorkspaceId, userId: 'x', actor: { role: 'owner' } }, f.id)).storage_key;
+    const key = (await server.container.drive.fileForDownload({ tenantId: (await client.get('/me')).body.activeTenantId, userId: 'x', actor: { role: 'owner' } }, f.id)).storage_key;
     assert.ok((await server.container.drive.storage.size(key)) > 0);
     await client.post(`${D}/trash`, { type: 'file', id: f.id });
     assert.equal((await client.post(`${D}/delete-forever`, { type: 'file', id: f.id })).status, 200);
@@ -167,10 +167,10 @@ describe('documents: access control', () => {
     assert.equal((await bob.get(`/search?q=q1&type=documents`)).body.groups.documents.length, 0);
     assert.equal((await alice.download(`${D}/files/${q1file.id}/download`)).status, 200, 'the owner keeps access');
 
-    // the workspace as a principal: everyone in it gets the grant
-    const ws = (await boss.get('/me')).body.activeWorkspaceId;
-    await alice.request('PUT', `${D}/folders/${q1.id}/access`, { inherit: false, entries: [{ principalType: 'workspace', principalId: ws, role: 'viewer' }] });
-    assert.equal((await list(bob, `?folder=${q1.id}`)).status, 200, 'granted to the whole workspace');
+    // the tenant as a principal: everyone in it gets the grant
+    const ws = (await boss.get('/me')).body.activeTenantId;
+    await alice.request('PUT', `${D}/folders/${q1.id}/access`, { inherit: false, entries: [{ principalType: 'tenant', principalId: ws, role: 'viewer' }] });
+    assert.equal((await list(bob, `?folder=${q1.id}`)).status, 200, 'granted to the whole tenant');
 
     // admins manage everything; grants only go to members
     assert.equal((await list(boss, `?folder=${finance.id}`)).body.folder.role, 'manager');
@@ -221,7 +221,7 @@ describe('documents: access control', () => {
 
     // a record that does not exist, or a profile without read access, gives nothing
     assert.equal((await boss.get(`${D}/records/Lead/${'00000000-0000-4000-8000-000000000000'}/files`)).status, 404);
-    const ws = (await boss.get('/me')).body.activeWorkspaceId;
+    const ws = (await boss.get('/me')).body.activeTenantId;
     await boss.get(`/setup/pages/profiles/records`);
     const users = (await boss.get('/setup/pages/users/records')).body.items;
     const mEmail = (await member.get('/me')).body.user.email;

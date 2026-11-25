@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { INDUSTRIES, TEAM_SIZES, TIMEZONES, onboardingSchema } from '@app/shared';
-import { workspacesApi } from '../../api/endpoints.js';
+import { tenantsApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { Form } from '../../components/forms/Form.jsx';
 import { SelectField, SubmitButton, TextField } from '../../components/forms/fields.jsx';
@@ -11,18 +11,18 @@ import { Stepper } from '../../components/ui/Stepper.jsx';
 import { Card } from '../../components/ui/Card.jsx';
 import { Logo } from '../../components/ui/Logo.jsx';
 import { ThemeToggle } from '../../components/ui/ThemeToggle.jsx';
-import { InviteForm } from '../../components/workspace/InviteForm.jsx';
+import { InviteForm } from '../../components/tenant/InviteForm.jsx';
 import { ProfileForm } from '../app/ProfilePage.jsx';
 
 const STEPS = ['About you', 'Your company', 'Invite team'];
 
-function CompanyStep({ workspace, onSaved }) {
+function CompanyStep({ tenant, onSaved }) {
   const { refresh } = useAuth();
   const { form, submit, formError } = useAppForm({
     schema: onboardingSchema,
-    defaultValues: { name: workspace.name, industry: '', teamSize: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone in Object.fromEntries(TIMEZONES.map((t) => [t, 1])) ? Intl.DateTimeFormat().resolvedOptions().timeZone : '' },
+    defaultValues: { name: tenant.name, industry: '', teamSize: '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone in Object.fromEntries(TIMEZONES.map((t) => [t, 1])) ? Intl.DateTimeFormat().resolvedOptions().timeZone : '' },
     onSubmit: async (values) => {
-      await workspacesApi.completeOnboarding(workspace.id, values);
+      await tenantsApi.completeOnboarding(tenant.id, values);
       await refresh();
       onSaved();
     },
@@ -42,17 +42,17 @@ function CompanyStep({ workspace, onSaved }) {
 
 const COPY = [
   { title: (name) => `Welcome${name ? `, ${name}` : ''}! Tell us about you`, text: 'We’ll tailor Quelli to the way you work.' },
-  { title: () => 'About your company', text: 'This is your workspace — you can change it any time.' },
+  { title: () => 'About your company', text: 'This is your tenant — you can change it any time.' },
   { title: () => 'Invite your team', text: 'Teammates get an email to set a password and join. You can also do this later.' },
 ];
 
 export default function OnboardingPage() {
-  const { user, activeWorkspace } = useAuth();
+  const { user, activeTenant } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const launch = () => navigate('/app', { replace: true });
 
-  if (!activeWorkspace) { launch(); return null; }
+  if (!activeTenant) { launch(); return null; }
   return (
     <div className="min-h-screen bg-bg">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-5">
@@ -67,10 +67,10 @@ export default function OnboardingPage() {
           <p className="mt-2 text-sm text-muted">{COPY[step].text}</p>
         </header>
         {step === 0 && <ProfileForm submitLabel="Next" onSaved={() => setStep(1)} />}
-        {step === 1 && <CompanyStep workspace={activeWorkspace} onSaved={() => setStep(2)} />}
+        {step === 1 && <CompanyStep tenant={activeTenant} onSaved={() => setStep(2)} />}
         {step === 2 && (
           <div className="space-y-4">
-            <InviteForm workspaceId={activeWorkspace.id} />
+            <InviteForm tenantId={activeTenant.id} />
             <div className="flex justify-between"><Button variant="neutral" onClick={() => setStep(1)}>Back</Button><Button onClick={launch}>Launch Quelli</Button></div>
           </div>
         )}

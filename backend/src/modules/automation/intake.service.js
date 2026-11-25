@@ -38,7 +38,7 @@ export class IntakeService {
     }
     if (extra.length && known.has('description')) data.description = [data.description, ...extra].filter(Boolean).join('\n');
     try {
-      const { record } = await this.objects.create({ workspaceId: ws, userId: null, email: null, actor: null }, meta.object, data);
+      const { record } = await this.objects.create({ tenantId: ws, userId: null, email: null, actor: null }, meta.object, data);
       return { id: record.id };
     } catch (error) {
       if (error.name === 'ZodError') throw new ValidationError(error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })));

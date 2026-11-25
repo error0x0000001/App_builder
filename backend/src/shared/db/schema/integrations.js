@@ -1,9 +1,9 @@
 import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { workspaces } from './workspaces.js';
+import { tenants } from './tenants.js';
 
-/** A workspace's connection to an outside service (see modules/integrations). Secrets are encrypted at rest and never leave the server. */
-export const workspaceIntegrations = pgTable('workspace_integrations', {
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+/** A tenant's connection to an outside service (see modules/integrations). Secrets are encrypted at rest and never leave the server. */
+export const tenantIntegrations = pgTable('tenant_integrations', {
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   provider: text('provider').notNull(),
   enabled: boolean('enabled').notNull().default(false),
   config: jsonb('config').notNull().default({}),
@@ -15,4 +15,4 @@ export const workspaceIntegrations = pgTable('workspace_integrations', {
   updatedBy: uuid('updated_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.workspaceId, t.provider] })]);
+}, (t) => [primaryKey({ columns: [t.tenantId, t.provider] })]);

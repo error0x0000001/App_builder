@@ -12,7 +12,7 @@ const bytes = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${(b
 const pct = (part, whole) => (whole ? Math.min(100, Math.round((part / whole) * 100)) : 0);
 const notEnabled = (title, note) => ({ cards: [{ k: title, v: 'Not enabled', s: note }], bars: [], table: null });
 
-/** Dashboards: every number is computed from live data, cached ~60s per workspace (stale-while-revalidate, single-flight). */
+/** Dashboards: every number is computed from live data, cached ~60s per tenant (stale-while-revalidate, single-flight). */
 export class MetricsService {
   constructor({ repos, db, cache, usage, health }) {
     Object.assign(this, { repos, db, cache, usage, health });
@@ -20,7 +20,7 @@ export class MetricsService {
       'storage-usage': (ws) => this.#storage(ws),
       'platform-cache': () => this.#platformCache(),
       optimizer: (ws) => this.#optimizer(ws),
-      'readiness-assessor': () => notEnabled('Einstein readiness', 'Scoring models are not enabled for this workspace'),
+      'readiness-assessor': () => notEnabled('Einstein readiness', 'Scoring models are not enabled for this tenant'),
       'data-integration-metrics': (ws) => this.#integration(ws),
       'data-com-licenses-and-limits': () => notEnabled('Data.com', 'This add-on is not part of Quelli'),
       'lightning-experience-transition-assistant': () => notEnabled('Transition assistant', 'Not applicable — every user is already on the current experience'),
@@ -40,7 +40,7 @@ export class MetricsService {
   async #countEvents(ws, sinceMs, distinctUsers = false) {
     const { rows } = await this.db.execute(sql`
       select count(${distinctUsers ? sql`distinct user_id` : sql`*`})::int as n from (
-        select user_id from auth_events where workspace_id = ${ws} and id >= ${uuidV7Floor(Date.now() - sinceMs)}::uuid and type in ${LOGIN_TYPES} limit 100000) e`);
+        select user_id from auth_events where tenant_id = ${ws} and id >= ${uuidV7Floor(Date.now() - sinceMs)}::uuid and type in ${LOGIN_TYPES} limit 100000) e`);
     return rows[0].n;
   }
 
@@ -58,7 +58,7 @@ export class MetricsService {
     };
   }
 
-  /** Process-level cache statistics (this node), not workspace data. */
+  /** Process-level cache statistics (this node), not tenant data. */
   #platformCache() {
     const s = this.cache.snapshot();
     const reads = s.l1Hits + s.l2Hits + s.misses || 1;
@@ -74,7 +74,7 @@ export class MetricsService {
   }
 
   async #optimizer(ws) {
-    const [health, changes] = await Promise.all([this.health.evaluate(ws), this.db.execute(sql`select count(*)::int as n from (select 1 from setup_audit where workspace_id = ${ws} and id >= ${uuidV7Floor(Date.now() - 30 * DAY_MS)}::uuid limit 10000) a`)]);
+    const [health, changes] = await Promise.all([this.health.evaluate(ws), this.db.execute(sql`select count(*)::int as n from (select 1 from setup_audit where tenant_id = ${ws} and id >= ${uuidV7Floor(Date.now() - 30 * DAY_MS)}::uuid limit 10000) a`)]);
     const grade = health.score >= 90 ? 'A' : health.score >= 75 ? 'B' : health.score >= 50 ? 'C' : 'D';
     return {
       cards: [
@@ -92,7 +92,7 @@ export class MetricsService {
     return { cards: [{ k: 'Integration rules', v: n(counts['data-integration-rules'] ?? 0) }, { k: 'Duplicate rules', v: n(counts['duplicate-rules'] ?? 0) }, { k: 'Matching rules', v: n(counts['matching-rules'] ?? 0) }], bars: [], table: null };
   }
 
-  /** The Setup landing dashboard: limits, KPIs with trends, 14 days of activity, what the workspace is made of, recent changes and what needs attention. */
+  /** The Setup landing dashboard: limits, KPIs with trends, 14 days of activity, what the tenant is made of, recent changes and what needs attention. */
   async #overview(ws) {
     const COMPONENTS = [['profiles', 'Profiles'], ['roles', 'Roles'], ['permission-sets', 'Permission sets'], ['flows', 'Flows'], ['workflow-rules', 'Workflow rules'], ['validation-rules', 'Validation rules'], ['apex-triggers', 'Triggers']];
     const day = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -101,15 +101,15 @@ export class MetricsService {
       this.repos.setupRecords.countsByCollection(ws, ['object-manager-objects', 'object-manager-fields', 'workflow-rules', 'flows', 'apex-triggers', 'validation-rules', 'profiles', 'permission-sets', 'roles']),
       this.repos.setupRecords.storageByCollection(ws), this.usage.last24h(ws), this.usage.hourly24(ws),
       this.db.execute(sql`select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as d, count(*)::int as n, count(distinct user_id)::int as u from auth_events
-        where workspace_id = ${ws} and id >= ${since}::uuid and type = 'login_success' group by 1`),
+        where tenant_id = ${ws} and id >= ${since}::uuid and type = 'login_success' group by 1`),
       this.db.execute(sql`select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as d, count(*)::int as n, count(distinct user_id)::int as u from setup_audit
-        where workspace_id = ${ws} and id >= ${since}::uuid group by 1`),
+        where tenant_id = ${ws} and id >= ${since}::uuid group by 1`),
       this.db.execute(sql`select a.id, a.page_key, a.action, a.summary, a.created_at, u.id as user_id, u.first_name, u.last_name, u.email, u.avatar_version
-        from setup_audit a left join users u on u.id = a.user_id where a.workspace_id = ${ws} order by a.id desc limit 8`),
+        from setup_audit a left join users u on u.id = a.user_id where a.tenant_id = ${ws} order by a.id desc limit 8`),
       this.repos.memberships.countMembers(ws), this.health.evaluate(ws),
     ]);
     const stored = storage.reduce((s, r) => s + r.bytes, 0);
-    const custom = await this.db.execute(sql`select count(*)::int as n from setup_records where workspace_id = ${ws} and collection = 'object-manager-objects' and status = 'Custom'`);
+    const custom = await this.db.execute(sql`select count(*)::int as n from setup_records where tenant_id = ${ws} and collection = 'object-manager-objects' and status = 'Custom'`);
     const gauge = (label, used, limit, fmt = n) => ({ label, used, limit, pct: pct(used, limit), text: `${fmt(used)} of ${fmt(limit)}` });
 
     const days = Array.from({ length: 14 }, (_, i) => day(Date.now() - (13 - i) * DAY_MS));
@@ -120,7 +120,7 @@ export class MetricsService {
     const kpi = (key, label, values) => ({ key, label, value: sum(values.slice(7)), previous: sum(values.slice(0, 7)), series: values });
     const loginSeries = series(logins, 'n'); const changeSeries = series(changes, 'n'); const userSeries = series(logins, 'u');
     const activeUsers = kpi('active-users', 'Active users', userSeries);
-    activeUsers.value = (await this.db.execute(sql`select count(distinct user_id)::int as n from auth_events where workspace_id = ${ws} and id >= ${uuidV7Floor(Date.now() - 7 * DAY_MS)}::uuid and type = 'login_success'`)).rows[0].n;
+    activeUsers.value = (await this.db.execute(sql`select count(distinct user_id)::int as n from auth_events where tenant_id = ${ws} and id >= ${uuidV7Floor(Date.now() - 7 * DAY_MS)}::uuid and type = 'login_success'`)).rows[0].n;
 
     return {
       gauges: [

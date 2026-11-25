@@ -15,12 +15,12 @@ import { MfaService } from '../../modules/mfa/mfa.service.js';
 import { OAuthService } from '../../modules/oauth/oauth.service.js';
 import { SessionService } from '../../modules/sessions/session.service.js';
 import { UserService } from '../../modules/users/user.service.js';
-import { WorkspaceService } from '../../modules/workspaces/workspace.service.js';
+import { TenantService } from '../../modules/tenants/tenant.service.js';
 import { UnitOfWork, createRepositories } from '../../modules/repositories.js';
 import { createRateLimiters } from './middleware/rateLimit.js';
 import { createCache } from '../../shared/cache/redis.js';
 import { UsageMeter } from '../../shared/cache/usageMeter.js';
-import { MembershipLookup } from '../../modules/workspaces/membership.lookup.js';
+import { MembershipLookup } from '../../modules/tenants/membership.lookup.js';
 import { SettingsBindings } from '../../modules/setup/bindings.js';
 import { createSetupAdapters } from '../../modules/setup/adapters.js';
 import { HealthService } from '../../modules/setup/health.service.js';
@@ -77,11 +77,11 @@ export function createContainer({ boss }) {
   const sessions = new SessionService({
     securityPolicy, repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
   });
-  const workspaces = new WorkspaceService({ repos, uow, sessions, membershipLookup });
+  const tenants = new TenantService({ repos, uow, sessions, membershipLookup });
   const password = new PasswordService({ repos, hasher, oneTime, sessions, mail, audit, securityPolicy, resetTtlMs: config.PASSWORD_RESET_TTL_MINUTES * MINUTE_MS });
   const mfa = new MfaService({ repos, uow, totp, secretBox, hasher, sessions, audit, mail, pepper: config.JWT_SECRET });
   const auth = new AuthService({
-    repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, workspaces, password, securityPolicy,
+    repos, uow, hasher, tokens, sessions, oneTime, mail, audit, mfa, tenants, password, securityPolicy,
     policy: {
       maxAttempts: config.MAX_FAILED_LOGINS,
       lockMs: config.LOCKOUT_MINUTES * MINUTE_MS,
@@ -92,12 +92,12 @@ export function createContainer({ boss }) {
   const users = new UserService({ repos, cache });
   const oauth = googleEnabled
     ? new OAuthService({
-      repos, uow, tokens, auth, workspaces, audit, mfaTokens: tokens,
+      repos, uow, tokens, auth, tenants, audit, mfaTokens: tokens,
       settings: { appUrl: config.APP_URL, clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET },
     })
     : null;
 
-  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, workspaces, invitations, sessions, repos, addonsEnabled: config.ACCESS_ADDONS_ENABLED, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
+  const setupRecords = new RecordsService({ repos, uow, cache, adapters: createSetupAdapters({ db, tenants, invitations, sessions, repos, addonsEnabled: config.ACCESS_ADDONS_ENABLED, seedProfiles: (ws) => setupRecords.ensureSeeded(ws, getCollection('profiles')) }) });
   const health = new HealthService({ settings: setupSettings });
   const settingsReader = new SettingsReader({ repos, cache });
   const emailPolicy = new EmailPolicyService({ settings: settingsReader });
@@ -136,5 +136,5 @@ export function createContainer({ boss }) {
   const deployments = createDeployments({ enabled: config.DEPLOYMENTS_ENABLED, db, secretBox, repos, integrations, notifier, boss, logger });
   const terminals = createTerminals({ deployments, tokens, membershipLookup, logger });
   const features = Object.freeze({ accessAddons: Boolean(addons), deployments: Boolean(deployments) });
-  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, workspaces, invitations, users, audit, oauth };
+  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, escalation, emailPolicy, access, objects, intake, automation, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
 }

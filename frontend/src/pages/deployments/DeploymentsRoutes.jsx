@@ -20,11 +20,11 @@ import { LevelContext } from './parts.jsx';
 
 /** /app/deployments/* — only exists when this install runs the Deployments app (DEPLOYMENTS_ENABLED). */
 export default function DeploymentsRoutes() {
-  const { activeWorkspace } = useAuth();
-  if (!activeWorkspace?.features?.deployments) return <Navigate to="/app" replace />;
+  const { activeTenant } = useAuth();
+  if (!activeTenant?.features?.deployments) return <Navigate to="/app" replace />;
   const me = useQuery({ queryKey: ['deployments', 'me'], queryFn: deploymentsApi.me, retry: false });
   if (me.isPending) return <div className="grid place-items-center py-16 text-muted"><Spinner className="size-6" /></div>;
-  if (me.isError) return <div className="grid place-items-center gap-3 py-20 text-center"><FeaturedIcon icon="lock" color="warning" size="xl" /><div><p className="text-base font-semibold text-ink">You don’t have access to Deployments</p><p className="text-sm text-muted">Ask a workspace admin to give you access.</p></div></div>;
+  if (me.isError) return <div className="grid place-items-center gap-3 py-20 text-center"><FeaturedIcon icon="lock" color="warning" size="xl" /><div><p className="text-base font-semibold text-ink">You don’t have access to Deployments</p><p className="text-sm text-muted">Ask a tenant admin to give you access.</p></div></div>;
   const manager = me.data.level === 'manager';
   return (
     <LevelContext.Provider value={me.data.level}>

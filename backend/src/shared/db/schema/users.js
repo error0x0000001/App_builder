@@ -24,7 +24,7 @@ export const users = pgTable(
     mfaSecretEnc: text('mfa_secret_enc'),
     mfaLastStep: integer('mfa_last_step').notNull().default(0),
     avatarVersion: integer('avatar_version').notNull().default(0), // 0 = no profile photo; bumped on every change (cache-busting + signed URL)
-    lastWorkspaceId: uuid('last_workspace_id'),
+    lastTenantId: uuid('last_tenant_id'),
     preferences: jsonb('preferences').notNull().default({}), // personal UI preferences (theme mode), follows the person across devices
     createdAt: createdAt(),
     updatedAt: tz('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),

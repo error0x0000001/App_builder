@@ -18,7 +18,7 @@ export class SessionRepository {
     );
   }
 
-  setWorkspace(id, workspaceId) { return this.db.update(sessions).set({ workspaceId }).where(eq(sessions.id, id)); }
+  setTenant(id, tenantId) { return this.db.update(sessions).set({ tenantId }).where(eq(sessions.id, id)); }
 
   listActive(userId) {
     return this.db.select({

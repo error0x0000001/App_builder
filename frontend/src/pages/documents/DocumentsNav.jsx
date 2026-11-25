@@ -36,8 +36,8 @@ export function DriveNewMenu({ className }) {
  * wherever it is drawn: inside the sidebar panel (normal) or as the page's own column when the navigation has no panel. Rows match the navigation rows (44px).
  */
 export function DocumentsNav() {
-  const { activeWorkspace } = useAuth();
-  const isAdmin = ['owner', 'admin'].includes(activeWorkspace?.role);
+  const { activeTenant } = useAuth();
+  const isAdmin = ['owner', 'admin'].includes(activeTenant?.role);
   const [params, setParams] = useSearchParams();
   const view = params.get('view') ?? 'my';
   const folderId = params.get('folder');

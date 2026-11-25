@@ -19,7 +19,7 @@ export function invitationRoutes({ invitations, tokens, rateLimit }) {
     const { token, ...profile } = req.valid.body;
     const result = await invitations.accept({ token, profile, authUserId: req.auth?.userId }, req.ctx);
     if (result.session) return sendSession(res, result.session, 201);
-    res.json({ workspaceId: result.workspaceId });
+    res.json({ tenantId: result.tenantId });
   });
 
   return router;

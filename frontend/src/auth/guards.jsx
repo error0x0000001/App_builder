@@ -13,10 +13,10 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-/** Owners/admins of a workspace that hasn't finished setup are routed through onboarding first. */
+/** Owners/admins of a tenant that hasn't finished setup are routed through onboarding first. */
 export function RequireOnboarding() {
-  const { activeWorkspace } = useAuth();
-  const needsOnboarding = activeWorkspace && !activeWorkspace.onboarded && hasRole(activeWorkspace.role, 'admin');
+  const { activeTenant } = useAuth();
+  const needsOnboarding = activeTenant && !activeTenant.onboarded && hasRole(activeTenant.role, 'admin');
   return needsOnboarding ? <Navigate to="/onboarding" replace /> : <Outlet />;
 }
 
@@ -31,7 +31,7 @@ export function GuestOnly() {
 
 /** Routes only admins/owners may open (the API enforces the same rule; this just avoids showing a dead page). */
 export function RequireRole({ minimumRole }) {
-  const { activeWorkspace } = useAuth();
-  if (!activeWorkspace || !hasRole(activeWorkspace.role, minimumRole)) return <Navigate to="/app" replace />;
+  const { activeTenant } = useAuth();
+  if (!activeTenant || !hasRole(activeTenant.role, minimumRole)) return <Navigate to="/app" replace />;
   return <Outlet />;
 }

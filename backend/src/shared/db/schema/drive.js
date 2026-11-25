@@ -11,7 +11,7 @@ export const driveFolders = pgTable(
   'drive_folders',
   {
     id: pk(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     parentId: uuid('parent_id'),
     name: text('name').notNull(),
     path: text('path').notNull(),
@@ -25,9 +25,9 @@ export const driveFolders = pgTable(
     trashedAt: tz('trashed_at'),
   },
   (t) => [
-    index('drive_folders_list_idx').on(t.workspaceId, t.parentId, t.name),
-    index('drive_folders_owner_idx').on(t.workspaceId, t.ownerId),
-    uniqueIndex('drive_folders_record_uq').on(t.workspaceId, t.recordObject, t.recordId).where(sql`${t.kind} = 'record'`),
+    index('drive_folders_list_idx').on(t.tenantId, t.parentId, t.name),
+    index('drive_folders_owner_idx').on(t.tenantId, t.ownerId),
+    uniqueIndex('drive_folders_record_uq').on(t.tenantId, t.recordObject, t.recordId).where(sql`${t.kind} = 'record'`),
   ],
 );
 
@@ -36,7 +36,7 @@ export const driveFiles = pgTable(
   'drive_files',
   {
     id: pk(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     folderId: uuid('folder_id').notNull(),
     folderPath: text('folder_path').notNull(),
     name: text('name').notNull(),
@@ -53,20 +53,20 @@ export const driveFiles = pgTable(
     trashedAt: tz('trashed_at'),
   },
   (t) => [
-    index('drive_files_list_idx').on(t.workspaceId, t.folderId, t.name),
-    index('drive_files_recent_idx').on(t.workspaceId, t.ownerId, t.updatedAt.desc()),
-    index('drive_files_record_idx').on(t.workspaceId, t.recordObject, t.recordId),
+    index('drive_files_list_idx').on(t.tenantId, t.folderId, t.name),
+    index('drive_files_recent_idx').on(t.tenantId, t.ownerId, t.updatedAt.desc()),
+    index('drive_files_record_idx').on(t.tenantId, t.recordObject, t.recordId),
   ],
 );
 
-/** Who may use a folder (and everything below it until a Restricted folder). principal = a person, or the whole workspace (id = workspace id). */
+/** Who may use a folder (and everything below it until a Restricted folder). principal = a person, or the whole tenant (id = tenant id). */
 export const driveAccess = pgTable(
   'drive_access',
   {
     id: pk(),
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     folderId: uuid('folder_id').notNull(),
-    principalType: text('principal_type').notNull(), // 'user' | 'workspace'
+    principalType: text('principal_type').notNull(), // 'user' | 'tenant'
     principalId: uuid('principal_id').notNull(),
     role: text('role').notNull(), // viewer | editor | manager
     createdBy: uuid('created_by'),
@@ -74,14 +74,14 @@ export const driveAccess = pgTable(
   },
   (t) => [
     uniqueIndex('drive_access_uq').on(t.folderId, t.principalType, t.principalId),
-    index('drive_access_principal_idx').on(t.workspaceId, t.principalId),
+    index('drive_access_principal_idx').on(t.tenantId, t.principalId),
   ],
 );
 
 export const driveStars = pgTable(
   'drive_stars',
   {
-    workspaceId: uuid('workspace_id').notNull(),
+    tenantId: uuid('tenant_id').notNull(),
     userId: uuid('user_id').notNull(),
     itemType: text('item_type').notNull(), // 'folder' | 'file'
     itemId: uuid('item_id').notNull(),

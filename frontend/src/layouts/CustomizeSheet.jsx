@@ -8,7 +8,7 @@ import { RadioCardGroup } from '../components/ui/RadioCardGroup.jsx';
 import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
 import { Sheet } from '../components/ui/Sheet.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
-import { ThemePicker } from '../components/workspace/ThemePicker.jsx';
+import { ThemePicker } from '../components/tenant/ThemePicker.jsx';
 import { applyCustomColors } from '../lib/customColors.js';
 import { useCustomize } from './CustomizeContext.jsx';
 import { matchesPreset, ThemePresetsSheet } from './ThemePresetsSheet.jsx';
@@ -36,8 +36,8 @@ function OptionControl({ option, value, onChange, onPreview }) {
 }
 
 /**
- * The workspace owner's "Customize" sheet. Everything here is generated from the shared UI_OPTIONS registry (plus the
- * workspace colour theme), applied live, and saved to the workspace in the database for every member. Only owners see it.
+ * The tenant owner's "Customize" sheet. Everything here is generated from the shared UI_OPTIONS registry (plus the
+ * tenant colour theme), applied live, and saved to the tenant in the database for every member. Only owners see it.
  */
 export function CustomizeSheet() {
   const { open, close } = useCustomize();
@@ -64,7 +64,7 @@ export function CustomizeSheet() {
   );
   return (
     <Sheet
-      open={open} onClose={close} title="Customize" description="Changes apply to everyone in this workspace and are saved automatically."
+      open={open} onClose={close} title="Customize" description="Changes apply to everyone in this tenant and are saved automatically."
       footer={(
         <div className="flex items-center justify-between gap-3">
           <span role="status" className="text-xs text-muted">{saved ? 'Saved' : ''}</span>

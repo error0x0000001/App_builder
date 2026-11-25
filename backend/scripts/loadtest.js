@@ -1,5 +1,5 @@
 /**
- * Load test for the Setup API against a seeded perf workspace (see seed-perf.js).
+ * Load test for the Setup API against a seeded perf tenant (see seed-perf.js).
  *   node --env-file=../.env scripts/loadtest.js <token> [seconds=10] [connections=64] [baseUrl=http://127.0.0.1:4000]
  * Prints requests/s and latency percentiles per scenario. The load generator shares the machine with the server, so
  * numbers are conservative for the server alone.

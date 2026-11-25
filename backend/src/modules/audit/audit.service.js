@@ -4,9 +4,9 @@ export class AuditService {
   constructor({ repos, logger }) { this.repos = repos; this.logger = logger; }
 
   /** Never throws: auditing must not break the request it describes. */
-  async record(type, { userId, workspaceId, ctx, metadata } = {}) {
+  async record(type, { userId, tenantId, ctx, metadata } = {}) {
     try {
-      await this.repos.audit.record({ type, userId, workspaceId, ip: ctx?.ip, userAgent: ctx?.userAgent, metadata });
+      await this.repos.audit.record({ type, userId, tenantId, ip: ctx?.ip, userAgent: ctx?.userAgent, metadata });
     } catch (error) {
       this.logger.error({ err: error, type }, 'failed to record audit event');
     }

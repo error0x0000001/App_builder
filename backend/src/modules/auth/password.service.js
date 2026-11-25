@@ -44,7 +44,7 @@ export class PasswordService {
     await this.audit.record(AUDIT_EVENTS.PASSWORD_CHANGED, { userId: user.id, ctx });
   }
 
-  /** Workspace password policy (length, complexity, history) on top of the built-in rules. Returns the policy applied. */
+  /** Tenant password policy (length, complexity, history) on top of the built-in rules. Returns the policy applied. */
   async #enforcePolicy(user, password) {
     const policy = await this.securityPolicy.forUser(user.id);
     this.securityPolicy.assertPasswordAllowed(password, policy);

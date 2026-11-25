@@ -8,7 +8,7 @@ const EXCLUSIVE = new Set(['email', 'storage', 'maps']);
 const TTL_MS = 5_000;
 
 /**
- * A workspace's connections to outside services. The flow is deliberate: save credentials → test them for real → enable. Anything that
+ * A tenant's connections to outside services. The flow is deliberate: save credentials → test them for real → enable. Anything that
  * changes the credentials resets the test and turns the provider off, so a provider is only ever used when it has been proven to work as configured.
  * `resolve()` is what other modules call: it returns the live provider for a category, or null (so features fall back or stay off).
  */
@@ -18,7 +18,7 @@ export class IntegrationsService {
   constructor({ db, secretBox, repos, allowPrivate = false }) { Object.assign(this, { db, secretBox, repos, allowPrivate }); }
 
   async #rows(ws) {
-    const { rows } = await this.db.execute(sql`select provider, enabled, config, secrets_enc, status, status_message, tested_at, version, updated_at from workspace_integrations where workspace_id = ${ws}`);
+    const { rows } = await this.db.execute(sql`select provider, enabled, config, secrets_enc, status, status_message, tested_at, version, updated_at from tenant_integrations where tenant_id = ${ws}`);
     return rows;
   }
 
@@ -36,18 +36,18 @@ export class IntegrationsService {
   }
 
   async #row(ws, key) {
-    const { rows } = await this.db.execute(sql`select * from workspace_integrations where workspace_id = ${ws} and provider = ${key}`);
+    const { rows } = await this.db.execute(sql`select * from tenant_integrations where tenant_id = ${ws} and provider = ${key}`);
     return rows[0] ?? null;
   }
 
   #forget(ws) { for (const k of [...this.#live.keys()]) if (k.startsWith(`${ws}:`)) this.#live.delete(k); }
-  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.workspaceId, ctx.userId, 'integrations', 'update', text); }
+  #audit(ctx, text) { return this.repos?.setupAudit?.record(ctx.tenantId, ctx.userId, 'integrations', 'update', text); }
   #need(key) { const def = getIntegration(key); if (!def) throw new NotFoundError('Unknown integration'); return def; }
 
   /** Saves credentials. Secrets left out keep their stored value. Always lands as "untested" and off. */
   async save(ctx, key, { config, secrets = {} }) {
     const def = this.#need(key);
-    const existing = await this.#row(ctx.workspaceId, key);
+    const existing = await this.#row(ctx.tenantId, key);
     const stored = existing?.secrets_enc ? JSON.parse(this.secretBox.decrypt(existing.secrets_enc)) : {};
     const merged = { ...stored };
     for (const [k, v] of Object.entries(secrets)) if (typeof v === 'string' && v.trim()) merged[k] = v.trim();
@@ -56,13 +56,13 @@ export class IntegrationsService {
     const plain = Object.fromEntries(publicFieldKeys(key).filter((k) => config[k] !== undefined && config[k] !== '').map((k) => [k, config[k]]));
     const enc = this.secretBox.encrypt(JSON.stringify(merged));
     await this.db.execute(sql`
-      insert into workspace_integrations (workspace_id, provider, enabled, config, secrets_enc, status, status_message, updated_by)
-      values (${ctx.workspaceId}, ${key}, false, ${JSON.stringify(plain)}::jsonb, ${enc}, 'untested', null, ${ctx.userId})
-      on conflict (workspace_id, provider) do update set enabled = false, config = excluded.config, secrets_enc = excluded.secrets_enc, status = 'untested', status_message = null,
-        tested_at = null, version = workspace_integrations.version + 1, updated_by = excluded.updated_by, updated_at = now()`);
-    this.#forget(ctx.workspaceId);
+      insert into tenant_integrations (tenant_id, provider, enabled, config, secrets_enc, status, status_message, updated_by)
+      values (${ctx.tenantId}, ${key}, false, ${JSON.stringify(plain)}::jsonb, ${enc}, 'untested', null, ${ctx.userId})
+      on conflict (tenant_id, provider) do update set enabled = false, config = excluded.config, secrets_enc = excluded.secrets_enc, status = 'untested', status_message = null,
+        tested_at = null, version = tenant_integrations.version + 1, updated_by = excluded.updated_by, updated_at = now()`);
+    this.#forget(ctx.tenantId);
     await this.#audit(ctx, `Saved ${def.name} credentials`);
-    return this.#one(ctx.workspaceId, key);
+    return this.#one(ctx.tenantId, key);
   }
 
   async #one(ws, key) { return this.#state(this.#need(key), await this.#row(ws, key)); }
@@ -70,44 +70,44 @@ export class IntegrationsService {
   /** Really checks the credentials against the service and records the outcome. */
   async test(ctx, key) {
     const def = this.#need(key);
-    const row = await this.#row(ctx.workspaceId, key);
+    const row = await this.#row(ctx.tenantId, key);
     if (!row) throw new ConflictError('Save the credentials first');
     const secrets = JSON.parse(this.secretBox.decrypt(row.secrets_enc));
     const result = await testProvider(key, row.config, secrets, { allowPrivate: this.allowPrivate });
     // Only record it if nobody changed the credentials while the test ran.
-    await this.db.execute(sql`update workspace_integrations set status = ${result.ok ? 'connected' : 'error'}, status_message = ${result.message}, tested_at = now(),
-      enabled = case when ${result.ok} then enabled else false end where workspace_id = ${ctx.workspaceId} and provider = ${key} and version = ${row.version}`);
-    this.#forget(ctx.workspaceId);
+    await this.db.execute(sql`update tenant_integrations set status = ${result.ok ? 'connected' : 'error'}, status_message = ${result.message}, tested_at = now(),
+      enabled = case when ${result.ok} then enabled else false end where tenant_id = ${ctx.tenantId} and provider = ${key} and version = ${row.version}`);
+    this.#forget(ctx.tenantId);
     await this.#audit(ctx, `Tested ${def.name}: ${result.ok ? 'connected' : 'failed'}`);
-    return this.#one(ctx.workspaceId, key);
+    return this.#one(ctx.tenantId, key);
   }
 
   /** Turns a provider on (only once it has been tested OK) or off. Turning one on turns the others in its category off. */
   async setEnabled(ctx, key, enabled) {
     const def = this.#need(key);
-    const row = await this.#row(ctx.workspaceId, key);
+    const row = await this.#row(ctx.tenantId, key);
     if (!row) throw new ConflictError('Save the credentials first');
     if (enabled && row.status !== 'connected') throw new ConflictError('Test the connection successfully before turning this on');
     if (enabled && EXCLUSIVE.has(def.category)) {
       const others = INTEGRATIONS.filter((i) => i.category === def.category && i.key !== key).map((i) => i.key);
-      for (const other of others) await this.db.execute(sql`update workspace_integrations set enabled = false where workspace_id = ${ctx.workspaceId} and provider = ${other}`);
+      for (const other of others) await this.db.execute(sql`update tenant_integrations set enabled = false where tenant_id = ${ctx.tenantId} and provider = ${other}`);
     }
-    await this.db.execute(sql`update workspace_integrations set enabled = ${enabled}, updated_by = ${ctx.userId}, updated_at = now() where workspace_id = ${ctx.workspaceId} and provider = ${key}`);
-    this.#forget(ctx.workspaceId);
+    await this.db.execute(sql`update tenant_integrations set enabled = ${enabled}, updated_by = ${ctx.userId}, updated_at = now() where tenant_id = ${ctx.tenantId} and provider = ${key}`);
+    this.#forget(ctx.tenantId);
     await this.#audit(ctx, `${enabled ? 'Turned on' : 'Turned off'} ${def.name}`);
-    return this.list(ctx.workspaceId);
+    return this.list(ctx.tenantId);
   }
 
   async disconnect(ctx, key) {
     const def = this.#need(key);
-    await this.db.execute(sql`delete from workspace_integrations where workspace_id = ${ctx.workspaceId} and provider = ${key}`);
-    this.#forget(ctx.workspaceId);
+    await this.db.execute(sql`delete from tenant_integrations where tenant_id = ${ctx.tenantId} and provider = ${key}`);
+    this.#forget(ctx.tenantId);
     await this.#audit(ctx, `Disconnected ${def.name}`);
-    return this.list(ctx.workspaceId);
+    return this.list(ctx.tenantId);
   }
 
   /**
-   * The live provider of a category for a workspace — enabled AND tested OK — or null. Cached for a few seconds in this process;
+   * The live provider of a category for a tenant — enabled AND tested OK — or null. Cached for a few seconds in this process;
    * changes made here apply immediately, changes made on another worker within TTL_MS.
    */
   async resolve(ws, category) {
@@ -115,7 +115,7 @@ export class IntegrationsService {
     const hit = this.#live.get(k);
     if (hit && hit.until > Date.now()) return hit.value;
     const keys = INTEGRATIONS.filter((i) => i.category === category).map((i) => i.key);
-    const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from workspace_integrations where workspace_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)}) limit 1`);
+    const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from tenant_integrations where tenant_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)}) limit 1`);
     const row = rows[0];
     const value = row ? { key: row.provider, version: row.version, config: row.config, secrets: JSON.parse(this.secretBox.decrypt(row.secrets_enc)) } : null;
     this.#live.set(k, { value, until: Date.now() + TTL_MS });
@@ -128,13 +128,13 @@ export class IntegrationsService {
     const hit = this.#live.get(k);
     if (hit && hit.until > Date.now()) return hit.value;
     const keys = INTEGRATIONS.filter((i) => i.category === category).map((i) => i.key);
-    const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from workspace_integrations where workspace_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)})`);
+    const { rows } = await this.db.execute(sql`select provider, config, secrets_enc, version from tenant_integrations where tenant_id = ${ws} and enabled and status = 'connected' and provider = any(${sql.raw(`array[${keys.map((x) => `'${x}'`).join(',')}]::text[]`)})`);
     const value = rows.map((row) => ({ key: row.provider, version: row.version, config: row.config, secrets: JSON.parse(this.secretBox.decrypt(row.secrets_enc)) }));
     this.#live.set(k, { value, until: Date.now() + TTL_MS });
     return value;
   }
 
-  /** A mail sender for a workspace that has its own live email integration, else null (the platform's default transport is used). */
+  /** A mail sender for a tenant that has its own live email integration, else null (the platform's default transport is used). */
   mailerFor() {
     const transports = new Map();
     return async (ws) => {
