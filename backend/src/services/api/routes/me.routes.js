@@ -17,7 +17,7 @@ export function meRoutes({ features, users, password, sessions, audit, mfa, toke
   const router = Router();
   router.use(authenticate(tokens), blockWhileImpersonating);
 
-  router.get('/', async (req, res) => res.json({ ...(await users.me(req.auth.userId, req.auth.tenantId, req.auth.impersonatedBy)), features }));
+  router.get('/', async (req, res) => res.json({ ...(await users.me(req.auth.userId, req.auth.tenantId, req.auth.impersonatedBy, req.auth.workspaceId)), features }));
   router.patch('/', validate({ body: updateProfileSchema }), async (req, res) => res.json({ user: await users.updateProfile(req.auth.userId, req.valid.body) }));
 
   router.put('/avatar', async (req, res, next) => {

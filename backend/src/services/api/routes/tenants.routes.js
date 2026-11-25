@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { bulkInviteSchema, changeRoleSchema, createTenantSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uiSettingsPatchSchema, uuidField, tenantLookupSchema } from '@app/shared';
+import { bulkInviteSchema, changeRoleSchema, createTenantSchema, onboardingSchema, pageQuerySchema, tenantThemeSchema, uiSettingsPatchSchema, workspaceAssignmentsSchema, workspaceSchema, uuidField, tenantLookupSchema } from '@app/shared';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 
 const tenantParam = z.object({ tenantId: uuidField });
 const memberParams = tenantParam.extend({ userId: uuidField });
+const workspaceParams = tenantParam.extend({ workspaceId: uuidField });
 const invitationParams = tenantParam.extend({ invitationId: uuidField });
 
-export function tenantRoutes({ tenants, invitations, sessions, tokens, repos, rateLimit }) {
+export function tenantRoutes({ tenants, workspaces, invitations, sessions, tokens, repos, rateLimit }) {
   const router = Router();
   const member = (minimumRole) => [validate({ params: tenantParam }), requireTenantRole(repos.memberships, minimumRole)];
 
@@ -27,6 +28,40 @@ export function tenantRoutes({ tenants, invitations, sessions, tokens, repos, ra
 
   router.post('/:tenantId/switch', ...member('viewer'), async (req, res) => {
     res.json(await sessions.switchTenant({ sessionId: req.auth.sessionId, userId: req.auth.userId, tenantId: req.params.tenantId }));
+  });
+
+  // Workspaces inside the organisation: everybody sees the ones they are assigned to; admins manage them and the assignments.
+  router.get('/:tenantId/workspaces', ...member('viewer'), async (req, res) => {
+    res.json({ workspaces: await workspaces.mine(req.params.tenantId, req.auth.userId), currentId: req.auth.workspaceId });
+  });
+  router.get('/:tenantId/workspaces/all', ...member('admin'), async (req, res) => {
+    res.json({ workspaces: await workspaces.list(req.params.tenantId, { archived: req.query.archived === 'true' }) });
+  });
+  router.post('/:tenantId/workspaces', ...member('admin'), validate({ body: workspaceSchema }), async (req, res) => {
+    res.status(201).json({ workspace: await workspaces.create({ tenantId: req.params.tenantId, actorId: req.auth.userId, name: req.valid.body.name }) });
+  });
+  router.patch('/:tenantId/workspaces/:workspaceId', validate({ params: workspaceParams }), requireTenantRole(repos.memberships, 'admin'), validate({ body: workspaceSchema }), async (req, res) => {
+    res.json({ workspace: await workspaces.rename({ tenantId: req.params.tenantId, actorId: req.auth.userId, id: req.params.workspaceId, name: req.valid.body.name }) });
+  });
+  router.post('/:tenantId/workspaces/:workspaceId/archive', validate({ params: workspaceParams }), requireTenantRole(repos.memberships, 'admin'), async (req, res) => {
+    await workspaces.archive({ tenantId: req.params.tenantId, actorId: req.auth.userId, id: req.params.workspaceId });
+    res.status(204).end();
+  });
+  router.post('/:tenantId/workspaces/:workspaceId/restore', validate({ params: workspaceParams }), requireTenantRole(repos.memberships, 'admin'), async (req, res) => {
+    await workspaces.restore({ tenantId: req.params.tenantId, actorId: req.auth.userId, id: req.params.workspaceId });
+    res.status(204).end();
+  });
+  router.get('/:tenantId/workspaces/:workspaceId/members', validate({ params: workspaceParams }), requireTenantRole(repos.memberships, 'admin'), async (req, res) => {
+    res.json({ members: await workspaces.members(req.params.tenantId, req.params.workspaceId) });
+  });
+  router.post('/:tenantId/workspaces/:workspaceId/switch', validate({ params: workspaceParams }), requireTenantRole(repos.memberships, 'viewer'), async (req, res) => {
+    res.json(await sessions.switchWorkspace({ sessionId: req.auth.sessionId, userId: req.auth.userId, tenantId: req.params.tenantId, workspaceId: req.params.workspaceId }));
+  });
+  router.get('/:tenantId/members/:userId/workspaces', validate({ params: memberParams }), requireTenantRole(repos.memberships, 'admin'), async (req, res) => {
+    res.json({ workspaceIds: await workspaces.assignmentsOf(req.params.tenantId, req.params.userId) });
+  });
+  router.put('/:tenantId/members/:userId/workspaces', validate({ params: memberParams }), requireTenantRole(repos.memberships, 'admin'), validate({ body: workspaceAssignmentsSchema }), async (req, res) => {
+    res.json({ workspaces: await workspaces.setAssignments({ tenantId: req.params.tenantId, actorId: req.auth.userId, userId: req.params.userId, workspaceIds: req.valid.body.workspaceIds }) });
   });
 
   router.patch('/:tenantId/onboarding', ...member('admin'), validate({ body: onboardingSchema }), async (req, res) => {

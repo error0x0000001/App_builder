@@ -9,10 +9,13 @@ export class UserService {
     return this.cache.rememberValue(`user:${userId}`, 'email', { ttlMs: 300_000 }, async () => (await this.repos.users.findById(userId))?.email ?? null);
   }
 
-  async me(userId, activeTenantId, impersonatedBy = null) {
-    const [user, tenants] = await Promise.all([this.repos.users.findById(userId), this.repos.memberships.listTenantsForUser(userId)]);
+  async me(userId, activeTenantId, impersonatedBy = null, activeWorkspaceId = null) {
+    const [user, tenants, workspaces] = await Promise.all([
+      this.repos.users.findById(userId), this.repos.memberships.listTenantsForUser(userId),
+      activeTenantId ? this.repos.workspaces.forUser(activeTenantId, userId) : [],
+    ]);
     if (!user) throw new NotFoundError('User not found');
-    return { user: toPublicUser(user), tenants, activeTenantId: activeTenantId ?? null, impersonatedBy };
+    return { user: toPublicUser(user), tenants, activeTenantId: activeTenantId ?? null, workspaces, activeWorkspaceId: workspaces.some((w) => w.id === activeWorkspaceId) ? activeWorkspaceId : null, impersonatedBy };
   }
 
   /** Personal UI preferences (theme mode): merged into the stored object so unrelated preferences are kept. */

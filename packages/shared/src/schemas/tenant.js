@@ -13,6 +13,9 @@ export const onboardingSchema = z.object({
   timezone: optionalChoice(TIMEZONES),
 });
 
+export const workspaceSchema = z.object({ name: nameField('workspace name').pipe(z.string().max(80)) });
+export const workspaceAssignmentsSchema = z.object({ workspaceIds: z.array(z.string().uuid()).min(1).max(100) });
+
 export const tenantThemeSchema = z.object({ theme: z.enum(TENANT_THEME_IDS) });
 
 export const inviteSchema = z.object({ email: emailField, role: z.enum(ASSIGNABLE_ROLES).default('member') });

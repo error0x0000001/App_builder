@@ -5,12 +5,14 @@ import { decodeCursor, encodeCursor, paginate } from '../../shared/pagination.js
 import { assertCanManageMember } from './permissions.js';
 
 export class TenantService {
-  constructor({ repos, uow, sessions, membershipLookup }) { Object.assign(this, { repos, uow, sessions, membershipLookup }); }
+  constructor({ repos, uow, sessions, membershipLookup, workspaces }) { Object.assign(this, { repos, uow, sessions, membershipLookup, workspaces }); }
 
   /** Creates an organisation and its owner membership using the given repos (so callers can compose it into a transaction). */
   async createWithOwner(repos, { name, userId, teamSize }) {
     const tenant = await repos.tenants.create({ name, slug: await this.#uniqueSlug(repos, name), teamSize, createdBy: userId });
     await repos.memberships.add({ tenantId: tenant.id, userId, role: 'owner' });
+    await this.workspaces.createDefault(repos, { tenantId: tenant.id, name: tenant.name });
+    await this.workspaces.assignOnJoin(repos, { tenantId: tenant.id, userId });
     await repos.access.provision(tenant.id, tenant.name); // standard profiles and grants, the role hierarchy's top node, default security policies
     return tenant;
   }

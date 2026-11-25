@@ -7,15 +7,16 @@ const DAY_MS = 86_400_000;
 
 /** Owns the session lifecycle: issue, rotate (with reuse detection), switch tenant, revoke. */
 export class SessionService {
-  constructor({ securityPolicy, repos, tokens, audit, refreshTtlDays, accessTtlSeconds }) {
-    Object.assign(this, { securityPolicy, repos, tokens, audit, refreshTtlMs: refreshTtlDays * DAY_MS, accessTtlSeconds });
+  constructor({ securityPolicy, workspaces, repos, tokens, audit, refreshTtlDays, accessTtlSeconds }) {
+    Object.assign(this, { securityPolicy, workspaces, repos, tokens, audit, refreshTtlMs: refreshTtlDays * DAY_MS, accessTtlSeconds });
   }
 
   async start({ user, tenantId, ctx, persistent = true }) {
     const activeTenantId = tenantId ?? (await this.defaultTenantId(user));
     const secret = randomToken();
+    const workspace = activeTenantId ? await this.workspaces.resolveFor(activeTenantId, user.id) : null;
     const session = await this.repos.sessions.create({
-      userId: user.id, tenantId: activeTenantId ?? null, refreshHash: sha256(secret), persistent,
+      userId: user.id, tenantId: activeTenantId ?? null, workspaceId: workspace?.id ?? null, refreshHash: sha256(secret), persistent,
       ip: ctx.ip, userAgent: ctx.userAgent, expiresAt: new Date(Date.now() + this.refreshTtlMs),
     });
     if (activeTenantId) await this.repos.users.update(user.id, { lastTenantId: activeTenantId });
@@ -70,16 +71,28 @@ export class SessionService {
     if (!target) throw new NotFoundError('Member not found');
     assertCanManageMember({ actorRole: actor.role, targetRole: target.role, newRole: target.role });
     await this.audit.record(AUDIT_EVENTS.IMPERSONATION, { userId: targetUserId, tenantId, ctx, metadata: { by: actor.userId } });
-    return { accessToken: await this.tokens.signAccess({ userId: targetUserId, sessionId, tenantId, role: target.role, actorId: actor.userId, ttlSeconds: 1800 }), expiresIn: 1800 };
+    const workspace = await this.workspaces.resolveFor(tenantId, targetUserId);
+    return { accessToken: await this.tokens.signAccess({ userId: targetUserId, sessionId, tenantId, workspaceId: workspace?.id, role: target.role, actorId: actor.userId, ttlSeconds: 1800 }), expiresIn: 1800 };
   }
 
   /** Moves the session to another tenant the user belongs to and mints a fresh access token. */
   async switchTenant({ sessionId, userId, tenantId }) {
     const membership = await this.repos.memberships.find(tenantId, userId);
     if (!membership) throw new ForbiddenError('You are not a member of this organisation');
-    await this.repos.sessions.setTenant(sessionId, tenantId);
+    const workspace = await this.workspaces.resolveFor(tenantId, userId);
+    await this.repos.sessions.setTenant(sessionId, tenantId, workspace?.id ?? null);
     await this.repos.users.update(userId, { lastTenantId: tenantId });
-    return { accessToken: await this.tokens.signAccess({ userId, sessionId, tenantId, role: membership.role }), expiresIn: this.accessTtlSeconds };
+    return { accessToken: await this.tokens.signAccess({ userId, sessionId, tenantId, workspaceId: workspace?.id, role: membership.role }), expiresIn: this.accessTtlSeconds };
+  }
+
+  /** Moves the session to another workspace the person is assigned to (inside the current tenant). */
+  async switchWorkspace({ sessionId, userId, tenantId, workspaceId }) {
+    const membership = await this.repos.memberships.find(tenantId, userId);
+    if (!membership) throw new ForbiddenError('You are not a member of this organisation');
+    const workspace = (await this.workspaces.mine(tenantId, userId)).find((w) => w.id === workspaceId);
+    if (!workspace) throw new ForbiddenError('You are not assigned to this workspace');
+    await this.repos.sessions.setWorkspace(sessionId, workspace.id);
+    return { accessToken: await this.tokens.signAccess({ userId, sessionId, tenantId, workspaceId: workspace.id, role: membership.role }), expiresIn: this.accessTtlSeconds, workspace };
   }
 
   listActive(userId) { return this.repos.sessions.listActive(userId); }
@@ -94,8 +107,11 @@ export class SessionService {
 
   async #tokensFor(session, refreshSecret) {
     const membership = session.tenantId ? await this.repos.memberships.find(session.tenantId, session.userId) : null;
+    // Assignments can change while a session lives: keep the current workspace only while the person is still assigned to it.
+    const workspace = membership ? await this.workspaces.resolveFor(session.tenantId, session.userId, session.workspaceId) : null;
+    if ((workspace?.id ?? null) !== session.workspaceId) await this.repos.sessions.setWorkspace(session.id, workspace?.id ?? null);
     return {
-      accessToken: await this.tokens.signAccess({ userId: session.userId, sessionId: session.id, tenantId: membership ? session.tenantId : null, role: membership?.role }),
+      accessToken: await this.tokens.signAccess({ userId: session.userId, sessionId: session.id, tenantId: membership ? session.tenantId : null, workspaceId: workspace?.id, role: membership?.role }),
       expiresIn: this.accessTtlSeconds,
       refreshToken: `${session.id}.${refreshSecret}`,
       refreshExpiresAt: session.expiresAt,

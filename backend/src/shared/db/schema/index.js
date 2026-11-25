@@ -13,3 +13,4 @@ export * from './drive.js';
 export * from './chat.js';
 export * from './access.js';
 export * from './integrations.js';
+export * from './workspaces.js';

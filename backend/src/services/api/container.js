@@ -15,6 +15,7 @@ import { MfaService } from '../../modules/mfa/mfa.service.js';
 import { OAuthService } from '../../modules/oauth/oauth.service.js';
 import { SessionService } from '../../modules/sessions/session.service.js';
 import { UserService } from '../../modules/users/user.service.js';
+import { WorkspaceService } from '../../modules/workspaces/workspace.service.js';
 import { TenantService } from '../../modules/tenants/tenant.service.js';
 import { UnitOfWork, createRepositories } from '../../modules/repositories.js';
 import { createRateLimiters } from './middleware/rateLimit.js';
@@ -67,10 +68,11 @@ export function createContainer({ boss }) {
   const mail = new MailService({ boss });
   const audit = new AuditService({ repos, logger });
   const oneTime = new OneTimeTokenService({ repos, pepper: config.JWT_SECRET });
+  const workspaces = new WorkspaceService({ repos, uow });
   const sessions = new SessionService({
-    securityPolicy, repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
+    securityPolicy, workspaces, repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
   });
-  const tenants = new TenantService({ repos, uow, sessions, membershipLookup });
+  const tenants = new TenantService({ repos, uow, sessions, membershipLookup, workspaces });
   const password = new PasswordService({ repos, hasher, oneTime, sessions, mail, audit, securityPolicy, resetTtlMs: config.PASSWORD_RESET_TTL_MINUTES * MINUTE_MS });
   const mfa = new MfaService({ repos, uow, totp, secretBox, hasher, sessions, audit, mail, pepper: config.JWT_SECRET });
   const auth = new AuthService({
@@ -81,7 +83,7 @@ export function createContainer({ boss }) {
       verificationTtlMs: config.VERIFICATION_CODE_TTL_MINUTES * MINUTE_MS,
     },
   });
-  const invitations = new InvitationService({ repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays: config.INVITATION_TTL_DAYS });
+  const invitations = new InvitationService({ repos, uow, workspaces, hasher, sessions, mail, audit, securityPolicy, ttlDays: config.INVITATION_TTL_DAYS });
   const users = new UserService({ repos, cache });
   const oauth = googleEnabled
     ? new OAuthService({
@@ -122,5 +124,5 @@ export function createContainer({ boss }) {
   const deployments = createDeployments({ enabled: config.DEPLOYMENTS_ENABLED, db, secretBox, repos, integrations, notifier, boss, logger });
   const terminals = createTerminals({ deployments, tokens, membershipLookup, logger });
   const features = Object.freeze({ accessAddons: Boolean(addons), deployments: Boolean(deployments) });
-  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, access, securityPolicy, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
+  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, access, securityPolicy, workspaces, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
 }

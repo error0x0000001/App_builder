@@ -225,6 +225,13 @@
       "when": 1795600500000,
       "tag": "0031_policy_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795600600000,
+      "tag": "0032_workspaces",
+      "breakpoints": true
     }
   ]
 }

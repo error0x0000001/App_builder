@@ -10,6 +10,7 @@ export const sessions = pgTable(
     id: pk(),
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+    workspaceId: uuid('workspace_id'), // the workspace the person is currently working in (workspaces.id)
     refreshHash: text('refresh_hash').notNull(),
     prevRefreshHash: text('prev_refresh_hash'), // previous token — presenting it again means theft
     persistent: boolean('persistent').notNull().default(true), // "remember me": persistent vs browser-session cookie

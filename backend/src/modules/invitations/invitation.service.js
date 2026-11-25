@@ -10,8 +10,8 @@ const DAY_MS = 86_400_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export class InvitationService {
-  constructor({ repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays }) {
-    Object.assign(this, { repos, uow, hasher, sessions, mail, audit, securityPolicy, ttlDays });
+  constructor({ repos, uow, workspaces, hasher, sessions, mail, audit, securityPolicy, ttlDays }) {
+    Object.assign(this, { repos, uow, workspaces, hasher, sessions, mail, audit, securityPolicy, ttlDays });
   }
 
   async invite({ actor, tenantId, email, role }) {
@@ -83,6 +83,7 @@ export class InvitationService {
         firstName: profile.firstName, lastName: profile.lastName,
       }));
       await repos.memberships.add({ tenantId: invitation.tenantId, userId: member.id, role: invitation.role });
+      await this.workspaces.assignOnJoin(repos, { tenantId: invitation.tenantId, userId: member.id });
       return member;
     });
     await this.audit.record(AUDIT_EVENTS.INVITATION_ACCEPTED, { userId: user.id, tenantId: invitation.tenantId, ctx });

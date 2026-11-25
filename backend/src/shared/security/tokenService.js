@@ -31,22 +31,22 @@ export class TokenService {
   }
 
   /** `actorId` marks an impersonation token (an admin acting as `userId`); those are short-lived and can't be refreshed. */
-  signAccess({ userId, sessionId, tenantId, role, actorId, ttlSeconds }) {
-    return this.#sign({ typ: 'access', sid: sessionId, wid: tenantId ?? null, role: role ?? null, ...(actorId ? { act: actorId } : {}) }, userId, ttlSeconds ?? this.accessTtlSeconds);
+  signAccess({ userId, sessionId, tenantId, workspaceId, role, actorId, ttlSeconds }) {
+    return this.#sign({ typ: 'access', sid: sessionId, tid: tenantId ?? null, wsp: workspaceId ?? null, role: role ?? null, ...(actorId ? { act: actorId } : {}) }, userId, ttlSeconds ?? this.accessTtlSeconds);
   }
 
   async verifyAccess(token) {
     const p = await this.#verify(token, 'access');
-    return { userId: p.sub, sessionId: p.sid, tenantId: p.wid, role: p.role, impersonatedBy: p.act ?? null };
+    return { userId: p.sub, sessionId: p.sid, tenantId: p.tid, workspaceId: p.wsp ?? null, role: p.role, impersonatedBy: p.act ?? null };
   }
 
   signMfa({ userId, tenantId, persistent = true }) {
-    return this.#sign({ typ: 'mfa', wid: tenantId ?? null, rem: persistent }, userId, 300);
+    return this.#sign({ typ: 'mfa', tid: tenantId ?? null, rem: persistent }, userId, 300);
   }
 
   async verifyMfa(token) {
     const p = await this.#verify(token, 'mfa');
-    return { userId: p.sub, tenantId: p.wid, persistent: p.rem !== false };
+    return { userId: p.sub, tenantId: p.tid, persistent: p.rem !== false };
   }
 
   /** Short-lived signed state for the OAuth round trip (replaces server-side storage). */
