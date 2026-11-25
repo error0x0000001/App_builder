@@ -20,10 +20,10 @@ export default function NewTenantPage() {
     },
   });
   return (
-    <Section title="Create a tenant" description="A tenant is a separate space for a team, with its own members and roles." className="max-w-xl">
+    <Section title="Create an organisation" description="An organisation is a separate space for a team, with its own members and roles." className="max-w-xl">
       <Form form={form} onSubmit={submit} error={formError}>
-        <TextField name="name" label="Tenant name" placeholder="Acme Inc." />
-        <SubmitButton>Create tenant</SubmitButton>
+        <TextField name="name" label="Organisation name" placeholder="Acme Inc." />
+        <SubmitButton>Create organisation</SubmitButton>
       </Form>
     </Section>
   );

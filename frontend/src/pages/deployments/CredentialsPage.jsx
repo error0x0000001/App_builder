@@ -39,7 +39,7 @@ function NewCredential({ onClose, onSaved }) {
   );
 }
 
-/** Registry logins and Git tokens a tenant saves once and picks when creating a service. */
+/** Registry logins and Git tokens an organisation saves once and picks when creating a service. */
 export default function CredentialsPage() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['deployments', 'credentials'], queryFn: deploymentsApi.credentials });

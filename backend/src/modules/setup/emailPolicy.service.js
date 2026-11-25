@@ -1,5 +1,5 @@
 /**
- * Setup → Email pages applied to outgoing mail of a tenant:
+ * Setup → Email pages applied to outgoing mail of an organisation:
  *   Deliverability     access level: All email / System email only / No access
  *   Compliance BCC     copy every (user) email to an address; optionally system email too
  *   Email Footers      footer appended to user-facing automation email

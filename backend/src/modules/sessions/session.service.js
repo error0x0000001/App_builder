@@ -64,7 +64,7 @@ export class SessionService {
 
   /** An admin acts as a member for a short time (Login Access Policies must allow it). Audited and visible to the member; no refresh token. */
   async impersonate({ actor, sessionId, tenantId, targetUserId, ctx }) {
-    if (!(await this.securityPolicy.forTenant(tenantId)).loginAsAnyUser) throw new ForbiddenError('Administrators can’t log in as other users in this tenant (Login Access Policies)');
+    if (!(await this.securityPolicy.forTenant(tenantId)).loginAsAnyUser) throw new ForbiddenError('Administrators can’t log in as other users in this organisation (Login Access Policies)');
     if (targetUserId === actor.userId) throw new ForbiddenError('You are already signed in as yourself');
     const target = await this.repos.memberships.find(tenantId, targetUserId);
     if (!target) throw new NotFoundError('Member not found');
@@ -76,7 +76,7 @@ export class SessionService {
   /** Moves the session to another tenant the user belongs to and mints a fresh access token. */
   async switchTenant({ sessionId, userId, tenantId }) {
     const membership = await this.repos.memberships.find(tenantId, userId);
-    if (!membership) throw new ForbiddenError('You are not a member of this tenant');
+    if (!membership) throw new ForbiddenError('You are not a member of this organisation');
     await this.repos.sessions.setTenant(sessionId, tenantId);
     await this.repos.users.update(userId, { lastTenantId: tenantId });
     return { accessToken: await this.tokens.signAccess({ userId, sessionId, tenantId, role: membership.role }), expiresIn: this.accessTtlSeconds };

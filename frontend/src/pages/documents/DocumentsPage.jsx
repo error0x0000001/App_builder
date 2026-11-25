@@ -31,7 +31,7 @@ import { useUploads } from './useUploads.js';
 const SORTS = [{ value: 'name', label: 'Name' }, { value: 'modified', label: 'Last modified' }];
 const TITLES = { shared: 'Shared with me', recent: 'Recent', starred: 'Starred', trash: 'Trash', all: 'All folders' };
 
-/** Documents: the tenant Drive. State lives in the URL (?view, ?folder, ?file) so every place can be linked, shared and reloaded. */
+/** Documents: the organisation Drive. State lives in the URL (?view, ?folder, ?file) so every place can be linked, shared and reloaded. */
 export default function DocumentsPage() {
   const { activeTenant } = useAuth();
   const navPanel = useNavPanel();

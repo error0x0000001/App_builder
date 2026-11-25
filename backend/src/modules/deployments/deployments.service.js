@@ -565,7 +565,7 @@ export class DeploymentsService {
     if (DATABASE_KINDS.includes(s.kind)) throw new ValidationError(undefined, 'Databases are not published on a domain.');
     try {
       await this.db.execute(sql`insert into dp_domains (id, tenant_id, service_id, host, path, port, https, service_name) values (${uuidv7()}::uuid, ${ctx.tenantId}, ${serviceId}::uuid, ${body.host}, ${body.path}, ${body.port}, ${body.https}, ${body.serviceName ?? null})`);
-    } catch (e) { if (e.code === '23505') throw new ConflictError('That domain and path is already used by a service in this tenant.'); throw e; }
+    } catch (e) { if (e.code === '23505') throw new ConflictError('That domain and path is already used by a service in this organisation.'); throw e; }
     await this.#audit(ctx, `Added domain ${body.host} to “${s.name}”`);
     return this.#reapply(ctx, s, `Domain ${body.host} added`);
   }

@@ -15,12 +15,12 @@ const THEME_OPTIONS = TENANT_THEMES.map(({ id, label, colors }) => ({
   ),
 }));
 
-/** Tenant colour theme chooser: admins pick, everyone in the tenant sees it. Light/dark stays personal. */
+/** Tenant colour theme chooser: admins pick, everyone in the organisation sees it. Light/dark stays personal. */
 export function ThemePicker({ columns }) {
   const { activeTenant, refresh } = useAuth();
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(null); // optimistic selection while saving
-  if (!activeTenant) return <Alert tone="info">Select or create a tenant to change its theme.</Alert>;
+  if (!activeTenant) return <Alert tone="info">Select or create an organisation to change its theme.</Alert>;
   const canEdit = hasRole(activeTenant.role, 'admin');
 
   const choose = async (theme) => {
@@ -39,8 +39,8 @@ export function ThemePicker({ columns }) {
   return (
     <div className="space-y-4">
       {error && <Alert tone="error">{error}</Alert>}
-      <RadioCardGroup name="tenant-theme" label="Tenant theme" value={pending ?? activeTenant.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} columns={columns} />
-      {!canEdit && <p className="text-sm text-muted">Only admins and owners can change the tenant theme.</p>}
+      <RadioCardGroup name="tenant-theme" label="Organisation theme" value={pending ?? activeTenant.theme} onChange={choose} options={THEME_OPTIONS} disabled={!canEdit} columns={columns} />
+      {!canEdit && <p className="text-sm text-muted">Only admins and owners can change the organisation theme.</p>}
     </div>
   );
 }

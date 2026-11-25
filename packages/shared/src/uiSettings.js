@@ -47,7 +47,7 @@ export const UI_OPTIONS = Object.freeze([
 /**
  * Complete colour looks the owner can apply in one click (Customize › Theme presets). Each is a patch of colour options only — layout and
  * style stay as chosen. Brand presets recolour navigation + accent; `kind: 'palette'` presets restyle the whole UI (see palettes.js).
- * `navHex`/`accentHex` null = the built-in light navigation / the tenant's accent theme (or the palette's own accent).
+ * `navHex`/`accentHex` null = the built-in light navigation / the organisation's accent theme (or the palette's own accent).
  */
 export const UI_PRESETS = Object.freeze([
   { id: 'untitled', label: 'Untitled', description: 'The built-in look: light navigation, purple accent.', ui: { palette: 'default', navColor: 'default', navHex: null, accentHex: null } },

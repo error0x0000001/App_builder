@@ -42,7 +42,7 @@ function CompanyStep({ tenant, onSaved }) {
 
 const COPY = [
   { title: (name) => `Welcome${name ? `, ${name}` : ''}! Tell us about you`, text: 'We’ll tailor Quelli to the way you work.' },
-  { title: () => 'About your company', text: 'This is your tenant — you can change it any time.' },
+  { title: () => 'About your company', text: 'This is your organisation — you can change it any time.' },
   { title: () => 'Invite your team', text: 'Teammates get an email to set a password and join. You can also do this later.' },
 ];
 

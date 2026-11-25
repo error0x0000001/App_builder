@@ -14,7 +14,7 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
 export class AutomationService {
   constructor({ repos, cache, mail, logger, settings, notifier = null }) { Object.assign(this, { repos, cache, mail, logger, settings, notifier }); }
 
-  /** Also post to the tenant's connected chat channels (Slack, Teams, Discord, webhook) that asked for this kind of event. */
+  /** Also post to the organisation's connected chat channels (Slack, Teams, Discord, webhook) that asked for this kind of event. */
   #channel(ws, kind, title, text, def, row) {
     return this.notifier?.post(ws, { kind, title, text, link: def && row ? `${config.APP_URL}/app/o/${def.key}?open=${row.id}` : undefined });
   }

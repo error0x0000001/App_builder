@@ -12,7 +12,7 @@ const BUILT_IN_ACCENT = '#7f56d9';
 const KEYS = ['palette', 'navColor', 'navHex', 'accentHex'];
 const DEFAULT_FOR = { palette: 'default', navColor: 'default' };
 
-/** Does the tenant currently look like this preset? (Only the colour options are compared.) */
+/** Does the organisation currently look like this preset? (Only the colour options are compared.) */
 export const matchesPreset = (preset, ui) => KEYS.every((key) => (ui[key] ?? DEFAULT_FOR[key] ?? null) === (preset.ui[key] ?? DEFAULT_FOR[key] ?? null));
 
 /** A tiny mock of the app (rail, panel, page with a card and a button) painted with the preset's own colours, light mode. */
@@ -85,7 +85,7 @@ export function ThemePresetsSheet({ open, onClose }) {
   const palettes = UI_PRESETS.filter((p) => p.kind === 'palette');
 
   return (
-    <Sheet open={open} onClose={onClose} level={1} width="w-[26rem]" title="Theme presets" description="Pick a complete look for everyone in this tenant. You can still fine-tune the colours afterwards.">
+    <Sheet open={open} onClose={onClose} level={1} width="w-[26rem]" title="Theme presets" description="Pick a complete look for everyone in this organisation. You can still fine-tune the colours afterwards.">
       {error && <Alert tone="error">{error}</Alert>}
       <PresetGrid title="Whole-app palettes" hint="Restyle the page, cards, borders and text, light and dark." presets={palettes} ui={ui} pending={pending} onApply={apply} />
       <PresetGrid title="Brand colours" hint="Recolour the navigation and the accent on the built-in look." presets={brand} ui={ui} pending={pending} onApply={apply} />

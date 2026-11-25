@@ -52,7 +52,7 @@ export class DriveService {
   /** What this person may do in a folder: viewer | editor | manager, or null (no access). */
   async roleOn(ctx, folder) {
     if (folder.kind === 'chats') return 'viewer'; // the container of the conversation folders: everyone may open it, but it only ever lists the conversations they are in
-    if (folder.kind === 'chat') return (await this.#isChatMember(ctx, folder.record_id)) ? 'editor' : null; // conversation membership only — not even tenant admins
+    if (folder.kind === 'chat') return (await this.#isChatMember(ctx, folder.record_id)) ? 'editor' : null; // conversation membership only — not even organisation admins
     if (this.#isAdmin(ctx)) return 'manager';
     if (folder.kind === 'record') { // the record's own permission decides — even for whoever created the folder
       try {
@@ -362,7 +362,7 @@ export class DriveService {
     const maxBytes = this.limits.maxUploadBytes;
     if (declaredSize && declaredSize > maxBytes) { stream.resume(); throw new TooLargeError(maxBytes); }
     const used = await this.usedBytes(ctx.tenantId);
-    if (used + (declaredSize ?? 0) > this.limits.quotaBytes) { stream.resume(); throw new ConflictError('This tenant has run out of Documents storage'); }
+    if (used + (declaredSize ?? 0) > this.limits.quotaBytes) { stream.resume(); throw new ConflictError('This organisation has run out of Documents storage'); }
 
     const id = uuidv7();
     const key = `${ctx.tenantId}/${new Date().getUTCFullYear()}/${id}`;
@@ -460,7 +460,7 @@ export class DriveService {
     if (target.kind === 'records' || target.kind === 'record') throw new ValidationError({ folderId: 'Copy into one of your folders' });
     await this.#need(ctx, target, 'editor');
     const used = await this.usedBytes(ctx.tenantId);
-    if (used + Number(file.size) > this.limits.quotaBytes) throw new ConflictError('This tenant has run out of Documents storage');
+    if (used + Number(file.size) > this.limits.quotaBytes) throw new ConflictError('This organisation has run out of Documents storage');
     const newId = uuidv7();
     const key = `${ctx.tenantId}/${new Date().getUTCFullYear()}/${newId}`;
     await this.storage.put(key, this.storage.open(file.storage_key));
@@ -568,7 +568,7 @@ export class DriveService {
     return {
       folder: { id: folder.id, name: folder.name, inherit: folder.inherit, role },
       owner: { id: folder.owner_id, name: `${owner?.first_name ?? ''} ${owner?.last_name ?? ''}`.trim(), email: owner?.email ?? '' },
-      entries: entries.map((e) => ({ principalType: e.principal_type, principalId: e.principal_id, role: e.role, name: e.principal_type === 'tenant' ? 'Everyone in this tenant' : `${e.first_name} ${e.last_name}`.trim(), email: e.email ?? null })),
+      entries: entries.map((e) => ({ principalType: e.principal_type, principalId: e.principal_id, role: e.role, name: e.principal_type === 'tenant' ? 'Everyone in this organisation' : `${e.first_name} ${e.last_name}`.trim(), email: e.email ?? null })),
       inheritedFrom: above,
     };
   }
@@ -587,7 +587,7 @@ export class DriveService {
       if (r.principal_id) out.push(r);
       if (!r.inherit) break;
     }
-    return out.filter((r) => r.principal_id).map((r) => ({ folderId: r.folder_id, folderName: r.folder_name, principalType: r.principal_type, principalId: r.principal_id, role: r.role, name: r.principal_type === 'tenant' ? 'Everyone in this tenant' : `${r.first_name} ${r.last_name}`.trim(), email: r.email ?? null }));
+    return out.filter((r) => r.principal_id).map((r) => ({ folderId: r.folder_id, folderName: r.folder_name, principalType: r.principal_type, principalId: r.principal_id, role: r.role, name: r.principal_type === 'tenant' ? 'Everyone in this organisation' : `${r.first_name} ${r.last_name}`.trim(), email: r.email ?? null }));
   }
 
   /** Replaces the folder's own grants (and, optionally, whether it inherits). Managers only. */
@@ -599,7 +599,7 @@ export class DriveService {
     if (entries.some((e) => e.principalType === 'tenant' && e.principalId !== ctx.tenantId)) throw new ValidationError({ entries: 'Unknown tenant' });
     if (people.length) {
       const members = await this.#rows(sql`select user_id from memberships where tenant_id = ${ctx.tenantId} and user_id = any(${pgArray(people, 'uuid')})`);
-      if (members.length !== new Set(people).size) throw new ValidationError({ entries: 'You can only share with members of this tenant' });
+      if (members.length !== new Set(people).size) throw new ValidationError({ entries: 'You can only share with members of this organisation' });
     }
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`delete from drive_access where folder_id = ${folderId}`);
@@ -718,6 +718,6 @@ export class DriveService {
     return ids.map((id) => byId.get(id));
   }
 
-  /** Members of the tenant matching a name or email (the "Add people" box in the share dialog). */
+  /** Members of the organisation matching a name or email (the "Add people" box in the share dialog). */
   describeKind(file) { return FILE_KIND_LABELS[fileKindOf(file.name, file.mime)]; }
 }

@@ -19,9 +19,9 @@ export default function TenantLoginPage() {
   });
 
   return (
-    <AuthCard title="Find your tenant" description="Enter your tenant URL to go to your company’s login page." footer={<TextLink to="/login">Back to login</TextLink>}>
+    <AuthCard title="Find your organisation" description="Enter your organisation URL to go to your company’s login page." footer={<TextLink to="/login">Back to login</TextLink>}>
       <Form form={form} onSubmit={submit} error={formError}>
-        <TextField name="tenant" label="Tenant URL" prefix="https://" suffix={<span className="text-sm text-muted">.quelli.app</span>} placeholder="your-company" autoCapitalize="none" autoComplete="off" hint="Letters, numbers and hyphens only." />
+        <TextField name="tenant" label="Organisation URL" prefix="https://" suffix={<span className="text-sm text-muted">.quelli.app</span>} placeholder="your-company" autoCapitalize="none" autoComplete="off" hint="Letters, numbers and hyphens only." />
         <SubmitButton fullWidth>Continue</SubmitButton>
       </Form>
     </AuthCard>

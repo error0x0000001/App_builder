@@ -13,7 +13,7 @@ const ownerKey = (def) => def.fields.find((f) => /owner/.test(f.key))?.key;
  * Who may read / create / edit / delete which object, and which records they see.
  *   Grants   — Object Settings rows (object, permission set, Yes/No per action) attach to a container name:
  *              the user's Profile, or any permission set assigned to them in Manage Assignments. Union wins.
- *   Fallback — no grant covers the object → the tenant role's baseline (viewer read, member read/write, admin all).
+ *   Fallback — no grant covers the object → the organisation role's baseline (viewer read, member read/write, admin all).
  *   Sharing  — Organization-Wide Defaults per object: Private = own records only, Public Read Only = everyone reads but only
  *              owners edit, Public Read/Write = open. Admins and owners see everything.
  * Rule lists are cached and versioned per Setup collection, so changing a profile applies on the next request on every worker.

@@ -8,7 +8,7 @@ const EXCLUSIVE = new Set(['email', 'storage', 'maps']);
 const TTL_MS = 5_000;
 
 /**
- * A tenant's connections to outside services. The flow is deliberate: save credentials → test them for real → enable. Anything that
+ * An organisation's connections to outside services. The flow is deliberate: save credentials → test them for real → enable. Anything that
  * changes the credentials resets the test and turns the provider off, so a provider is only ever used when it has been proven to work as configured.
  * `resolve()` is what other modules call: it returns the live provider for a category, or null (so features fall back or stay off).
  */
@@ -107,7 +107,7 @@ export class IntegrationsService {
   }
 
   /**
-   * The live provider of a category for a tenant — enabled AND tested OK — or null. Cached for a few seconds in this process;
+   * The live provider of a category for an organisation — enabled AND tested OK — or null. Cached for a few seconds in this process;
    * changes made here apply immediately, changes made on another worker within TTL_MS.
    */
   async resolve(ws, category) {
@@ -134,7 +134,7 @@ export class IntegrationsService {
     return value;
   }
 
-  /** A mail sender for a tenant that has its own live email integration, else null (the platform's default transport is used). */
+  /** A mail sender for an organisation that has its own live email integration, else null (the platform's default transport is used). */
   mailerFor() {
     const transports = new Map();
     return async (ws) => {

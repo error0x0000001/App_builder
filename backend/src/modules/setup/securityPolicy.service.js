@@ -44,7 +44,7 @@ export class SecurityPolicyService {
     };
   }
 
-  /** Strictest combination over every tenant the user belongs to (or the built-in defaults when they have none). */
+  /** Strictest combination over every organisation the user belongs to (or the built-in defaults when they have none). */
   async forUser(userId) {
     const tenants = await this.repos.memberships.listTenantsForUser(userId);
     if (!tenants.length) return { minLength: PASSWORD_MIN, complexity: 0, historyCount: 0, expireMs: null, minLifetime: false, sessionTimeoutMs: null, lockIp: false, maxAttempts: this.defaults.maxAttempts, lockMs: this.defaults.lockMs };
@@ -84,7 +84,7 @@ export class SecurityPolicyService {
     for (const hash of hashes) if (await hasher.verify(hash, password)) throw new ValidationError([{ field: 'password', message: `You can't reuse your last ${policy.historyCount} passwords` }], 'Choose a password you have not used recently');
   }
 
-  /** Trusted IP ranges of a tenant. Empty list = no restriction. */
+  /** Trusted IP ranges of an organisation. Empty list = no restriction. */
   ranges(ws) {
     return this.cache.rememberValue(`r:${ws}:network-access`, 'ranges', { ttlMs: 30_000 }, async () =>
       (await this.repos.setupRecords.listAll(ws, 'network-access')).map((r) => ({ start: r.data.start_ip_address, end: r.data.end_ip_address || r.data.start_ip_address })));
@@ -93,6 +93,6 @@ export class SecurityPolicyService {
   async assertIpAllowed(ws, ip) {
     if (!ws) return;
     const ranges = await this.ranges(ws);
-    if (ranges.length && !ranges.some((r) => ipInRange(ip, r.start, r.end))) throw new ForbiddenError('Sign-in from this network is not allowed for this tenant', 'IP_RESTRICTED');
+    if (ranges.length && !ranges.some((r) => ipInRange(ip, r.start, r.end))) throw new ForbiddenError('Sign-in from this network is not allowed for this organisation', 'IP_RESTRICTED');
   }
 }

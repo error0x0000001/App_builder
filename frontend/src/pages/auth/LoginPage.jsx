@@ -40,12 +40,12 @@ export default function LoginPage() {
   return (
     <AuthCard
       title={tenant.data ? `Sign in to ${tenant.data.name}` : 'Welcome back'}
-      description="Sign in to access your Quelli tenant"
-      footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/tenant">Use tenant URL</TextLink></>}
+      description="Sign in to access your Quelli organisation"
+      footer={<>Don’t have an account? <TextLink to="/signup" className="font-semibold text-ink">Sign up</TextLink> · <TextLink to="/login/tenant">Use organisation URL</TextLink></>}
     >
       {params.get('error') === 'oauth' && <Alert tone="error">Google sign-in failed. Please try again.</Alert>}
       {location.state?.notice && <Alert tone="success">{location.state.notice}</Alert>}
-      {slug && tenant.isError && <Alert tone="warning">We couldn’t find that tenant, so you’ll sign in to your default one.</Alert>}
+      {slug && tenant.isError && <Alert tone="warning">We couldn’t find that organisation, so you’ll sign in to your default one.</Alert>}
       <Form form={form} onSubmit={submit} error={formError}>
         <TextField name="email" label="Email" type="email" placeholder="you@example.com" autoComplete="username" inputMode="email" prefix={<Icon name="mail" />} />
         <PasswordField name="password" label="Password" placeholder="••••••••" autoComplete="current-password" prefix={<Icon name="lock" />} />

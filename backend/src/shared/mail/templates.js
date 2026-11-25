@@ -16,7 +16,7 @@ export const TEMPLATES = Object.freeze({
   password_expired: ({ url, ttlMinutes }) => ({
     subject: 'Choose a new Quelli password',
     heading: 'Your password has expired',
-    paragraphs: ['An administrator expired all passwords in your tenant. You were signed out everywhere — choose a new password to continue.'],
+    paragraphs: ['An administrator expired all passwords in your organisation. You were signed out everywhere — choose a new password to continue.'],
     cta: { label: 'Choose a new password', url },
     footnote: `The link expires in ${ttlMinutes} minutes and can be used once.`,
   }),

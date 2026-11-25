@@ -7,7 +7,7 @@ import { NotFoundError } from '../../shared/errors.js';
 const PROFILE_BY_ROLE = { owner: 'System Administrator', admin: 'System Administrator', member: 'Standard User', viewer: 'Read Only' };
 const device = (ua) => { const p = parseUserAgent(ua ?? ''); return { browser: p.browser ?? 'Unknown browser', os: p.os ?? 'Unknown system' }; };
 
-/** Everything the "user details" page shows about one member of this tenant — their access, devices, sign-ins and the Setup changes they made. */
+/** Everything the "user details" page shows about one member of this organisation — their access, devices, sign-ins and the Setup changes they made. */
 export class UserDetailsService {
   constructor({ db, repos, cache, addons = null }) { Object.assign(this, { db, repos, cache, addons }); }
 
@@ -17,7 +17,7 @@ export class UserDetailsService {
              m.role, m.profile, m.created_at as joined_at
       from memberships m join users u on u.id = m.user_id where m.tenant_id = ${ws} and m.user_id = ${userId}::uuid`);
     const u = rows[0];
-    if (!u) throw new NotFoundError('That person is not a member of this tenant');
+    if (!u) throw new NotFoundError('That person is not a member of this organisation');
     const [sessions, logins, changes, counts] = await Promise.all([
       this.db.execute(sql`select id, ip, user_agent, created_at, last_used_at from sessions where tenant_id = ${ws} and user_id = ${userId}::uuid and revoked_at is null and expires_at > now() order by last_used_at desc limit 20`),
       this.db.execute(sql`select id, ip, user_agent, created_at from auth_events where tenant_id = ${ws} and user_id = ${userId}::uuid and type = 'login_success' order by id desc limit 8`),
@@ -39,10 +39,10 @@ export class UserDetailsService {
     };
   }
 
-  /** Ends this person's sessions in this tenant (all, or the given ones) and records it in the audit trail. */
+  /** Ends this person's sessions in this organisation (all, or the given ones) and records it in the audit trail. */
   async signOut(ctx, userId, ids) {
     const member = await this.db.execute(sql`select 1 from memberships where tenant_id = ${ctx.tenantId} and user_id = ${userId}::uuid`);
-    if (!member.rows.length) throw new NotFoundError('That person is not a member of this tenant');
+    if (!member.rows.length) throw new NotFoundError('That person is not a member of this organisation');
     const { rowCount } = await this.db.execute(sql`
       update sessions set revoked_at = now(), revoked_reason = 'admin_revoked'
       where tenant_id = ${ctx.tenantId} and user_id = ${userId}::uuid and revoked_at is null ${ids?.length ? sql`and id = any(${pgArray(ids, 'uuid')})` : sql``}`);

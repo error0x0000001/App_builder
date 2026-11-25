@@ -9,7 +9,7 @@ const guard = (memberships, minimumRole, tenantIdOf) => async (req, res, next) =
   try {
     const tenantId = tenantIdOf(req);
     const membership = tenantId && (await memberships.find(tenantId, req.auth.userId));
-    if (!membership) throw new NotFoundError('Tenant not found'); // don't reveal tenants the caller can't see
+    if (!membership) throw new NotFoundError('Organisation not found'); // don't reveal tenants the caller can't see
     if (!hasRole(membership.role, minimumRole)) throw new ForbiddenError();
     req.membership = membership;
     next();

@@ -20,7 +20,7 @@ export class MetricsService {
       'storage-usage': (ws) => this.#storage(ws),
       'platform-cache': () => this.#platformCache(),
       optimizer: (ws) => this.#optimizer(ws),
-      'readiness-assessor': () => notEnabled('Einstein readiness', 'Scoring models are not enabled for this tenant'),
+      'readiness-assessor': () => notEnabled('Einstein readiness', 'Scoring models are not enabled for this organisation'),
       'data-integration-metrics': (ws) => this.#integration(ws),
       'data-com-licenses-and-limits': () => notEnabled('Data.com', 'This add-on is not part of Quelli'),
       'lightning-experience-transition-assistant': () => notEnabled('Transition assistant', 'Not applicable — every user is already on the current experience'),
@@ -92,7 +92,7 @@ export class MetricsService {
     return { cards: [{ k: 'Integration rules', v: n(counts['data-integration-rules'] ?? 0) }, { k: 'Duplicate rules', v: n(counts['duplicate-rules'] ?? 0) }, { k: 'Matching rules', v: n(counts['matching-rules'] ?? 0) }], bars: [], table: null };
   }
 
-  /** The Setup landing dashboard: limits, KPIs with trends, 14 days of activity, what the tenant is made of, recent changes and what needs attention. */
+  /** The Setup landing dashboard: limits, KPIs with trends, 14 days of activity, what the organisation is made of, recent changes and what needs attention. */
   async #overview(ws) {
     const COMPONENTS = [['profiles', 'Profiles'], ['roles', 'Roles'], ['permission-sets', 'Permission sets'], ['flows', 'Flows'], ['workflow-rules', 'Workflow rules'], ['validation-rules', 'Validation rules'], ['apex-triggers', 'Triggers']];
     const day = (ms) => new Date(ms).toISOString().slice(0, 10);

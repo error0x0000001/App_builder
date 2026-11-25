@@ -218,7 +218,7 @@ export const rollbackCommand = (appName, image) => `docker image inspect ${q(ima
 export const execInServiceCommand = (appName, command) => `docker exec $(docker ps -q --filter ${q(`name=${appName}_app`)} | head -1) sh -c ${q(command)}`;
 export const serverStatsCommand = "echo \"cpu $(top -bn1 | awk '/Cpu\\(s\\)/ {print 100-$8}')\"; free -m | awk '/Mem:/ {print \"mem\", $3, $2}'; df -P / | awk 'NR==2 {print \"disk\", $3, $2}'; uptime -p";
 
-/** A database dump uploaded with rclone to the S3-compatible storage the tenant connected. Credentials go in as environment, not arguments. */
+/** A database dump uploaded with rclone to the S3-compatible storage the organisation connected. Credentials go in as environment, not arguments. */
 export function backupCommand({ kind, appName, database, storage, keep, prefix, stamp }) {
   const d = DATABASE_DEFAULTS[kind];
   const file = `${appName}-${stamp}.${kind === 'mongo' ? 'archive.gz' : kind === 'redis' ? 'rdb' : 'sql.gz'}`;

@@ -22,7 +22,7 @@ export class MembershipRepository {
       .where(eq(memberships.userId, userId)).orderBy(asc(memberships.createdAt)).limit(100);
   }
 
-  /** Keyset pagination on (created_at, user_id) — O(limit) regardless of tenant size. */
+  /** Keyset pagination on (created_at, user_id) — O(limit) regardless of organisation size. */
   listMembers(tenantId, { limit, after }) {
     const cursor = after ? sql`and (${memberships.createdAt}, ${memberships.userId}) > (${after.createdAt}::timestamptz, ${after.userId}::uuid)` : sql``;
     return this.db.select({

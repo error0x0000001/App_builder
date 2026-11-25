@@ -73,7 +73,7 @@ export class InvitationService {
     if (!existing && !(profile.firstName && profile.lastName && profile.password && profile.acceptTerms)) {
       throw new ValidationError(undefined, 'Complete your profile to accept this invitation');
     }
-    if (!existing) this.securityPolicy.assertPasswordAllowed(profile.password, await this.securityPolicy.forTenant(invitation.tenantId)); // the tenant's Password Policies apply to people it invites
+    if (!existing) this.securityPolicy.assertPasswordAllowed(profile.password, await this.securityPolicy.forTenant(invitation.tenantId)); // the organisation's Password Policies apply to people it invites
     const passwordHash = existing ? null : await this.hasher.hash(profile.password);
 
     const user = await this.uow.run(async (repos) => {

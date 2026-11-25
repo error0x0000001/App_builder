@@ -12,7 +12,7 @@ const list = (values) => sql.join(values.map((v) => sql`${v}`), sql`, `);
  *  - A person's sets are ONE primary-key prefix lookup, memoised in a bounded in-process map (`peek` is synchronous and allocation-free),
  *    so the access check stays far below a millisecond once warm. A write drops the entry on this worker; other workers pick it up
  *    within `ttlMs` (the same <= 5 s convergence the rest of the access cache has).
- *  - Nothing here loads "every assignment in the tenant" — that is the pattern this replaces for new assignments.
+ *  - Nothing here loads "every assignment in the organisation" — that is the pattern this replaces for new assignments.
  *  - Counts are exact and never capped. They accept several conditions at once (see `count`).
  *
  * `createAccessAddons({ enabled })` returns null when the feature is off: nothing is constructed, routed, queried or shown.
@@ -43,7 +43,7 @@ class AccessAddonsService {
     const task = (async () => {
       const { rows } = await this.db.execute(sql`select permission_set from user_permission_sets where tenant_id = ${ws} and user_id = ${userId}::uuid`);
       const sets = rows.map((r) => r.permission_set);
-      if (this.#map.size >= this.max) this.#map.delete(this.#map.keys().next().value); // oldest first; bounded memory at any tenant size
+      if (this.#map.size >= this.max) this.#map.delete(this.#map.keys().next().value); // oldest first; bounded memory at any organisation size
       this.#map.set(k, { sets, until: Date.now() + this.ttlMs });
       return sets;
     })().finally(() => this.#inflight.delete(k));
@@ -82,7 +82,7 @@ class AccessAddonsService {
 
   async #member(ws, userId) {
     const { rows } = await this.db.execute(sql`select u.email from memberships m join users u on u.id = m.user_id where m.tenant_id = ${ws} and m.user_id = ${userId}::uuid`);
-    if (!rows.length) throw new NotFoundError('That person is not a member of this tenant');
+    if (!rows.length) throw new NotFoundError('That person is not a member of this organisation');
     return rows[0].email;
   }
 

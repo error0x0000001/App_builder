@@ -44,7 +44,7 @@ export class ChatService {
     const unique = [...new Set(ids)];
     if (!unique.length) return unique;
     const rows = await this.#rows(sql`select user_id from memberships where tenant_id = ${ctx.tenantId} and user_id = any(${pgArray(unique, 'uuid')})`);
-    if (rows.length !== unique.length) throw new ValidationError({ userIds: 'Everyone must be a member of this tenant' });
+    if (rows.length !== unique.length) throw new ValidationError({ userIds: 'Everyone must be a member of this organisation' });
     return unique;
   }
 
@@ -290,7 +290,7 @@ export class ChatService {
 
   /** Compliance: only tenant owners/admins can freeze a conversation. While held, nothing in it can be deleted or edited-for-everyone. */
   async setLegalHold(ctx, conversationId, on) {
-    if (!this.#isAdmin(ctx)) throw new ForbiddenError('Only tenant admins can place a legal hold');
+    if (!this.#isAdmin(ctx)) throw new ForbiddenError('Only organisation admins can place a legal hold');
     const [row] = await this.#rows(sql`update chat_conversations set legal_hold = ${on} where id = ${conversationId} and tenant_id = ${ctx.tenantId} returning id`);
     if (!row) throw new NotFoundError('Conversation not found');
     await this.#announce(conversationId, { type: 'conversation.updated' });

@@ -81,7 +81,7 @@ function PendingInvitations({ tenantId }) {
 
 export default function MembersPage() {
   const { activeTenant, user } = useAuth();
-  if (!activeTenant) return <Alert tone="info">Select or create a tenant to manage its members.</Alert>;
+  if (!activeTenant) return <Alert tone="info">Select or create an organisation to manage its members.</Alert>;
   const canInvite = hasRole(activeTenant.role, 'admin');
   return (
  <>

@@ -62,7 +62,7 @@ export function AuthProvider({ children }) {
     return loadMe();
   }, [loadMe, queryClient]);
 
-  /** Owner's UI customization: applied at once, saved to the tenant, rolled back if the server refuses it. */
+  /** Owner's UI customization: applied at once, saved to the organisation, rolled back if the server refuses it. */
   const updateUi = useCallback(async (patch) => {
     const tenantId = me?.activeTenantId;
     const apply = (settings) => setMe((prev) => prev && ({ ...prev, tenants: prev.tenants.map((w) => (w.id === tenantId ? { ...w, uiSettings: settings } : w)) }));
@@ -85,14 +85,14 @@ export function AuthProvider({ children }) {
 
   const activeTheme = me?.tenants.find((w) => w.id === me.activeTenantId)?.theme;
   useEffect(() => {
-    // Tenant theme only applies inside the app; sign-in screens always use the default.
+    // Organisation theme only applies inside the app; sign-in screens always use the default.
     if (status === 'authenticated' && activeTheme) document.documentElement.dataset.tenantTheme = activeTheme;
     else delete document.documentElement.dataset.tenantTheme;
   }, [status, activeTheme]);
 
   const storedUi = me?.tenants.find((w) => w.id === me.activeTenantId)?.uiSettings;
   useEffect(() => {
-    // Navigation colour and the owner's custom colours only apply inside the app, like the tenant theme.
+    // Navigation colour and the owner's custom colours only apply inside the app, like the organisation theme.
     applyCustomColors(status === 'authenticated' ? resolveUiSettings(storedUi) : null);
   }, [status, storedUi]);
 

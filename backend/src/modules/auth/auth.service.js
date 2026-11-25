@@ -142,7 +142,7 @@ export class AuthService {
   async #resolveTenant(user, slug) {
     if (!slug) return undefined;
     const tenant = await this.repos.tenants.findBySlug(slug);
-    if (!tenant || !(await this.repos.memberships.find(tenant.id, user.id))) throw new ForbiddenError('You are not a member of this tenant');
+    if (!tenant || !(await this.repos.memberships.find(tenant.id, user.id))) throw new ForbiddenError('You are not a member of this organisation');
     return tenant.id;
   }
 

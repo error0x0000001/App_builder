@@ -7,7 +7,7 @@ import { assertCanManageMember } from './permissions.js';
 export class TenantService {
   constructor({ repos, uow, sessions, membershipLookup }) { Object.assign(this, { repos, uow, sessions, membershipLookup }); }
 
-  /** Creates a tenant and its owner membership using the given repos (so callers can compose it into a transaction). */
+  /** Creates an organisation and its owner membership using the given repos (so callers can compose it into a transaction). */
   async createWithOwner(repos, { name, userId, teamSize }) {
     const tenant = await repos.tenants.create({ name, slug: await this.#uniqueSlug(repos, name), teamSize, createdBy: userId });
     await repos.memberships.add({ tenantId: tenant.id, userId, role: 'owner' });
@@ -19,13 +19,13 @@ export class TenantService {
 
   async lookupBySlug(slug) {
     const tenant = await this.repos.tenants.findBySlug(slug);
-    if (!tenant) throw new NotFoundError('We couldn’t find that tenant');
+    if (!tenant) throw new NotFoundError('We couldn’t find that organisation');
     return { name: tenant.name, slug: tenant.slug };
   }
 
   async get(tenantId) {
     const tenant = await this.repos.tenants.findById(tenantId);
-    if (!tenant) throw new NotFoundError('Tenant not found');
+    if (!tenant) throw new NotFoundError('Organisation not found');
     return tenant;
   }
 
@@ -95,7 +95,7 @@ export class TenantService {
   }
 
   async #assertNotLastOwner(tenantId) {
-    if ((await this.repos.memberships.countOwners(tenantId)) <= 1) throw new ConflictError('A tenant needs at least one owner');
+    if ((await this.repos.memberships.countOwners(tenantId)) <= 1) throw new ConflictError('An organisation needs at least one owner');
   }
 
   async #uniqueSlug(repos, name) {
@@ -104,6 +104,6 @@ export class TenantService {
       const candidate = attempt === 0 && base.length >= 3 && !isReservedSlug(base) ? base : `${base}-${randomToken(3).toLowerCase().replace(/[^a-z0-9]/g, 'x')}`.slice(0, 40);
       if (!(await repos.tenants.slugExists(candidate))) return candidate;
     }
-    throw new ConflictError('Could not allocate a tenant URL, please retry');
+    throw new ConflictError('Could not allocate an organisation URL, please retry');
   }
 }

@@ -45,7 +45,7 @@ export class SettingsBindings {
         tables: {
           Licenses: async (ws) => {
             const members = await this.repos.memberships.countMembers(ws);
-            return [{ license: 'User Licenses', type: 'Tenant member', total: 'Unlimited', used: String(members), remaining: '∞' }];
+            return [{ license: 'User Licenses', type: 'Organisation member', total: 'Unlimited', used: String(members), remaining: '∞' }];
           },
         },
       },
@@ -57,7 +57,7 @@ export class SettingsBindings {
         readOnly: ['current_my_domain_url', 'domain_type', 'status', 'domain_created'],
         read: async (ws) => {
           const w = await tenant(ws);
-          return { current_my_domain_url: `${w.slug}.${this.appHost}`, domain_type: 'Tenant subdomain', status: 'Deployed to users', domain_created: date(w.createdAt) };
+          return { current_my_domain_url: `${w.slug}.${this.appHost}`, domain_type: 'Organisation subdomain', status: 'Deployed to users', domain_created: date(w.createdAt) };
         },
       },
     };

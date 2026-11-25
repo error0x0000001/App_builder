@@ -17,7 +17,7 @@ const messageParams = z.object({ id: uuidField, messageId: uuidField });
 const memberParams = z.object({ id: uuidField, userId: uuidField });
 const codeParams = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/) });
 
-/** Chat. Any tenant member may call; the service authorises per conversation (membership is the only rule). */
+/** Chat. Any organisation member may call; the service authorises per conversation (membership is the only rule). */
 export function chatRoutes({ tokens, membershipLookup, cache, chat, presence, calls, drive, icons, linkPreviews }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));

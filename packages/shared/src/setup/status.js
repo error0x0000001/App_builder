@@ -40,7 +40,7 @@ export function setupStatus(p) {
   const all = p.sections?.flatMap((s) => s.fields ?? []) ?? [];
   const consumed = CONSUMED_SETTINGS[p.key];
   if (ADAPTER_META[p.key]) return { status: 'Real platform data', level: 'real', note: 'Reads / writes the real table (users, sessions, logins, audit, schedules).' };
-  if (BINDINGS.has(p.key)) return { status: 'Real platform data', level: 'real', note: 'Bound to the tenant record.' };
+  if (BINDINGS.has(p.key)) return { status: 'Real platform data', level: 'real', note: 'Bound to the organisation record.' };
   if (RULE_COLLECTIONS[p.key]) return { status: 'Rule engine (runs on records)', level: 'real', note: `Kind: ${RULE_COLLECTIONS[p.key].kind}. An Active rule with its criteria and action filled in acts on matching records; others are inert.` };
   if (ENGINE_OUTPUT[p.key]) return { status: 'Rule engine (runs on records)', level: 'real', note: ENGINE_OUTPUT[p.key] };
   if (ACCESS_PAGES[p.key]) return { status: 'Working (enforced)', level: 'real', note: ACCESS_PAGES[p.key] };

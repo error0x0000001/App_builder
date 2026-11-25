@@ -42,7 +42,7 @@ export class UsageMeter {
     return hours;
   }
 
-  /** Calls in the last 24 hours for a tenant. */
+  /** Calls in the last 24 hours for an organisation. */
   async last24h(tenantId) { return (await this.hourly24(tenantId)).reduce((a, b) => a + b, 0); }
 
   stop() { clearInterval(this.timer); }

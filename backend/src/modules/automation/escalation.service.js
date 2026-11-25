@@ -11,7 +11,7 @@ const BATCH = 500;
 export class EscalationService {
   constructor({ repos, automation, cache, logger }) { Object.assign(this, { repos, automation, cache, logger }); }
 
-  /** Elapsed-time function for a tenant: business hours if configured, wall clock otherwise. */
+  /** Elapsed-time function for an organisation: business hours if configured, wall clock otherwise. */
   async #clock(ws) {
     const hours = (await this.automation.rules(ws, 'business-hours')).findLast( // if several rows claim to be the default, the newest (most recently configured) wins
       (h) => h.data.active === 'Active' && String(h.data.default).toLowerCase() === 'yes');

@@ -53,7 +53,7 @@ function Dashboard({ o }) {
   return (
     <div className="space-y-4">
       <section aria-label="Key numbers" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi icon="users" color="blue" label="Members" value={kpi.members.value} note={<p className="text-sm text-muted">People in this tenant</p>} to="/app/members" />
+        <Kpi icon="users" color="blue" label="Members" value={kpi.members.value} note={<p className="text-sm text-muted">People in this organisation</p>} to="/app/members" />
         <Kpi icon="user" color="success" label="Active users" value={kpi['active-users'].value} trend={<TrendBadge value={kpi['active-users'].series.slice(7).reduce((a, b) => a + b, 0)} previous={kpi['active-users'].previous} />} series={kpi['active-users'].series} />
         <Kpi icon="key" color="purple" label="Sign-ins" value={kpi.logins.value} trend={<TrendBadge value={kpi.logins.value} previous={kpi.logins.previous} />} series={kpi.logins.series} />
         <Kpi icon="edit" color="orange" label="Changes" value={kpi.changes.value} trend={<TrendBadge value={kpi.changes.value} previous={kpi.changes.previous} />} series={kpi.changes.series} />

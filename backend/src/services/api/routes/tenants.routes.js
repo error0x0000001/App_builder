@@ -13,7 +13,7 @@ export function tenantRoutes({ tenants, invitations, sessions, tokens, repos, ra
   const router = Router();
   const member = (minimumRole) => [validate({ params: tenantParam }), requireTenantRole(repos.memberships, minimumRole)];
 
-  // Public: powers "sign in to your tenant" by URL.
+  // Public: powers "sign in to your organisation" by URL.
   router.get('/lookup', rateLimit.ip('lookup', 30, 15 * 60), validate({ query: tenantLookupSchema }), async (req, res) => {
     res.json(await tenants.lookupBySlug(req.valid.query.tenant));
   });
@@ -37,7 +37,7 @@ export function tenantRoutes({ tenants, invitations, sessions, tokens, repos, ra
     res.json({ tenant: await tenants.updateTheme(req.params.tenantId, req.valid.body.theme) });
   });
 
-  // Customize sheet: only the tenant owner changes how the whole tenant looks.
+  // Customize sheet: only the organisation owner changes how the whole tenant looks.
   router.patch('/:tenantId/ui', ...member('owner'), validate({ body: uiSettingsPatchSchema }), async (req, res) => {
     const tenant = await tenants.updateUiSettings(req.params.tenantId, req.valid.body);
     res.json({ tenant: { id: tenant.id, uiSettings: tenant.uiSettings } });

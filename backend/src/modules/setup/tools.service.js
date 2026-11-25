@@ -114,7 +114,7 @@ export class ToolsService {
 
   async #member(ws, email) {
     const user = await this.repos.users.findByEmail(email.toLowerCase());
-    if (!user || !(await this.repos.memberships.find(ws, user.id))) throw new ValidationError(undefined, `${email} is not a member of this tenant`);
+    if (!user || !(await this.repos.memberships.find(ws, user.id))) throw new ValidationError(undefined, `${email} is not a member of this organisation`);
     return user.id;
   }
 
@@ -146,7 +146,7 @@ export class ToolsService {
   async #testEmail(ctx, { email }) {
     const reason = this.emailPolicy.blockedReason(await this.emailPolicy.forTenant(ctx.tenantId), 'user');
     if (reason) return { ok: false, active: true, message: `Not sent: ${reason}.` }; // the real deliverability result, not a fake success
-    await this.mail.send('test_email', email.toLowerCase(), { tenant: ctx.tenantName ?? 'your tenant' }, { tenantId: ctx.tenantId, kind: 'user' });
+    await this.mail.send('test_email', email.toLowerCase(), { tenant: ctx.tenantName ?? 'your organisation' }, { tenantId: ctx.tenantId, kind: 'user' });
     return { ok: true, active: true, message: `A test email was queued for ${email}.` };
   }
 

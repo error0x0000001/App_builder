@@ -93,6 +93,6 @@ export const AUDIT_EVENT_LABELS = Object.freeze({
   refresh_token_reuse: 'Suspicious session activity — session revoked',
   account_locked: 'Account temporarily locked',
   oauth_login: 'Signed in with Google',
-  invitation_accepted: 'Joined a tenant',
+  invitation_accepted: 'Joined an organisation',
   impersonation: 'An administrator signed in as you',
 });

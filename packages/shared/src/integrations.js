@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Integrations: outside services a tenant connects with its own credentials. One registry describes every provider — what it is,
+ * Integrations: outside services an organisation connects with its own credentials. One registry describes every provider — what it is,
  * which fields it needs, which are secret — and both the API (validation, what is encrypted) and the UI (the form) are generated from it.
  * Add a provider = one entry here + one `test` in backend/src/modules/integrations/testers.js.
  *
@@ -44,8 +44,8 @@ const S3_FIELDS = [
 export const INTEGRATIONS = Object.freeze([
   {
     key: 'smtp', tile: 'SMTP', category: 'email', name: 'SMTP', hue: 'blue', live: true,
-    description: 'Send through any mail server: Hostinger, Zoho, Google Tenant, Microsoft 365, your own.',
-    uses: ['Invitations and sign-in codes for this tenant', 'Automation, workflow and approval email', 'Test emails from Email settings'],
+    description: 'Send through any mail server: Hostinger, Zoho, Google Workspace, Microsoft 365, your own.',
+    uses: ['Invitations and sign-in codes for this organisation', 'Automation, workflow and approval email', 'Test emails from Email settings'],
     fields: [
       text('host', 'Server', { required: true, kind: 'host', placeholder: 'smtp.hostinger.com' }),
       { key: 'port', label: 'Port', type: 'number', required: true, default: 587, min: 1, max: 65535 },
@@ -58,7 +58,7 @@ export const INTEGRATIONS = Object.freeze([
   {
     key: 'ses', tile: 'SES', category: 'email', name: 'Amazon SES', hue: 'orange', live: true,
     description: 'Amazon Simple Email Service through its SMTP interface. Use the SMTP credentials from the SES console, not your AWS keys.',
-    uses: ['Invitations and sign-in codes for this tenant', 'Automation, workflow and approval email', 'High-volume sending at SES prices'],
+    uses: ['Invitations and sign-in codes for this organisation', 'Automation, workflow and approval email', 'High-volume sending at SES prices'],
     fields: [
       select('region', 'SES region', AWS_REGIONS, { required: true, default: 'us-east-1' }),
       text('username', 'SMTP username', { required: true, placeholder: 'AKIA…' }),

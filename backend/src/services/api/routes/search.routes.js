@@ -8,7 +8,7 @@ import { validate } from '../middleware/validate.js';
 
 const query = z.object({ q: z.string().max(100).default(''), type: z.enum(['all', 'records', 'people', 'navigation', 'documents']).default('all') });
 
-/** Global search (⌘K). Any tenant member; what comes back is limited by their own permissions. */
+/** Global search (⌘K). Any organisation member; what comes back is limited by their own permissions. */
 export function searchRoutes({ tokens, membershipLookup, cache, search, users }) {
   const router = Router();
   router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));

@@ -15,7 +15,7 @@ import { useSearch } from './SearchContext.jsx';
 
 const GROUP_TITLES = { pages: 'Pages', navigation: 'Setup', records: 'Records', people: 'People', documents: 'Documents' };
 const GROUP_ORDER = ['pages', 'navigation', 'records', 'people', 'documents'];
-/** Which result groups each tab shows (Records includes the tenant's people). */
+/** Which result groups each tab shows (Records includes the organisation's people). */
 const SCOPE_GROUPS = { all: GROUP_ORDER, navigation: ['pages', 'navigation'], records: ['records', 'people'], documents: ['documents'] };
 const FILTER_BY_TAB = {
   all: (item) => ({ record: 'Records', person: 'People', document: 'Documents', file: 'Documents', folder: 'Documents' }[item.kind] ?? 'Navigation'),

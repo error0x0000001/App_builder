@@ -4,7 +4,7 @@ import { acceptTermsField, emailField, nameField, optionalChoice, optionalText, 
 
 export const tokenOnlySchema = z.object({ token: tokenField });
 
-export const createTenantSchema = z.object({ name: nameField('tenant name').pipe(z.string().max(80)) });
+export const createTenantSchema = z.object({ name: nameField('organisation name').pipe(z.string().max(80)) });
 
 export const onboardingSchema = z.object({
   name: nameField('company name').pipe(z.string().max(80)),

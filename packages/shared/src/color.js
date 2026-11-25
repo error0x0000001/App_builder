@@ -85,7 +85,7 @@ export function paletteTokens(palette, mode) {
 
 const rule = (selector, tokens) => `${selector}{${Object.entries(tokens).map(([k, v]) => `${k}:${v}`).join(';')}}`;
 
-/** The CSS for whichever custom colours are set. Selectors outrank the tenant-theme blocks; the app injects this in one <style>. */
+/** The CSS for whichever custom colours are set. Selectors outrank the organisation-theme blocks; the app injects this in one <style>. */
 export function customColorCss({ palette: paletteId, accentHex, navHex } = {}) {
   const out = [];
   const palette = PALETTES.find((p) => p.id === paletteId && p.light);

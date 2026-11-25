@@ -13,7 +13,7 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-/** Owners/admins of a tenant that hasn't finished setup are routed through onboarding first. */
+/** Owners/admins of an organisation that hasn't finished setup are routed through onboarding first. */
 export function RequireOnboarding() {
   const { activeTenant } = useAuth();
   const needsOnboarding = activeTenant && !activeTenant.onboarded && hasRole(activeTenant.role, 'admin');

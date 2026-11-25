@@ -77,7 +77,7 @@ function MoreEntry({ hidden }) {
 }
 
 /**
- * Top navigation (desktop): quelli mark (opens the tenant switcher) · text entries (groups are dropdowns, the rest
+ * Top navigation (desktop): quelli mark (opens the organisation switcher) · text entries (groups are dropdowns, the rest
  * collapse into "More") · account. Search stays on Ctrl/⌘ K. Flat is a full-width bar with a bottom border; inset sits flush on the navigation colour; floating is a bordered card
  * with a small gap above the content card. Entries come from navigation.js, like the sidebar. Navy = the Midnight theme.
  */

@@ -10,7 +10,7 @@ const flat = (row) => ({ id: row.id, ...row.data, createdAt: row.created_at, upd
 
 /**
  * Records of any object (standard or custom) defined in Object Manager. Fields, types and required flags come from
- * the Object Manager records of the tenant, so adding a field there changes validation and the UI at once.
+ * the Object Manager records of the organisation, so adding a field there changes validation and the UI at once.
  * Storage is the generic partitioned record store under collection `obj:<Object>`.
  */
 export class ObjectsService {

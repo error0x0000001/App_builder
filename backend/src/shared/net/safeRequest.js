@@ -5,7 +5,7 @@ import https from 'node:https';
 import { isPrivateAddress } from '../../modules/chat/linkPreview.service.js';
 
 /**
- * Outbound calls to an address the tenant admin typed in (SMTP host, S3 endpoint, style URL). The server must not become a way to
+ * Outbound calls to an address the organisation admin typed in (SMTP host, S3 endpoint, style URL). The server must not become a way to
  * reach internal services, so private / loopback / metadata addresses are refused — checked on the address actually connected to,
  * so DNS rebinding cannot swap it afterwards. `allowPrivate` (INTEGRATIONS_ALLOW_PRIVATE_HOSTS) is for on-premise installs and tests.
  */

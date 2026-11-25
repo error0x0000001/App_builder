@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Icon } from '../ui/Icon.jsx';
 import { Logo } from '../ui/Logo.jsx';
 
-/** The tenant list + "Add tenant" — shared by the sidebar header and the top bar. */
+/** The organisation list + "Add organisation" — shared by the sidebar header and the top bar. */
 function TenantMenuContent({ side, align, className }) {
   const { tenants, activeTenant, switchTenant } = useAuth();
   const navigate = useNavigate();
@@ -25,13 +25,13 @@ function TenantMenuContent({ side, align, className }) {
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => navigate('/app/tenants/new')} className="gap-2 p-2">
         <span className="grid size-6 place-items-center rounded-md border border-line"><Icon name="plus" className="size-4" /></span>
-        <span className="font-medium text-muted">Add tenant</span>
+        <span className="font-medium text-muted">Add organisation</span>
       </DropdownMenuItem>
     </DropdownMenuContent>
   );
 }
 
-/** The quelli mark IS the tenant switcher — click it to see, switch or add a tenant. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
+/** The quelli mark IS the organisation switcher — click it to see, switch or add an organisation. Top bar: wordmark + chevron; `compact` (icon rail): mark only, menu opens to the side. */
 export function TenantSwitcherLogo({ compact = false }) {
   const { activeTenant } = useAuth();
   const name = activeTenant?.name ?? 'No tenant';
@@ -39,7 +39,7 @@ export function TenantSwitcherLogo({ compact = false }) {
     <DropdownMenu>
       <DropdownMenuTrigger>
         {(props) => (
-          <button type="button" aria-label={`Tenant: ${name}. Switch tenant`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
+          <button type="button" aria-label={`Tenant: ${name}. Switch organisation`} title={name} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-sidebar-ink outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-primary data-[open=true]:bg-sidebar-accent" {...props}>
             <Logo size={compact ? 'md' : 'sm'} tone="sidebar" markOnly={compact} />
             {!compact && <Icon name="chevron-down" className="size-3.5 shrink-0 opacity-60" />}
           </button>
@@ -70,7 +70,7 @@ export function TenantSwitcher() {
                   </span>
                   <span className="flex items-center gap-1 text-xs opacity-70">
                     <Icon name="user" className="size-3 shrink-0" />
-                    <span className="truncate">{activeTenant ? ROLE_LABELS[activeTenant.role] : 'Create a tenant'}</span>
+                    <span className="truncate">{activeTenant ? ROLE_LABELS[activeTenant.role] : 'Create an organisation'}</span>
                   </span>
                 </span>
               </SidebarMenuButton>

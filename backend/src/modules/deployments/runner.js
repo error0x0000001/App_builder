@@ -4,7 +4,7 @@ import { Client } from 'ssh2';
 import { resolveTarget } from '../../shared/net/safeRequest.js';
 
 /**
- * Runs shell commands on a server and streams the output. Two real runners — SSH to a machine the tenant connected, and the API's own
+ * Runs shell commands on a server and streams the output. Two real runners — SSH to a machine the organisation connected, and the API's own
  * machine (only when DEPLOYMENTS_ALLOW_LOCAL is on) — and tests pass a fake one. Interface: `run(command, { onData, signal, timeoutMs })`
  * resolves `{ code, output }`; it never rejects for a non-zero exit, only for a failure to connect or run.
  */

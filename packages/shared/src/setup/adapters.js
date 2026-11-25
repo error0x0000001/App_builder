@@ -8,7 +8,7 @@ const ROLE_OPTIONS = ['Viewer', 'Member', 'Admin'];
 
 export const ADAPTER_META = Object.freeze({
   users: {
-    searchable: false, loginAs: true, canCreate: true, canEdit: true, canDelete: true, createLabel: 'Invite User', deleteLabel: 'Remove from tenant',
+    searchable: false, loginAs: true, canCreate: true, canEdit: true, canDelete: true, createLabel: 'Invite User', deleteLabel: 'Remove from organisation',
     createFields: [
       { key: 'email', label: 'Email', type: 'text', required: true },
       { key: 'role', label: 'Role', type: 'select', options: ROLE_OPTIONS, default: 'Member' },

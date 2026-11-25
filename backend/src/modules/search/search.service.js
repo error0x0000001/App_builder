@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { pgArray } from '../../shared/db/helpers.js';
 import { searchSetupIndex } from './staticIndex.js';
 
-/** Cache namespace of a tenant's search results; bumped on every data, rule, sharing, profile or membership change so permissions apply at once. */
+/** Cache namespace of an organisation's search results; bumped on every data, rule, sharing, profile or membership change so permissions apply at once. */
 export const searchNs = (ws) => `search:${ws}`;
 
 const GROUP_BUDGET_MS = 250; // a slow group is dropped (and flagged partial) instead of holding up the others
@@ -29,7 +29,7 @@ const SETUP_COLLECTIONS = Object.fromEntries(
 /** Setup list pages whose records are documents (templates, letterheads, files) — searched as "Documents", not as configuration. */
 const DOCUMENT_COLLECTIONS = ['email-templates', 'letterheads', 'mail-merge-templates', 'asset-files', 'post-templates', 'action-link-templates'];
 
-/** Which result groups each scope asks for. "Records" covers the people of the tenant too. */
+/** Which result groups each scope asks for. "Records" covers the people of the organisation too. */
 const SCOPES = { all: ['records', 'people', 'navigation', 'documents'], records: ['records', 'people'], people: ['people'], navigation: ['navigation'], documents: ['documents'] };
 
 /**

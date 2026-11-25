@@ -41,7 +41,7 @@ export class RecordsService {
     return this.cache.remember(NS(ctx.tenantId, collection.key), this.#hash(params, limit), { ttlMs: adapter ? 5_000 : LIST_TTL_MS }, compute);
   }
 
-  /** The first Network Access range must contain the admin's own IP, otherwise saving it would lock them out of the tenant. */
+  /** The first Network Access range must contain the admin's own IP, otherwise saving it would lock them out of the organisation. */
   async #assertNotLockingOut(ctx, collection, data) {
     if (collection.key !== 'network-access' || !ctx.ip) return;
     if ((await this.repos.setupRecords.countCapped(ctx.tenantId, 'network-access', {}, 1)) > 0) return;
@@ -135,7 +135,7 @@ export class RecordsService {
   }
 
   /**
-   * First touch of a collection in a tenant loads its initial content (from the design fixtures) exactly once:
+   * First touch of a collection in an organisation loads its initial content (from the design fixtures) exactly once:
    * a unique marker row is claimed inside the same transaction as the inserts, so concurrent first requests wait
    * for the commit instead of seeing a half-seeded list.
    */
@@ -169,7 +169,7 @@ export class RecordsService {
     const ids = [];
     const tenant = await repos.tenants.findById(ws);
     for (const node of config.SETUP_SEED_SAMPLE_DATA ? roleNodes() : roleNodes().slice(0, 1)) {
-      const root = node.parent === null; // the hierarchy's top node is the tenant itself
+      const root = node.parent === null; // the hierarchy's top node is the organisation itself
       const row = await repos.setupRecords.insert(ws, 'roles', { label: root ? tenant.name : node.label, data: root ? { ...node.data, name: tenant.name } : node.data, parentId: node.parent === null ? null : ids[node.parent] });
       ids.push(row.id);
     }

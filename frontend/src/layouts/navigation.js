@@ -9,7 +9,7 @@
  * Item: { to, icon, label, end?, badge?, minRole?, prefix?, bleed?, create?, parent? }
  *   also – extra path prefixes that keep this row active (a row with `end` whose sub-pages belong to it)
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
- *   minRole – hide below this tenant role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
+ *   minRole – hide below this organisation role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
  */
 import { CRM_NAV_OBJECTS, hasRole } from '@app/shared';
 
@@ -46,7 +46,7 @@ export const NAV = {
 };
 
 /** Routes that exist but aren't nav rows. */
-const HIDDEN_PAGES = [{ to: '/app/tenants/new', icon: 'plus', label: 'New tenant' }];
+const HIDDEN_PAGES = [{ to: '/app/tenants/new', icon: 'plus', label: 'New organisation' }];
 
 export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
 
