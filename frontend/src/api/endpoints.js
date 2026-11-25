@@ -151,15 +151,6 @@ export const searchApi = {
   search: (q, type, signal) => get(`/search${qs({ q, type })}`, { signal }),
 };
 
-export const objectsApi = {
-  definition: (object) => get(`/objects/${object}`),
-  get: (object, id) => get(`/objects/${object}/records/${id}`),
-  records: (object, { after, q } = {}) => get(`/objects/${object}/records${qs({ limit: 80, after, q })}`),
-  create: (object, body) => post(`/objects/${object}/records`, body),
-  update: (object, id, body) => patch(`/objects/${object}/records/${id}`, body),
-  remove: (object, ids) => post(`/objects/${object}/records/delete`, { ids }),
-  decide: (object, id, body) => post(`/objects/${object}/records/${id}/approval`, body),
-};
 
 const put = (path, body) => request(path, { method: 'PUT', body });
 const form = (file, fields = {}) => { const data = new FormData(); for (const [k, v] of Object.entries(fields)) data.append(k, v); data.append('file', file, file.name); return data; }; // fields first: the server streams the file part

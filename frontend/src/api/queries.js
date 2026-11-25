@@ -1,4 +1,4 @@
-import { meApi, objectsApi, setupApi } from './endpoints.js';
+import { meApi, setupApi } from './endpoints.js';
 
 export const meQuery = { queryKey: ['me'], queryFn: meApi.get, staleTime: 60_000 };
 
@@ -11,4 +11,3 @@ export const setupPageQuery = (key) => ({ queryKey: ['setup', 'page', key], quer
 export const setupSettingsQuery = (key) => ({ queryKey: ['setup', 'settings', key], queryFn: () => setupApi.settings(key) });
 export const setupMetricsQuery = (key) => ({ queryKey: ['setup', 'metrics', key], queryFn: () => setupApi.metrics(key), refetchInterval: 60_000 });
 
-export const objectDefinitionQuery = (object) => ({ queryKey: ['objects', 'definition', object], queryFn: () => objectsApi.definition(object), staleTime: 60_000 });

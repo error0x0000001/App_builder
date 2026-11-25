@@ -1,7 +1,7 @@
 import { Alert } from '../../components/ui/Alert.jsx';
 
 const COPY = {
-  stored: ['Saved, but not used yet', 'These values are saved, versioned and audited, but no feature in Quelli reads them yet.'],
+  preview: ['Preview', 'This page shows sample content. The feature behind it is not built yet, so nothing can be changed here.'],
   recorded: ['Recorded only', 'Requests here are logged. The tool behind this page is not built, so nothing else happens.'],
   external: ['External product', 'This page configures a product Quelli does not include. Requests are logged; nothing else happens.'],
   notEnabled: ['Not enabled', 'The feature behind this dashboard does not exist in Quelli.'],

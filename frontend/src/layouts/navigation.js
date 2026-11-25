@@ -11,7 +11,7 @@
  *   create – the rail panel shows a "+" that opens the New dialog (…?new=1)     parent – { label, icon }: the icon-rail panel nests consecutive items with the same parent under one expandable row
  *   minRole – hide below this organisation role     prefix – active for every sub-route     bleed – page lays out its own panes (no padding/scroll)     panes – the page is made of side columns: use PaneGroup/Pane so floating draws each as its own card
  */
-import { CRM_NAV_OBJECTS, hasRole } from '@app/shared';
+import { hasRole } from '@app/shared';
 
 export const NAV = {
   main: [
@@ -34,7 +34,6 @@ export const NAV = {
       { to: '/app/deployments/credentials', icon: 'key', label: 'Git, registry & SSH', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
       { to: '/app/deployments/audit', icon: 'shield', label: 'Audit log', feature: 'deployments', parent: { label: 'Deployment settings', icon: 'settings' } },
     ] },
-    { label: 'Sales & Service', icon: 'briefcase', defaultOpen: true, items: CRM_NAV_OBJECTS.map(({ key, plural, icon }) => ({ to: `/app/o/${key}`, icon, label: plural, create: true })) },
     { label: 'Account', icon: 'user', defaultOpen: true, items: [
       { to: '/app/profile', icon: 'user', label: 'Profile', parent: { label: 'Settings', icon: 'settings' } },
       { to: '/app/security', icon: 'shield', label: 'Security', parent: { label: 'Settings', icon: 'settings' } },

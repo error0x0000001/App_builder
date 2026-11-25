@@ -25,7 +25,6 @@ const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
 const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
 const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
 const NewTenantPage = page(() => import('./pages/app/NewTenantPage.jsx'));
-const ObjectListPage = page(() => import('./pages/objects/ObjectListPage.jsx'));
 const SetupLayout = page(() => import('./pages/setup/SetupLayout.jsx'));
 const SetupPage = page(() => import('./pages/setup/SetupPage.jsx'));
 const IntegrationsPage = page(() => import('./pages/integrations/IntegrationsPage.jsx'));
@@ -63,7 +62,6 @@ export default function App() {
               <Route path="chat" element={<ChatPage />} />
               <Route path="chat/join/:code" element={<JoinGroupPage />} />
               <Route path="chat/:id" element={<ChatPage />} />
-              <Route path="o/:object" element={<ObjectListPage />} />
               <Route path="integrations" element={<RequireRole minimumRole="admin" />}><Route index element={<IntegrationsPage />} /></Route>
               <Route path="deployments/*" element={<RequireRole minimumRole="admin" />}><Route path="*" element={<DeploymentsPages />} /></Route>
               <Route path="setup" element={<RequireRole minimumRole="admin" />}>

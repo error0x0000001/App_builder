@@ -1,9 +1,8 @@
-import { CRM_NAV_OBJECTS } from '@app/shared';
 import { FILE_KIND_COLORS, FOLDER_COLOR, kindFromLabel } from './fileKinds.js';
 
 /** Accent hue per CRM object (matches the order people know them by: warm for leads, cool for accounts …). */
 const OBJECT_HUES = { Leads: 45, Accounts: 255, Contacts: 190, Opportunities: 150, Cases: 25, Campaigns: 335, Tasks: 285 };
-const OBJECT_ICONS = Object.fromEntries(CRM_NAV_OBJECTS.map((o) => [o.plural, o.icon]));
+const OBJECT_ICONS = { Leads: 'target', Accounts: 'building', Contacts: 'users', Opportunities: 'trend-up', Cases: 'life-buoy', Campaigns: 'megaphone', Tasks: 'check-square' };
 /** Document colours by kind of document (the Setup collection's name). */
 export const DOCUMENT_COLORS = { 'Email Templates': '#3b82f6', Letterheads: '#8b5cf6', 'Mail Merge Templates': '#22c55e', 'Asset Files': '#f97316', 'Post Templates': '#ec4899', 'Action Link Templates': '#14b8a6' };
 
