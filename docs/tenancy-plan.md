@@ -31,7 +31,7 @@ Changed:
 
 - `workspaces` keeps `id`, `name`, `slug`; gains `tenant_id`; loses the tenant-level settings.
 - Tenant-level tables get `tenant_id` instead of `workspace_id`: `setup_records` (object/field/profile/permission-set definitions), `setup_settings`, `setup_audit`, `workspace_integrations`, `user_permission_sets`, `invitations`, `dp_*` (Deployments), and `sessions`' active-tenant claim.
-- Workspace-level tables keep `workspace_id` **and** gain `tenant_id`: object records, `chat_*`, `drive_*`.
+- Workspace-level tables keep `workspace_id` **and** gain `tenant_id`: object records, `drive_*`. **Chat stays tenant-scoped only** (decided by the owner): `chat_*` carry `tenant_id`, never `workspace_id`.
 - Object records: `obj:<Object>` rows carry `workspace_id`; list and search add "workspaces you are assigned to".
 
 Existing data: every current workspace becomes a tenant with exactly one workspace of the same name, and every membership becomes a tenant membership plus an assignment to that workspace. Nothing is lost and nothing changes for users until a second workspace is created.
@@ -48,7 +48,7 @@ Existing data: every current workspace becomes a tenant with exactly one workspa
 
 1. **Tenants.** Add `tenants`, backfill one per current workspace, add `tenant_id` everywhere, move tenant-level settings, switch token and lookup to `tenantId`. No behaviour change.
 2. **Workspaces inside a tenant.** `workspace_assignments`, the switcher, create/rename/archive a workspace, default workspace.
-3. **Records by workspace.** Object records, chat and drive scoped by assigned workspaces; multi-workspace view.
+3. **Records by workspace.** Object records and drive scoped by assigned workspaces (chat is tenant-wide); multi-workspace view.
 4. **Apps and navigation.** An `app` record (key, label, icon, colour, ordered items: objects, pages, system apps); assigned to profiles / permission sets; navigation generated from it; custom objects appear when added to an app.
 5. **Objects.** Record detail page, real Lookup relationships with related lists, picklist values, saved list views.
 
