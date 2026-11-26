@@ -102,7 +102,7 @@ describe('documents: folders, files and storage', () => {
     assert.equal((await client.download(`${D}/files/${f.id}/download`)).status, 200);
 
     // delete forever removes the stored bytes too
-    const key = (await server.container.drive.fileForDownload({ tenantId: (await client.get('/me')).body.activeTenantId, userId: 'x', actor: { role: 'owner' } }, f.id)).storage_key;
+    const key = (await server.container.drive.fileForDownload({ tenantId: (await client.get('/me')).body.activeTenantId, workspaceId: (await client.get('/me')).body.activeWorkspaceId, userId: 'x', actor: { role: 'owner' } }, f.id)).storage_key;
     assert.ok((await server.container.drive.storage.size(key)) > 0);
     await client.post(`${D}/trash`, { type: 'file', id: f.id });
     assert.equal((await client.post(`${D}/delete-forever`, { type: 'file', id: f.id })).status, 200);

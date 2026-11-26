@@ -38,12 +38,15 @@ export class DriveService {
 
   // ---------------------------------------------------------------------------------------------------------------- access
 
+  /** Only the current workspace's items (and tenant-wide ones) are ever visible: a person switches workspace to see another. */
+  #inWorkspace = (ctx, alias) => sql`(${sql.raw(alias)}.workspace_id is null or ${sql.raw(alias)}.workspace_id = ${ctx.workspaceId ?? null})`;
+
   #isAdmin = (ctx) => ctx.actor.role === 'owner' || ctx.actor.role === 'admin';
 
   async #rows(query) { return (await this.db.execute(query)).rows; }
 
   async #folder(ctx, id, { trashed = false } = {}) {
-    const [row] = await this.#rows(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and id = ${id} ${trashed ? sql`` : sql`and trashed_at is null`}`);
+    const [row] = await this.#rows(sql`select * from drive_folders where tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'drive_folders')} and id = ${id} ${trashed ? sql`` : sql`and trashed_at is null`}`);
     if (!row) throw new NotFoundError('Folder not found');
     return row;
   }
@@ -97,8 +100,9 @@ export class DriveService {
     const a = sql.raw(alias);
     // chat files: only people in the conversation (admins included — a conversation is private to its members)
     const chat = sql`(${a}.record_object = ${CHAT_OBJECT} and exists (select 1 from chat_members cm where cm.conversation_id = ${a}.record_id and cm.user_id = ${ctx.userId} and cm.left_at is null))`;
-    if (this.#isAdmin(ctx)) return sql`(${a}.record_object is null or ${chat})`;
-    return sql`((${a}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or ${chat})`;
+    const here = this.#inWorkspace(ctx, alias);
+    if (this.#isAdmin(ctx)) return sql`(${here} and (${a}.record_object is null or ${chat}))`;
+    return sql`(${here} and ((${a}.record_object is null and ${this.#pathVisible(ctx, sql.raw(`${alias}.folder_path`))}) or ${chat}))`;
   }
 
   // ---------------------------------------------------------------------------------------------------------------- listing
@@ -170,7 +174,7 @@ export class DriveService {
       ? sql`true`
       : sql`(d.owner_id = ${me} or exists (select 1 from drive_access a where a.folder_id = d.id and a.principal_id in (${me}, ${ws})))`;
     const rows = await this.#rows(sql`select d.*, ${this.#ownerName}, ${this.#starred(ctx, 'folder', 'd')}, exists (select 1 from drive_access a where a.folder_id = d.id) as shared
-      from drive_folders d ${this.#ownerJoin('d')} where d.tenant_id = ${ws} and d.parent_id is null and d.kind = 'folder' and d.trashed_at is null and ${visible} order by lower(d.name), d.id limit 500`);
+      from drive_folders d ${this.#ownerJoin('d')} where d.tenant_id = ${ws} and ${this.#inWorkspace(ctx, 'd')} and d.parent_id is null and d.kind = 'folder' and d.trashed_at is null and ${visible} order by lower(d.name), d.id limit 500`);
     const [chats] = all ? [] : await this.#rows(sql`select d.* from drive_folders d where d.tenant_id = ${ws} and d.kind = 'chats' and d.parent_id is null
       and exists (select 1 from drive_folders k join chat_members cm on cm.conversation_id = k.record_id and cm.user_id = ${me} and cm.left_at is null where k.parent_id = d.id and k.kind = 'chat' and k.trashed_at is null) limit 1`);
     return { folder: null, folders: [...(chats ? [folderDto(chats)] : []), ...rows.map(folderDto)], files: [], nextCursor: null };
@@ -213,22 +217,22 @@ export class DriveService {
     const files = await this.#rows(sql`select f.*, ${this.#ownerName}, true as starred from drive_files f ${this.#ownerJoin('f')} join drive_stars s on s.item_id = f.id and s.item_type = 'file' and s.user_id = ${ctx.userId}
       where f.tenant_id = ${ctx.tenantId} and f.trashed_at is null and ${visible} order by lower(f.name) limit 500`);
     const folders = await this.#rows(sql`select d.*, ${this.#ownerName}, true as starred from drive_folders d ${this.#ownerJoin('d')} join drive_stars s on s.item_id = d.id and s.item_type = 'folder' and s.user_id = ${ctx.userId}
-      where d.tenant_id = ${ctx.tenantId} and d.trashed_at is null and d.kind = 'folder' and (${this.#isAdmin(ctx) ? sql`true` : this.#pathVisible(ctx, sql.raw('d.path'))}) order by lower(d.name) limit 500`);
+      where d.tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'd')} and d.trashed_at is null and d.kind = 'folder' and (${this.#isAdmin(ctx) ? sql`true` : this.#pathVisible(ctx, sql.raw('d.path'))}) order by lower(d.name) limit 500`);
     return { folder: null, folders: folders.map(folderDto), files: files.map(fileDto), nextCursor: null };
   }
 
   async #shared(ctx) {
     const rows = await this.#rows(sql`select d.*, ${this.#ownerName}, ${this.#starred(ctx, 'folder', 'd')}, true as shared from drive_folders d ${this.#ownerJoin('d')}
-      where d.tenant_id = ${ctx.tenantId} and d.kind = 'folder' and d.trashed_at is null and d.owner_id <> ${ctx.userId}
+      where d.tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'd')} and d.kind = 'folder' and d.trashed_at is null and d.owner_id <> ${ctx.userId}
         and exists (select 1 from drive_access a where a.folder_id = d.id and a.principal_id in (${ctx.userId}, ${ctx.tenantId})) order by lower(d.name), d.id limit 500`);
     return { folder: null, folders: rows.map(folderDto), files: [], nextCursor: null };
   }
 
   async #trash(ctx) {
     const mine = this.#isAdmin(ctx) ? sql`true` : sql`x.owner_id = ${ctx.userId}`;
-    const folders = await this.#rows(sql`select x.*, ${this.#ownerName} from drive_folders x ${this.#ownerJoin('x')} where x.tenant_id = ${ctx.tenantId} and x.kind = 'folder' and x.trashed_at is not null and ${mine}
+    const folders = await this.#rows(sql`select x.*, ${this.#ownerName} from drive_folders x ${this.#ownerJoin('x')} where x.tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'x')} and x.kind = 'folder' and x.trashed_at is not null and ${mine}
       and (x.parent_id is null or exists (select 1 from drive_folders p where p.id = x.parent_id and p.trashed_at is null)) order by x.trashed_at desc limit 500`);
-    const files = await this.#rows(sql`select x.*, ${this.#ownerName} from drive_files x ${this.#ownerJoin('x')} where x.tenant_id = ${ctx.tenantId} and x.trashed_at is not null and ${mine}
+    const files = await this.#rows(sql`select x.*, ${this.#ownerName} from drive_files x ${this.#ownerJoin('x')} where x.tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'x')} and x.trashed_at is not null and ${mine}
       and exists (select 1 from drive_folders p where p.id = x.folder_id and p.trashed_at is null) order by x.trashed_at desc limit 500`);
     return { folder: null, folders: folders.map(folderDto), files: files.map(fileDto), nextCursor: null };
   }
@@ -241,7 +245,7 @@ export class DriveService {
       this.#rows(sql`select f.*, ${this.#ownerName}, ${this.#starred(ctx, 'file', 'f')}, p.name as folder_name from drive_files f ${this.#ownerJoin('f')} left join drive_folders p on p.id = f.folder_id
         where f.tenant_id = ${ctx.tenantId} and f.trashed_at is null and lower(f.name) like ${needle} and ${visible} order by f.updated_at desc limit ${limit}`),
       this.#rows(sql`select d.*, ${this.#ownerName} from drive_folders d ${this.#ownerJoin('d')}
-        where d.tenant_id = ${ctx.tenantId} and d.kind = 'folder' and d.trashed_at is null and lower(d.name) like ${needle} and (${this.#isAdmin(ctx) ? sql`true` : this.#pathVisible(ctx, sql.raw('d.path'))}) order by lower(d.name) limit ${limit}`),
+        where d.tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'd')} and d.kind = 'folder' and d.trashed_at is null and lower(d.name) like ${needle} and (${this.#isAdmin(ctx) ? sql`true` : this.#pathVisible(ctx, sql.raw('d.path'))}) order by lower(d.name) limit ${limit}`),
     ]);
     return { files: files.map((r) => ({ ...fileDto(r), folderName: r.folder_name })), folders: folders.map(folderDto) };
   }
@@ -262,8 +266,8 @@ export class DriveService {
       await this.#need(ctx, parent, 'editor');
     }
     await this.#assertFolderNameFree(ctx, parentId ?? null, name);
-    const [row] = await this.#rows(sql`insert into drive_folders (id, tenant_id, parent_id, name, path, owner_id)
-      values (${id}, ${ctx.tenantId}, ${parentId ?? null}, ${name}, ${`${parent?.path ?? '/'}${id}/`}, ${ctx.userId}) returning *`);
+    const [row] = await this.#rows(sql`insert into drive_folders (id, tenant_id, workspace_id, parent_id, name, path, owner_id)
+      values (${id}, ${ctx.tenantId}, ${parent ? parent.workspace_id : ctx.workspaceId}, ${parentId ?? null}, ${name}, ${`${parent?.path ?? '/'}${id}/`}, ${ctx.userId}) returning *`);
     return { folder: folderDto(row) };
   }
 
@@ -288,6 +292,7 @@ export class DriveService {
         if (target.path.startsWith(folder.path)) throw new ValidationError({ parentId: 'A folder cannot be moved into itself' });
         await this.#need(ctx, target, 'editor');
       }
+      if ((target?.workspace_id ?? folder.workspace_id) !== folder.workspace_id) throw new ValidationError({ parentId: 'A folder can’t be moved to another workspace' });
       const newPath = `${target?.path ?? '/'}${folder.id}/`;
       await this.db.transaction(async (tx) => {
         await tx.execute(sql`update drive_folders set path = ${newPath} || substr(path, ${folder.path.length + 1}), updated_at = now() where tenant_id = ${ctx.tenantId} and path like ${`${folder.path}%`}`);
@@ -321,8 +326,8 @@ export class DriveService {
     const key = `${ctx.tenantId}/${new Date().getUTCFullYear()}/${id}`;
     const { size, checksum } = await this.storage.put(key, stream, { maxBytes: Math.min(maxBytes, this.limits.quotaBytes - used) });
     const name = await this.#freeFileName(ctx, folder.id, cleanFilename(filename));
-    const [row] = await this.#rows(sql`insert into drive_files (id, tenant_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id, record_object, record_id)
-      values (${id}, ${ctx.tenantId}, ${folder.id}, ${folder.path}, ${name}, ${String(mime || 'application/octet-stream').slice(0, 120)}, ${size}, ${key}, ${checksum}, ${ctx.userId}, ${folder.record_object}, ${folder.record_id}) returning *`);
+    const [row] = await this.#rows(sql`insert into drive_files (id, tenant_id, workspace_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id, record_object, record_id)
+      values (${id}, ${ctx.tenantId}, ${folder.workspace_id}, ${folder.id}, ${folder.path}, ${name}, ${String(mime || 'application/octet-stream').slice(0, 120)}, ${size}, ${key}, ${checksum}, ${ctx.userId}, ${folder.record_object}, ${folder.record_id}) returning *`);
     await this.#bump(ctx);
     return { file: fileDto(row) };
   }
@@ -335,7 +340,7 @@ export class DriveService {
   }
 
   async #file(ctx, id, { trashed = false } = {}) {
-    const [row] = await this.#rows(sql`select * from drive_files where tenant_id = ${ctx.tenantId} and id = ${id} ${trashed ? sql`` : sql`and trashed_at is null`}`);
+    const [row] = await this.#rows(sql`select * from drive_files where tenant_id = ${ctx.tenantId} and ${this.#inWorkspace(ctx, 'drive_files')} and id = ${id} ${trashed ? sql`` : sql`and trashed_at is null`}`);
     if (!row) throw new NotFoundError('File not found');
     return row;
   }
@@ -389,6 +394,7 @@ export class DriveService {
     if (folderId && folderId !== file.folder_id) {
       target = await this.#folder(ctx, folderId);
       await this.#need(ctx, target, 'editor');
+      if (target.workspace_id !== file.workspace_id) throw new ValidationError({ folderId: 'A file can’t be moved to another workspace' });
       if ((target.kind === 'chat') !== Boolean(file.record_object) || (target.kind === 'chat' && target.record_id !== file.record_id)) throw new ValidationError({ folderId: 'Conversation files stay with their conversation' });
     }
     const folder = target ?? { id: file.folder_id, path: file.folder_path };
@@ -417,8 +423,8 @@ export class DriveService {
     const key = `${ctx.tenantId}/${new Date().getUTCFullYear()}/${newId}`;
     await this.storage.put(key, this.storage.open(file.storage_key));
     const copyName = await this.#freeFileName(ctx, target.id, name ?? (target.id === file.folder_id ? `Copy of ${file.name}` : file.name));
-    const [row] = await this.#rows(sql`insert into drive_files (id, tenant_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id, record_object, record_id)
-      values (${newId}, ${ctx.tenantId}, ${target.id}, ${target.path}, ${copyName}, ${file.mime}, ${file.size}, ${key}, ${file.checksum}, ${ctx.userId}, ${target.record_object}, ${target.record_id}) returning *`);
+    const [row] = await this.#rows(sql`insert into drive_files (id, tenant_id, workspace_id, folder_id, folder_path, name, mime, size, storage_key, checksum, owner_id, record_object, record_id)
+      values (${newId}, ${ctx.tenantId}, ${target.workspace_id}, ${target.id}, ${target.path}, ${copyName}, ${file.mime}, ${file.size}, ${key}, ${file.checksum}, ${ctx.userId}, ${target.record_object}, ${target.record_id}) returning *`);
     await this.#bump(ctx);
     return { file: fileDto(row) };
   }

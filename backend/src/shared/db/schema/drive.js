@@ -12,6 +12,7 @@ export const driveFolders = pgTable(
   {
     id: pk(),
     tenantId: uuid('tenant_id').notNull(),
+    workspaceId: uuid('workspace_id'), // the workspace it lives in; null = tenant-wide (chat conversation folders)
     parentId: uuid('parent_id'),
     name: text('name').notNull(),
     path: text('path').notNull(),
@@ -37,6 +38,7 @@ export const driveFiles = pgTable(
   {
     id: pk(),
     tenantId: uuid('tenant_id').notNull(),
+    workspaceId: uuid('workspace_id'), // copied from the folder
     folderId: uuid('folder_id').notNull(),
     folderPath: text('folder_path').notNull(),
     name: text('name').notNull(),

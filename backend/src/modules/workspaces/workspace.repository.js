@@ -42,6 +42,14 @@ export class WorkspaceRepository {
       .where(and(eq(workspaceAssignments.tenantId, tenantId), eq(workspaceAssignments.workspaceId, workspaceId), eq(workspaceAssignments.userId, userId))).limit(1));
   }
 
+  /** Is the person assigned to this workspace, and is it still live? */
+  async isActiveFor(tenantId, workspaceId, userId) {
+    const [row] = await this.db.select({ id: workspaceAssignments.workspaceId }).from(workspaceAssignments)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceAssignments.workspaceId))
+      .where(and(eq(workspaceAssignments.tenantId, tenantId), eq(workspaceAssignments.workspaceId, workspaceId), eq(workspaceAssignments.userId, userId), isNull(workspaces.archivedAt))).limit(1);
+    return Boolean(row);
+  }
+
   /** Assigns the person; the first workspace they get becomes their default. Idempotent. */
   async assign(tenantId, workspaceId, userId) {
     await this.db.execute(sql`

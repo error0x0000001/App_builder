@@ -21,6 +21,7 @@ export class WorkspaceService {
   }
 
   list(tenantId, { archived = false } = {}) { return this.repos.workspaces.list(tenantId, { archived }); }
+  isActiveFor(tenantId, workspaceId, userId) { return this.repos.workspaces.isActiveFor(tenantId, workspaceId, userId); }
   mine(tenantId, userId) { return this.repos.workspaces.forUser(tenantId, userId); }
 
   /** The workspace a session should work in: the current one while still assigned, otherwise the person's default. */

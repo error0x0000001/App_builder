@@ -96,6 +96,46 @@ describe('workspaces inside a tenant', () => {
     assert.equal((await boss.patch(`${base}/${extra.id}`, { name: 'Temporary' })).body.workspace.name, 'Temporary');
   });
 
+  it('Documents belong to a workspace: another workspace can’t see, open, search or move them', async () => {
+    const { client: boss } = await registerUser(server);
+    const tenantId = (await boss.get('/me')).body.activeTenantId;
+    const base = `/tenants/${tenantId}/workspaces`;
+    const home = (await boss.get('/me')).body.activeWorkspaceId;
+    const other = (await boss.post(base, { name: 'Branch' })).body.workspace;
+    const folder = (await boss.post('/drive/folders', { name: 'Home plans' })).body.folder;
+    const file = (await boss.upload('/drive/files', { fields: { folderId: folder.id }, filename: 'home-budget.txt', content: 'x' })).body.file;
+    const sub = (await boss.post('/drive/folders', { name: 'Nested', parentId: folder.id })).body.folder;
+    assert.equal((await boss.get(`/drive/list?folder=${sub.id}`)).status, 200, 'children stay in the parent’s workspace');
+
+    await boss.post(`${base}/${other.id}/switch`);
+    assert.deepEqual((await boss.get('/drive/list')).body.folders.filter((f) => f.kind === 'folder'), [], 'the other workspace starts empty');
+    assert.equal((await boss.get(`/drive/list?folder=${folder.id}`)).status, 404, 'and cannot open the folder');
+    assert.equal((await boss.download(`/drive/files/${file.id}/download`)).status, 404);
+    assert.equal((await boss.get('/search?q=home&type=documents')).body.groups.documents.length, 0, 'global search is scoped too');
+    const mine = (await boss.post('/drive/folders', { name: 'Branch plans' })).body.folder;
+    assert.equal((await boss.get('/drive/list')).body.folders.length, 1);
+
+    await boss.post(`${base}/${home}/switch`);
+    assert.equal((await boss.get('/drive/list')).body.folders.length, 1, 'back home only the home folder shows');
+    assert.equal((await boss.get('/search?q=home&type=documents')).body.groups.documents.length, 2);
+    assert.equal((await boss.patch(`/drive/folders/${folder.id}`, { parentId: mine.id })).status, 404, 'a folder of another workspace is not even a valid target');
+  });
+
+  it('a token whose workspace was removed is asked to refresh before touching Documents', async () => {
+    const { client: boss } = await registerUser(server);
+    const { person, userId, tenantId } = await invite(boss);
+    const base = `/tenants/${tenantId}/workspaces`;
+    const extra = (await boss.post(base, { name: 'Pop-up' })).body.workspace;
+    const main = (await boss.get(`${base}/all`)).body.workspaces.find((w) => w.isDefault);
+    await boss.put(`/tenants/${tenantId}/members/${userId}/workspaces`, { workspaceIds: [main.id, extra.id] });
+    await person.post(`${base}/${extra.id}/switch`);
+    assert.equal((await person.get('/drive/list')).status, 200);
+    await boss.put(`/tenants/${tenantId}/members/${userId}/workspaces`, { workspaceIds: [main.id] });
+    assert.equal((await person.get('/drive/list')).status, 401);
+    assert.equal((await person.post('/auth/refresh')).status, 200);
+    assert.equal((await person.get('/drive/list')).status, 200);
+  });
+
   it('never crosses organisations', async () => {
     const { client: a } = await registerUser(server);
     const { client: b } = await registerUser(server);

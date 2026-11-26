@@ -29,7 +29,7 @@ export class SearchService {
   search(ctx, { q, type = 'all' }) {
     const query = q.trim();
     if (query.length < MIN_CHARS) return Promise.resolve({ body: JSON.stringify({ q: query, groups: {}, partial: false }), etag: '"empty"' });
-    return this.cache.remember(searchNs(ctx.tenantId), `${ctx.userId}|${type}|${query.toLowerCase()}`, { ttlMs: 8_000 }, () => this.#run(ctx, query, type));
+    return this.cache.remember(searchNs(ctx.tenantId), `${ctx.userId}|${ctx.workspaceId}|${type}|${query.toLowerCase()}`, { ttlMs: 8_000 }, () => this.#run(ctx, query, type));
   }
 
   async #run(ctx, query, type) {

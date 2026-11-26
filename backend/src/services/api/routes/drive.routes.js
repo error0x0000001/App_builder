@@ -7,6 +7,7 @@ import { receiveUpload, tooLarge } from '../middleware/upload.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { requireActiveTenantRole } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
+import { requireWorkspace } from '../middleware/workspace.js';
 
 const idParam = z.object({ id: uuidField });
 
@@ -42,7 +43,7 @@ function sendFile(req, res, drive, file, { inline }) {
 }
 
 /** Documents (the Drive). Any member may call; the service decides per folder. */
-export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
+export function driveRoutes({ tokens, membershipLookup, cache, drive, users, workspaces }) {
   const router = Router();
 
   // Signed links (previews for <img>, <video>, PDF viewers) carry their own proof, so they sit before the auth middleware.
@@ -51,13 +52,13 @@ export function driveRoutes({ tokens, membershipLookup, cache, drive, users }) {
     sendFile(req, res, drive, file, { inline: true });
   });
 
-  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'));
+  router.use(authenticate(tokens), requireActiveTenantRole(membershipLookup, 'viewer'), requireWorkspace(workspaces));
   router.use(async (req, res, next) => {
     try {
       const ws = req.auth.tenantId;
       if (!cache.allow(`drive:${ws}`, 60, config.SETUP_REQUESTS_PER_MINUTE)) throw new TooManyRequestsError(60);
       if (req.method !== 'GET' && (await cache.hit(`drive-w:${ws}:${req.auth.userId}`, 60)) > 600) throw new TooManyRequestsError(60);
-      req.driveCtx = { tenantId: ws, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
+      req.driveCtx = { tenantId: ws, workspaceId: req.workspaceId, userId: req.auth.userId, actor: req.membership, email: await users.emailOf(req.auth.userId), ip: req.ctx.ip };
       next();
     } catch (error) { next(error); }
   });
