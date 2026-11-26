@@ -22,7 +22,7 @@ describe('access', () => {
   it('serves the tree and page definitions with ETag/304', async () => {
     const tree = await owner.get(`${S}/tree`);
     assert.equal(tree.status, 200);
-    assert.equal(tree.body.counts.total, 264);
+    assert.equal(tree.body.counts.total, 262);
     const page = await owner.get(`${S}/pages/password-policies`);
     const again = await owner.request('GET', `${S}/pages/password-policies`, undefined, { 'If-None-Match': page.headers.get('etag') });
     assert.equal(again.status, 304);

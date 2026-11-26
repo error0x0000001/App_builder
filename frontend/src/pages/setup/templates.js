@@ -14,7 +14,6 @@ export const TEMPLATES = {
   'special:debuglogs': t(() => import('./specials/DebugLogsPage.jsx')),
   'special:sharing': t(() => import('./specials/SharingPage.jsx')),
   'special:objmgr': t(() => import('./specials/ObjectManagerPage.jsx')),
-  'special:schema': t(() => import('./specials/ObjectManagerPage.jsx')),
 };
 
 export const templateFor = (page) => (page.kind === 'special' ? `special:${page.special}` : page.kind);

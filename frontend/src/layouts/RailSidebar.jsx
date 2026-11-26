@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, matchPath, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { useSidebar } from '../components/sidebar/SidebarContext.jsx';
 import { Icon } from '../components/ui/Icon.jsx';
@@ -14,6 +14,7 @@ import { NavUserCompact } from './NavUser.jsx';
 import { SECTION_PANELS } from './sectionPanels.js';
 import { useChatUnread } from '../pages/chat/ChatRealtime.jsx';
 import { useSearch } from './SearchContext.jsx';
+import { useApp } from '../pages/apps/useApps.js';
 
 const RECENT_MAX = 6;
 
@@ -84,7 +85,10 @@ export function RailSidebar() {
   const floating = variant === 'floating';
   // a bottom item with its own panel (Setup) is a section too: it shows its panel beside the rail
   const bottomPanel = bottom.find((item) => item.panel && isActivePath({ ...item, end: false }, pathname));
-  const current = sections.find((s) => s.items.some((item) => isActivePath(item, pathname))) ?? (bottomPanel && { id: bottomPanel.to, label: bottomPanel.label, icon: bottomPanel.icon, panel: bottomPanel.panel, items: [bottomPanel] });
+  const appKey = matchPath('/app/a/:appKey/*', pathname)?.params.appKey;
+  const appData = useApp(appKey).data?.app;
+  const appSection = appKey ? { id: `app:${appKey}`, label: appData?.label ?? 'App', icon: appData?.icon ?? 'grid', panel: 'app', items: [{ to: `/app/a/${appKey}`, icon: appData?.icon ?? 'grid', label: appData?.label ?? 'App' }] } : null;
+  const current = appSection ?? sections.find((s) => s.items.some((item) => isActivePath(item, pathname))) ?? (bottomPanel && { id: bottomPanel.to, label: bottomPanel.label, icon: bottomPanel.icon, panel: bottomPanel.panel, items: [bottomPanel] });
   const chatUnread = useChatUnread();
 
   return (
@@ -93,6 +97,7 @@ export function RailSidebar() {
         <div className="mb-4"><TenantSwitcherLogo compact /></div>
         <nav aria-label="Sections" className="flex flex-col items-center gap-1.5">
           {sections.map((s) => <RailLink key={s.id} to={s.items[0].to} end={s.items[0].end} icon={s.icon} label={s.label} active={s === current} badge={s.panel === 'chat' ? chatUnread : 0} />)}
+          {appSection && <RailLink to={appSection.items[0].to} icon={appSection.icon} label={appSection.label} active />}
         </nav>
         <div className="mt-auto flex flex-col items-center gap-1.5">
           {bottom.map((item) => <RailLink key={item.to} to={item.to} icon={item.icon} label={item.label} active={isActivePath({ ...item, end: !item.prefix }, pathname)} />)}

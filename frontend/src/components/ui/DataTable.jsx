@@ -51,7 +51,8 @@ function SortIcon({ dir }) {
  * `sort` = { key, dir: 'asc' | 'desc' } and `onSort(key)` make columns with `sortable` clickable — the data layer does the sorting.
  * Selection: `{ selected:Set, onToggle(id), onToggleAll(checked) }`. Presentation only — no data logic.
  */
-export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick, loading = false, empty = 'Nothing to show', footer, sort, onSort, storageKey, className }) {
+const DENSITY = { compact: 'h-10', normal: 'h-14', comfortable: 'h-[4.5rem]' };
+export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick, loading = false, empty = 'Nothing to show', footer, sort, onSort, storageKey, className, density = 'normal', striped = true }) {
   const allSelected = rows.length > 0 && rows.every((r) => selection?.selected.has(r[rowKey]));
   const { widthOf, set, widths } = useColumnWidths(columns, storageKey);
   const total = widths.reduce((a, b) => a + b, 0) + (selection ? SELECT_WIDTH : 0);
@@ -88,7 +89,7 @@ export function DataTable({ columns, rows, rowKey = 'id', selection, onRowClick,
               <tr
                 key={row[rowKey]}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn('h-14 border-t border-line even:bg-[color-mix(in_srgb,var(--ink)_3%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
+                className={cn(DENSITY[density] ?? 'h-14', 'border-t border-line', striped && 'even:bg-[color-mix(in_srgb,var(--ink)_3%,var(--surface))]', onRowClick && 'cursor-pointer hover:bg-accent-soft')}
               >
                 {selection && <td className="pl-4 pr-0" onClick={(e) => e.stopPropagation()}><Checkbox aria-label="Select row" checked={selection.selected.has(row[rowKey])} onChange={() => selection.onToggle(row[rowKey])} /></td>}
                 {columns.map((c) => {

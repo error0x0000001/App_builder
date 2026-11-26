@@ -211,3 +211,52 @@ describe('picklist defaults', () => {
     assert.equal((await evaluate(c, inv, { values: { priority: 'low' } })).fields.priority.value, 'low');
   });
 });
+
+describe('auto-number counters', () => {
+  it('formats numbers with padding, date tokens and a step', async () => {
+    const { formatSequence, periodOf } = await import('../src/modules/objects/sequence.service.js');
+    const at = new Date(Date.UTC(2026, 10, 26));
+    assert.equal(formatSequence('SHP-{0000}', 42, at), 'SHP-0042');
+    assert.equal(formatSequence('{YYYY}/{MM}-{000}', 7, at), '2026/11-007');
+    assert.equal(formatSequence('N{0}', 12345, at), 'N12345', 'padding is a minimum, never a cut-off');
+    assert.equal(periodOf('yearly', at), '2026'); assert.equal(periodOf('monthly', at), '2026-11'); assert.equal(periodOf('daily', at), '2026-11-26'); assert.equal(periodOf('never', at), '');
+  });
+
+  it('hands out unique, consecutive numbers even when many are taken at once, per workspace and per period', async () => {
+    const c = await boss(); const inv = await newObject(c);
+    const field = (await addField(c, inv, { key: 'ref', label: 'Reference', type: 'auto_number', settings: { format: 'SHP-{0000}', start: 100, increment: 5 } })).body.field;
+    const { sequences } = server.container;
+    const tenantId = (await c.get('/me')).body.activeTenantId; const workspaceId = (await c.get('/me')).body.activeWorkspaceId;
+    const f = { ...field, objectId: inv.id };
+    assert.equal((await sequences.peek({ tenantId, workspaceId, field: f })).value, 'SHP-0100', 'peeking takes nothing');
+    const taken = await Promise.all(Array.from({ length: 25 }, () => sequences.next({ tenantId, workspaceId, field: f })));
+    const numbers = taken.map((t) => t.number).sort((a, b) => a - b);
+    assert.deepEqual(numbers, Array.from({ length: 25 }, (_, i) => 100 + i * 5), 'no duplicates and no gaps');
+    assert.equal((await sequences.peek({ tenantId, workspaceId, field: f })).value, 'SHP-0225');
+    assert.equal((await sequences.next({ tenantId, workspaceId: '0198f000-0000-7000-8000-000000000001', field: f })).value, 'SHP-0100', 'another workspace counts on its own');
+    const tenantWide = { ...f, settings: { ...f.settings, scope: 'tenant' } };
+    assert.equal((await sequences.next({ tenantId, workspaceId, field: tenantWide })).value, 'SHP-0100', 'a tenant-wide counter is separate from the workspace ones');
+  });
+
+  it('starts again each period and rolls back with the record that asked for it', async () => {
+    const c = await boss(); const inv = await newObject(c);
+    const field = (await addField(c, inv, { key: 'ref', label: 'Reference', type: 'auto_number', settings: { format: '{YY}{MM}-{000}', cycle: 'monthly' } })).body.field;
+    const { sequences } = server.container;
+    const { db } = await import('../src/shared/db/index.js');
+    const tenantId = (await c.get('/me')).body.activeTenantId; const workspaceId = (await c.get('/me')).body.activeWorkspaceId;
+    const f = { ...field, objectId: inv.id };
+    assert.equal((await sequences.next({ tenantId, workspaceId, field: f, at: new Date(Date.UTC(2026, 0, 5)) })).value, '2601-001');
+    assert.equal((await sequences.next({ tenantId, workspaceId, field: f, at: new Date(Date.UTC(2026, 0, 6)) })).value, '2601-002');
+    assert.equal((await sequences.next({ tenantId, workspaceId, field: f, at: new Date(Date.UTC(2026, 1, 1)) })).value, '2602-001', 'a new month starts again');
+    await assert.rejects(db.transaction(async (tx) => { await sequences.next({ tenantId, workspaceId, field: f, at: new Date(Date.UTC(2026, 0, 7)), executor: tx }); throw new Error('record failed'); }));
+    assert.equal((await sequences.next({ tenantId, workspaceId, field: f, at: new Date(Date.UTC(2026, 0, 8)) })).value, '2601-003', 'the rolled-back number was given back');
+  });
+
+  it('shows the next number on the form and where the counter stands', async () => {
+    const c = await boss(); const inv = await newObject(c);
+    const field = (await addField(c, inv, { key: 'ref', label: 'Reference', type: 'auto_number', settings: { format: 'INV-{000}', start: 7 } })).body.field;
+    assert.equal((await evaluate(c, inv, { values: {} })).fields.ref.value, 'INV-007');
+    const status = (await c.get(`${O}/${inv.id}/fields/${field.id}/sequence`)).body;
+    assert.equal(status.next, 'INV-007'); assert.equal(status.lastIssued, null); assert.deepEqual(status.examples, ['INV-007', 'INV-008', 'INV-009']);
+  });
+});

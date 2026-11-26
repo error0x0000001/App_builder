@@ -27,6 +27,7 @@ export function evaluateObject({ fields, recordRules = [], values = {}, ctx }) {
         working[field.key] = r.error ? null : (r.value === null && field.settings?.blank !== 'blank' && field.settings?.returnType === 'number' ? 0 : r.value);
         filled[field.key] = { computed: true, error: r.error ?? null };
       }
+      if (field.type === 'auto_number') { working[field.key] = ctx.sequencePreviews?.[field.key] ?? null; filled[field.key] = { computed: true, error: null }; } // the number the record will get (not yet taken)
       continue;
     }
     const state0 = computeFieldState(field, here);

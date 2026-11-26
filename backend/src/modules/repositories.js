@@ -15,6 +15,7 @@ import { MembershipRepository } from './tenants/membership.repository.js';
 import { TenantRepository } from './tenants/tenant.repository.js';
 import { WorkspaceRepository } from './workspaces/workspace.repository.js';
 import { ObjectRepository } from './objects/object.repository.js';
+import { AppRepository } from './apps/app.repository.js';
 
 /** Builds every repository over one executor (the pool, or a transaction). */
 export const createRepositories = (executor) => ({
@@ -25,6 +26,7 @@ export const createRepositories = (executor) => ({
   memberships: new MembershipRepository(executor),
   workspaces: new WorkspaceRepository(executor),
   objects: new ObjectRepository(executor),
+  apps: new AppRepository(executor),
   invitations: new InvitationRepository(executor),
   recoveryCodes: new RecoveryCodeRepository(executor),
   oauthAccounts: new OAuthAccountRepository(executor),

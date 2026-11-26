@@ -38,6 +38,10 @@ export function objectsRoutes({ tokens, membershipLookup, objectDefs, workspaces
     res.json(await objectDefs.options({ tenantId: tenant(req), objectId: req.params.id, fieldId: req.params.fieldId, query: req.valid.query, person: await objectDefs.personFor(tenant(req), req.auth, req.membership, req.workspaceId) }));
   });
 
+  router.get('/:id/fields/:fieldId/sequence', validate({ params: fieldParam }), async (req, res) => {
+    res.json(await objectDefs.sequenceStatus({ tenantId: tenant(req), objectId: req.params.id, fieldId: req.params.fieldId, person: await objectDefs.personFor(tenant(req), req.auth, req.membership, req.workspaceId) }));
+  });
+
   router.post('/:id/evaluate', limited('obj-eval', 600), validate({ params: objectParam, body: evaluateBodySchema }), async (req, res) => {
     res.json(await objectDefs.evaluate({ tenantId: tenant(req), objectId: req.params.id, body: req.valid.body, person: await objectDefs.personFor(tenant(req), req.auth, req.membership, req.workspaceId) }));
   });

@@ -28,7 +28,7 @@ const fieldDto = (f) => ({
 
 /** Object and field definitions: configuration only. Everything about how a field behaves is validated and evaluated here. */
 export class ObjectService {
-  constructor({ repos, cache }) { Object.assign(this, { repos, cache }); }
+  constructor({ repos, cache, sequences }) { Object.assign(this, { repos, cache, sequences }); }
 
   meta() {
     return {
@@ -142,7 +142,22 @@ export class ObjectService {
       user: { id: person.userId, role: as.role ?? person.role, profile: as.profile ?? person.profile, permissionSets: as.permissionSets ?? person.permissionSets ?? [], workspaceId: person.workspaceId },
       context: { ...body.context, isOwner: body.context.isOwner ?? true },
     };
+    if (body.context.mode === 'create') {
+      const previews = {};
+      for (const f of fields.filter((x) => x.type === 'auto_number' && x.active)) previews[f.key] = (await this.sequences.peek({ tenantId, workspaceId: person.workspaceId, field: { ...f, objectId } })).value;
+      ctx.sequencePreviews = previews;
+    }
     return evaluateObject({ fields, recordRules: object.recordRules, values: body.values, ctx });
+  }
+
+  /** Where an auto-number counter stands, and what its format looks like. */
+  async sequenceStatus({ tenantId, objectId, fieldId, person }) {
+    const { fields } = await this.get(tenantId, objectId);
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field || field.type !== 'auto_number') throw new NotFoundError('Auto-number field not found');
+    const f = { ...field, objectId };
+    const next = await this.sequences.peek({ tenantId, workspaceId: person.workspaceId, field: f });
+    return { next: next.value, lastIssued: next.taken, examples: this.sequences.example({ format: field.settings.format, start: field.settings.start, increment: field.settings.increment }) };
   }
 
   /** Choices for a picker, searched and limited on the server. */

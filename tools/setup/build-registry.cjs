@@ -88,7 +88,11 @@ const slug = (s) => String(s).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0
   fixtures.objects = raw.objects.map((o) => ({ ...o, fields: o.fields.map((f) => { const [label, type] = String(f.label).includes(':') ? String(f.label).split(':') : [f.label, f.type]; return { label, type: type || 'text' }; }) }));
   const tree = raw.tree.map((g) => treeNode(g, []));
   // the top level of TREE is [GROUP, [sections]] — flatten the group so 'path' = [group, section, ...]
-  const registry = { generatedFrom: path.basename(html), counts: {}, tree, pages };
+  // Pages of the mock-up that duplicate something we built ourselves; they are not part of the product.
+  const OMIT = new Set(['schema-builder', 'picklist-value-sets']); // Schema Builder = the Object Manager page; shared picklist value sets are not part of our model
+  const dropOmitted = (nodes) => nodes.filter((n) => !OMIT.has(n.page)).map((n) => (n.children ? { ...n, children: dropOmitted(n.children) } : n));
+  OMIT.forEach((k) => delete pages[k]);
+  const registry = { generatedFrom: path.basename(html), counts: {}, tree: dropOmitted(tree), pages };
   for (const p of Object.values(pages)) registry.counts[p.kind] = (registry.counts[p.kind] || 0) + 1;
   registry.counts.total = Object.keys(pages).length;
 

@@ -20,7 +20,8 @@ const ResetPasswordPage = page(() => import('./pages/auth/ResetPasswordPage.jsx'
 const AcceptInvitePage = page(() => import('./pages/auth/AcceptInvitePage.jsx'));
 const OAuthCallbackPage = page(() => import('./pages/auth/OAuthCallbackPage.jsx'));
 const OnboardingPage = page(() => import('./pages/onboarding/OnboardingPage.jsx'));
-const HomePage = page(() => import('./pages/app/HomePage.jsx'));
+const HomePage = page(() => import('./pages/app/LauncherPage.jsx'));
+const AppPage = page(() => import('./pages/apps/AppPage.jsx'));
 const MembersPage = page(() => import('./pages/app/MembersPage.jsx'));
 const ProfilePage = page(() => import('./pages/app/ProfilePage.jsx'));
 const SecurityPage = page(() => import('./pages/app/SecurityPage.jsx'));
@@ -56,6 +57,8 @@ export default function App() {
           <Route element={<RequireOnboarding />}>
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<HomePage />} />
+              <Route path="a/:appKey" element={<AppPage />} />
+              <Route path="a/:appKey/:routeId" element={<AppPage />} />
               <Route path="members" element={<MembersPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="security" element={<SecurityPage />} />

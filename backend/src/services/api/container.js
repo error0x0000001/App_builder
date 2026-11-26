@@ -15,6 +15,8 @@ import { MfaService } from '../../modules/mfa/mfa.service.js';
 import { OAuthService } from '../../modules/oauth/oauth.service.js';
 import { SessionService } from '../../modules/sessions/session.service.js';
 import { UserService } from '../../modules/users/user.service.js';
+import { AppService } from '../../modules/apps/app.service.js';
+import { SequenceService } from '../../modules/objects/sequence.service.js';
 import { ObjectService } from '../../modules/objects/object.service.js';
 import { WorkspaceService } from '../../modules/workspaces/workspace.service.js';
 import { TenantService } from '../../modules/tenants/tenant.service.js';
@@ -70,7 +72,9 @@ export function createContainer({ boss }) {
   const audit = new AuditService({ repos, logger });
   const oneTime = new OneTimeTokenService({ repos, pepper: config.JWT_SECRET });
   const workspaces = new WorkspaceService({ repos, uow });
-  const objectDefs = new ObjectService({ repos, cache });
+  const sequences = new SequenceService({ db });
+  const objectDefs = new ObjectService({ repos, cache, sequences });
+  const appService = new AppService({ repos, cache, objectDefs, db });
   const sessions = new SessionService({
     securityPolicy, workspaces, repos, tokens, audit, refreshTtlDays: config.REFRESH_TOKEN_TTL_DAYS, accessTtlSeconds: config.ACCESS_TOKEN_TTL_SECONDS,
   });
@@ -126,5 +130,5 @@ export function createContainer({ boss }) {
   const deployments = createDeployments({ enabled: config.DEPLOYMENTS_ENABLED, db, secretBox, repos, integrations, notifier, boss, logger });
   const terminals = createTerminals({ deployments, tokens, membershipLookup, logger });
   const features = Object.freeze({ accessAddons: Boolean(addons), deployments: Boolean(deployments) });
-  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, access, securityPolicy, workspaces, objectDefs, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
+  return { deployments, terminals, integrations, features, linkPreviews, avatars, icons, people, chat, calls, presence, realtime, search, drive, users, access, securityPolicy, workspaces, objectDefs, appService, sequences, cache, usage, membershipLookup, setup, close, repos, tokens, rateLimit: createRateLimiters(repos.rateLimits), auth, password, mfa, sessions, tenants, invitations, users, audit, oauth };
 }

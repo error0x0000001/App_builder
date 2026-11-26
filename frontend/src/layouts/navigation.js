@@ -46,7 +46,7 @@ export const NAV = {
 };
 
 /** Routes that exist but aren't nav rows. */
-const HIDDEN_PAGES = [{ to: '/app/tenants/new', icon: 'plus', label: 'New organisation' }];
+const HIDDEN_PAGES = [{ to: '/app/tenants/new', icon: 'plus', label: 'New organisation' }, { to: '/app/a', icon: 'grid', label: 'App', prefix: true }];
 
 export const NAV_ITEMS = [...NAV.main, ...NAV.groups.flatMap((g) => g.items), ...NAV.bottom];
 

@@ -11,7 +11,7 @@ const useDebounced = (value, ms) => { const [v, setV] = useState(value); useEffe
  * All the fields of an object as a form. It keeps what was typed, asks the server to resolve every field for those values
  * (POST /objects/:id/evaluate) and renders the answer. It contains no rules of its own.
  */
-export function ObjectForm({ objectId, mode = 'create', as, onResult }) {
+export function ObjectForm({ objectId, mode = 'create', as, onResult, fieldKeys, columns = 1, footer = true }) {
   const object = useQuery({ queryKey: ['object', objectId], queryFn: () => objectsApi.get(objectId) });
   const [values, setValues] = useState({});
   const [original, setOriginal] = useState({});
@@ -24,7 +24,8 @@ export function ObjectForm({ objectId, mode = 'create', as, onResult }) {
 
   if (object.isPending) return <div className="grid place-items-center py-10"><Spinner className="size-5" /></div>;
   if (object.isError) return <Alert tone="error">{object.error.message}</Alert>;
-  const fields = object.data.fields.filter((f) => f.active);
+  const all = object.data.fields.filter((f) => f.active);
+  const fields = fieldKeys ? fieldKeys.map((k) => all.find((f) => f.key === k)).filter(Boolean) : all;
   const sections = [...new Set(fields.map((f) => f.section || ''))];
   const state = result.data?.fields ?? {};
   return (
@@ -32,15 +33,15 @@ export function ObjectForm({ objectId, mode = 'create', as, onResult }) {
       {result.data?.recordErrors?.map((e) => <Alert key={e.code} tone="error">{e.message}</Alert>)}
       {fields.length === 0 && <p className="text-sm text-muted">This object has no fields yet.</p>}
       {sections.map((section) => (
-        <div key={section} className="space-y-4">
-          {section && <h3 className="border-b border-line pb-1 text-sm font-semibold text-ink">{section}</h3>}
+        <div key={section} className={columns > 1 ? `grid gap-4 ${columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}` : 'space-y-4'}>
+          {section && !fieldKeys && <h3 className="col-span-full border-b border-line pb-1 text-sm font-semibold text-ink">{section}</h3>}
           {fields.filter((f) => (f.section || '') === section).map((f) => state[f.key]?.visible === false ? null : (
             <FieldRenderer key={f.id} field={f} objectId={objectId} state={state[f.key]} value={values[f.key]} showErrors={checked || touched.has(f.key)} parentValues={values} context={{ mode }}
               onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} onBlur={() => setTouched((t) => new Set(t).add(f.key))} />
           ))}
         </div>
       ))}
-      {fields.length > 0 && (
+      {fields.length > 0 && footer && (
         <div className="flex items-center gap-3 border-t border-line pt-3 text-sm">
           <button type="button" onClick={() => setChecked(true)} className="font-semibold text-link outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">Check all fields</button>
           <span className={result.data?.valid ? 'text-success' : 'text-muted'}>{result.data ? (result.data.valid ? 'Everything is valid' : 'Some fields need attention') : 'Checking…'}</span>

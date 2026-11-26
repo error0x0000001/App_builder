@@ -119,7 +119,7 @@ function FieldsTab({ object, meta, allFields }) {
       <DataTable rows={list.data?.items ?? []} loading={list.isPending} columns={columns} storageKey="fields" empty={debounced || group || flag ? 'No fields match.' : 'No fields yet. Add the first one with +.'} onRowClick={(f) => setSheet({ field: f })}
         sort={{ key: sort === 'order' ? '' : sort, dir: order }} onSort={(key) => { if (!['label', 'type'].includes(key)) return; setOrder(sort === key && order === 'asc' ? 'desc' : 'asc'); setSort(key); }} />
       {sheet && <FieldSheet key={sheet.field?.id ?? 'new'} open objectId={object.id} field={sheet.field} meta={meta} fields={allFields} onClose={() => setSheet(null)} />}
-      <ConfirmDialog open={Boolean(removing)} title={`Delete ${removing?.label}?`} message="The field and its configuration are removed. Fields that depend on it block the delete." confirmLabel="Delete field" tone="danger" loading={remove.isPending} onConfirm={() => remove.mutate(removing)} onClose={() => { setRemoving(null); remove.reset(); }} />
+      <ConfirmDialog open={Boolean(removing)} title={`Delete ${removing?.label}?`} description="The field and its configuration are removed. Fields that depend on it block the delete." confirmLabel="Delete field" danger onConfirm={() => remove.mutate(removing)} onClose={() => { setRemoving(null); remove.reset(); }} />
     </div>
   );
 }
