@@ -12,7 +12,7 @@ export const CONSUMED_SETTINGS = Object.freeze({
   'login-access-policies': ['administrators_can_log_in_as_any_user'],
 });
 
-const REAL_SPECIALS = new Set(['sharing', 'health', 'sysoverview', 'themes']);
+const REAL_SPECIALS = new Set(['sharing', 'health', 'sysoverview', 'themes', 'objmgr', 'schema']);
 const REAL_DASHBOARDS = new Set(['storage-usage', 'platform-cache', 'optimizer']);
 const NOT_ENABLED = new Set(['readiness-assessor', 'data-com-licenses-and-limits', 'lightning-experience-transition-assistant', 'data-integration-metrics']);
 const BINDINGS = new Set(['company-information', 'my-domain']);

@@ -237,3 +237,21 @@ export const chatApi = {
   moderateCall: (id, body) => post(`/chat/conversations/${id}/call/moderate`, body),
   endCall: (id) => post(`/chat/conversations/${id}/call/end`),
 };
+
+/** Object and field definitions (configuration). The server filters, sorts, searches and evaluates; the UI renders. */
+export const objectsApi = {
+  meta: () => get('/objects/meta'),
+  list: (params) => get(`/objects${qs(params)}`),
+  get: (id) => get(`/objects/${id}`),
+  create: (body) => post('/objects', body),
+  update: (id, body) => patch(`/objects/${id}`, body),
+  archive: (id) => post(`/objects/${id}/archive`),
+  restore: (id) => post(`/objects/${id}/restore`),
+  fields: (id, params) => get(`/objects/${id}/fields${qs(params)}`),
+  createField: (id, body) => post(`/objects/${id}/fields`, body),
+  updateField: (id, fieldId, body) => patch(`/objects/${id}/fields/${fieldId}`, body),
+  deleteField: (id, fieldId) => del(`/objects/${id}/fields/${fieldId}`),
+  order: (id, ids) => put(`/objects/${id}/fields/order`, { ids }),
+  options: (id, fieldId, params) => get(`/objects/${id}/fields/${fieldId}/options${qs(params)}`),
+  evaluate: (id, body) => post(`/objects/${id}/evaluate`, body),
+};

@@ -10,7 +10,7 @@ import { Icon } from './Icon.jsx';
  */
 const openSheets = []; // ids, topmost last
 
-export function Sheet({ open, onClose, title, description, footer, level = 0, width = 'w-[22rem]', children }) {
+export function Sheet({ open, onClose, title, description, footer, level = 0, width = 'w-[22rem]', icon, children }) {
   const id = useId();
   useEffect(() => {
     if (!open) return undefined;
@@ -25,7 +25,8 @@ export function Sheet({ open, onClose, title, description, footer, level = 0, wi
     <>
       <div aria-hidden="true" onMouseDown={onClose} style={{ zIndex: 74 + level * 4 }} className="backdrop-in fixed inset-0 bg-black/25 backdrop-blur-[2px]" />
     <aside role="dialog" aria-label={title} style={{ zIndex: 75 + level * 4 }} className={`sheet-in fixed bottom-2 right-2 top-2 flex ${width} max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface text-ink`}>
-      <header className="flex items-start gap-2 border-b border-line px-4 py-3">
+      <header className="flex items-start gap-3 border-b border-line px-4 py-3">
+        {icon && <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg border border-line-strong bg-surface text-ink"><Icon name={icon} className="size-5" /></span>}
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold">{title}</h2>
           {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}

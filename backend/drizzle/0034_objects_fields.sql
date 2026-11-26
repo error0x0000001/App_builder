@@ -1,0 +1,66 @@
+-- Object and field DEFINITIONS (configuration only, per tenant). Records come later; nothing reads these tables from a page yet.
+CREATE TABLE "objects" (
+  "id" uuid PRIMARY KEY NOT NULL,
+  "tenant_id" uuid NOT NULL REFERENCES "tenants"("id") ON DELETE CASCADE,
+  "key" text NOT NULL,
+  "label" text NOT NULL,
+  "plural_label" text NOT NULL,
+  "description" text DEFAULT '' NOT NULL,
+  "icon" text DEFAULT 'layers' NOT NULL,
+  "color" text DEFAULT 'brand' NOT NULL,
+  "kind" text DEFAULT 'custom' NOT NULL,
+  "workspace_scope" text DEFAULT 'workspace' NOT NULL,
+  "has_owner" boolean DEFAULT true NOT NULL,
+  "allow_reports" boolean DEFAULT true NOT NULL,
+  "allow_activities" boolean DEFAULT false NOT NULL,
+  "allow_attachments" boolean DEFAULT true NOT NULL,
+  "track_history" boolean DEFAULT false NOT NULL,
+  "allow_search" boolean DEFAULT true NOT NULL,
+  "record_name" jsonb DEFAULT '{"kind":"field"}'::jsonb NOT NULL,
+  "record_rules" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "deployment_status" text DEFAULT 'deployed' NOT NULL,
+  "archived_at" timestamp with time zone,
+  "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "objects_tenant_id_uq" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "objects_key_chk" CHECK ("key" ~ '^[A-Za-z][A-Za-z0-9_]{1,39}$'),
+  CONSTRAINT "objects_kind_chk" CHECK ("kind" IN ('standard', 'custom')),
+  CONSTRAINT "objects_scope_chk" CHECK ("workspace_scope" IN ('workspace', 'tenant')),
+  CONSTRAINT "objects_status_chk" CHECK ("deployment_status" IN ('development', 'deployed'))
+);--> statement-breakpoint
+CREATE UNIQUE INDEX "objects_key_uq" ON "objects" ("tenant_id", lower("key"));--> statement-breakpoint
+CREATE INDEX "objects_list_idx" ON "objects" ("tenant_id", "archived_at", lower("label"));--> statement-breakpoint
+
+CREATE TABLE "fields" (
+  "id" uuid PRIMARY KEY NOT NULL,
+  "tenant_id" uuid NOT NULL,
+  "object_id" uuid NOT NULL,
+  "key" text NOT NULL,
+  "label" text NOT NULL,
+  "type" text NOT NULL,
+  "help_text" text DEFAULT '' NOT NULL,
+  "description" text DEFAULT '' NOT NULL,
+  "required" boolean DEFAULT false NOT NULL,
+  "is_unique" boolean DEFAULT false NOT NULL,
+  "indexed" boolean DEFAULT false NOT NULL,
+  "encrypted" boolean DEFAULT false NOT NULL,
+  "read_only" boolean DEFAULT false NOT NULL,
+  "default_value" jsonb,
+  "settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "rules" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "validations" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "autofill" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "section" text DEFAULT '' NOT NULL,
+  "sort_order" integer DEFAULT 0 NOT NULL,
+  "system" boolean DEFAULT false NOT NULL,
+  "active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "fields_object_fk" FOREIGN KEY ("tenant_id", "object_id") REFERENCES "objects"("tenant_id", "id") ON DELETE CASCADE,
+  CONSTRAINT "fields_key_chk" CHECK ("key" ~ '^[A-Za-z][A-Za-z0-9_]{0,40}$'),
+  CONSTRAINT "fields_unique_not_encrypted_chk" CHECK (NOT ("is_unique" AND "encrypted")),
+  CONSTRAINT "fields_indexed_not_encrypted_chk" CHECK (NOT ("indexed" AND "encrypted"))
+);--> statement-breakpoint
+CREATE UNIQUE INDEX "fields_key_uq" ON "fields" ("object_id", lower("key"));--> statement-breakpoint
+CREATE INDEX "fields_list_idx" ON "fields" ("tenant_id", "object_id", "sort_order", "id");

@@ -18,6 +18,7 @@ import { meRoutes } from './routes/me.routes.js';
 import { searchRoutes } from './routes/search.routes.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { integrationsRoutes } from './routes/integrations.routes.js';
+import { objectsRoutes } from './routes/objects.routes.js';
 import { deploymentsRoutes } from './routes/deployments.routes.js';
 import { tenantRoutes } from './routes/tenants.routes.js';
 
@@ -60,6 +61,7 @@ export function createApp(container, { recycler } = {}) {
   app.use('/api/v1/invitations', invitationRoutes(container));
   app.use('/api/v1/setup', setupRoutes(container));
   app.use('/api/v1/integrations', integrationsRoutes(container));
+  app.use('/api/v1/objects', objectsRoutes(container));
   if (container.deployments) app.use('/api/v1/deployments', deploymentsRoutes(container)); // not mounted when DEPLOYMENTS_ENABLED=false: the paths do not exist
   app.use('/api/v1/search', searchRoutes(container));
   app.use('/api/v1/drive', driveRoutes(container));

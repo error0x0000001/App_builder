@@ -3,6 +3,7 @@ import {
   Home02, InfoCircle, LayoutLeft, Lock01, LogOut01, Mail01, Monitor01, Moon01, Plus, RefreshCw01, SearchLg, Sliders01, Sun, SwitchVertical01, Trash01, User01, Users01, XClose, ShieldTick,
   FaceSmile, CornerUpLeft, CornerUpRight, Pin01, Send01, MessageChatCircle, Bell01, BellOff01, Archive, Phone01, VideoRecorder, UserPlus02, Microphone01, MicrophoneOff01, PhoneX, Airplay, VideoRecorderOff, BarChartSquare02, Hand, Image01, Play, PauseCircle, CalendarPlus01, ClockStopwatch, Eye as EyeIcon,
 } from '@untitledui/icons';
+import { Type01, AlignLeft, Hash02, Percent02, CurrencyDollar, Flag01, Tag01, GitMerge, Shuffle01, Variable, Calculator, Table, MarkerPin01, PenTool01, QrCode01, Bold01, Italic01, Underline01, ChevronUp, HelpCircle, Camera01, StopCircle as StopSquare, DotsGrid } from '@untitledui/icons';
 
 /**
  * The app's one icon set: Untitled UI Icons (@untitledui/icons, line style, 24px grid). Components refer to icons by name;
@@ -18,6 +19,7 @@ const ICONS = {
   'log-out': LogOut01, 'panel-left': LayoutLeft, 'chevrons-up-down': ChevronSelectorVertical, 'chevron-right': ChevronRight, 'chevron-down': ChevronDown, 'chevron-left': ChevronLeft,
   'more-horizontal': DotsHorizontal,
   smile: FaceSmile, reply: CornerUpLeft, forward: CornerUpRight, pin: Pin01, send: Send01, chat: MessageChatCircle, bell: Bell01, 'bell-off': BellOff01, archive: Archive,
+  type: Type01, 'align-left': AlignLeft, hash: Hash02, percent: Percent02, currency: CurrencyDollar, flag: Flag01, tag: Tag01, 'git-merge': GitMerge, shuffle: Shuffle01, function: Variable, sigma: Calculator, table: Table, 'map-pin': MarkerPin01, pen: PenTool01, 'qr-code': QrCode01, bold: Bold01, italic: Italic01, underline: Underline01, 'chevron-up': ChevronUp, help: HelpCircle, camera: Camera01, stop: StopSquare, drag: DotsGrid,
   phone: Phone01, video: VideoRecorder, 'user-plus': UserPlus02, mic: Microphone01, 'mic-off': MicrophoneOff01, 'phone-off': PhoneX, 'screen-share': Airplay, 'video-off': VideoRecorderOff, poll: BarChartSquare02, image: Image01, play: Play, pause: PauseCircle, hand: Hand, 'calendar-plus': CalendarPlus01, timer: ClockStopwatch,
 };
 

@@ -1,6 +1,6 @@
 # Objects and fields — specification (draft for review)
 
-Status: **draft, nothing built.** Definitions are per **tenant**; records carry `tenant_id` + `workspace_id`. No generic JSON store: anything with its own rows gets a real table. "Comments / activity feed" is deliberately **not** a field type.
+Status: **configuration built** (objects + fields tables, server-side engine, Setup › Object Manager, field components); records, layouts, field security and real encryption are not. All rules, validation and formulas run on the server; the browser only renders. Definitions are per **tenant**; records carry `tenant_id` + `workspace_id`. No generic JSON store: anything with its own rows gets a real table. "Comments / activity feed" is deliberately **not** a field type.
 
 ## 1. Properties common to every field
 
@@ -32,9 +32,10 @@ Status: **draft, nothing built.** Definitions are per **tenant**; records carry 
 | Long text | `text` | max length (≤131,072), visible lines | Not indexable |
 | Rich text | `text` (sanitised HTML) | max length, allowed formatting, image uploads to Drive, mentions | Shared sanitiser |
 | HTML | `text` | mode (display-only / source editor), allowed tags + attributes, max length | No scripts, inline handlers or external frames |
-| Number | `numeric(p,s)` | digits, decimal places | |
-| Currency | `numeric(p,s)` | digits, decimals, currency code | Multi-currency later |
-| Percent | `numeric(p,s)` | digits, decimals | |
+| Number | `bigint` | min, max | Whole numbers only |
+| Decimal | `numeric` (no fixed scale) | min, max | Stored exactly as typed; no decimal-places setting |
+| Currency | `numeric` + currency code column | currency code, min, max | Amount stored exactly as typed; no decimal-places setting; multi-currency later |
+| Percent | `numeric` | min, max | Stored exactly as typed |
 | Checkbox | `boolean` | default checked | Never null |
 | Date | `date` | default | |
 | Date-time | `timestamptz` | default | Shown in the person's zone |
